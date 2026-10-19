@@ -550,3 +550,10 @@ def test_rollback_refusesForeignLines(tmp_path):
 ])
 def test_mergeServices(flat, expected):
     assert pv.merge_services(flat, pv.HELPER_SERVICE) == expected
+
+
+def test_home_holder_from_dumpsys_role_when_cmd_role_lacks_get_role_holders():
+    from tvtool.provision import parse_dumpsys_role_holder
+    out = "  {\n      name=android.app.role.HOME\n      holders=dev.tvlauncher\n  }\n"
+    assert parse_dumpsys_role_holder(out) == "dev.tvlauncher"
+    assert parse_dumpsys_role_holder("name=android.app.role.DIALER\nholders=x.y\n") is None

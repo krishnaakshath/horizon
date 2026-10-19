@@ -46,7 +46,7 @@ APPOP_MODES = ("allow", "ignore", "deny", "default", "foreground")
 UNSUPPORTED = "unsupported"
 TCL_RESUME = "tcl.sys.intent.action.STR_RESUME_COMPLETED"
 POWER_RECEIVER = f"{LAUNCHER}/.power.PowerOnReceiver"
-SELFTEST_LINE = "PowerOn: home in front via DIRECT"
+SELFTEST_LINE = "home in front via DIRECT"  # tag and spacing before it differ between logcat builds
 SELFTEST_WAIT_S = 15
 # Intent actions that look like package names but are not packages.
 SCOPE_TOKENS = frozenset({TCL_RESUME})
@@ -218,6 +218,24 @@ def _home_query(sdk: int) -> tuple[str, ...]:
             "-c", "android.intent.category.HOME")
 
 
+def parse_dumpsys_role_holder(out: str) -> str | None:
+    """Holder of the HOME role from `dumpsys role` (TVs whose `cmd role` lacks get-role-holders)."""
+    m = re.search(r"name=android\.app\.role\.HOME\s+holders=([A-Za-z0-9_.]+)", out)
+    return m.group(1) if m and PKG_RE.match(m.group(1)) else None
+
+
+def _home_holder(adb: Adb, sdk: int) -> str | None:
+    try:
+        return parse_home_holder(adb.shell(*_home_query(sdk)), sdk)
+    except AdbError:
+        if sdk < 29:
+            raise
+        try:
+            return parse_dumpsys_role_holder(adb.shell("dumpsys", "role"))
+        except AdbError:
+            return None
+
+
 def probe(adb: Adb) -> Probe:
     g = lambda k: adb.shell("getprop", k).strip()
     try:
@@ -228,7 +246,7 @@ def probe(adb: Adb) -> Probe:
     disabled = parse_packages(adb.shell("pm", "list", "packages", "-d"))
     secure = {k: _none_if_null(adb.shell("settings", "get", "secure", k)) for k in SECURE_KEYS}
     p = Probe(sdk, g("ro.product.manufacturer"), g("ro.product.model"), installed, disabled, secure,
-              parse_home_holder(adb.shell(*_home_query(sdk)), sdk))
+              _home_holder(adb, sdk))
     if LAUNCHER in installed:
         p.granted = parse_granted(adb.shell("dumpsys", "package", LAUNCHER))
         p.usage_allowed = "allow" in adb.shell("appops", "get", LAUNCHER, "GET_USAGE_STATS").lower()
@@ -551,7 +569,7 @@ def verify(kind: str, step: Step, adb: Adb, sdk: int, mark: str | None = None) -
     if kind == "tv_setup":
         return adb.shell("settings", "get", "secure", "tv_user_setup_complete").strip() == "1"
     if kind == "home":
-        return parse_home_holder(adb.shell(*_home_query(sdk)), sdk) == LAUNCHER
+        return _home_holder(adb, sdk) == LAUNCHER
     if kind == "disabled":
         return step.argv[-1] in parse_packages(adb.shell("pm", "list", "packages", "-d"))
     raise ValueError(f"unknown check {kind!r}")
