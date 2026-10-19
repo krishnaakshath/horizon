@@ -2,7 +2,6 @@ package dev.tvlauncher.safemode
 
 import android.app.Activity
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
 import android.util.TypedValue
@@ -49,7 +48,14 @@ class SafeModeActivity : Activity() {
         try {
             if (minimal) buildMinimal() else { buildList(); load() }
         } catch (e: Throwable) {
-            try { buildMinimal() } catch (e2: Throwable) { }
+            try {
+                buildMinimal()
+            } catch (e2: Throwable) {
+                // Even the minimal screen failed: count it, leave for the TV's Settings app, go.
+                try { SafeMode.guard(this).recordSafeModeCrash(e2.javaClass.simpleName.ifEmpty { "Throwable" }) } catch (e3: Throwable) { }
+                try { SettingsEscape.open(this) } catch (e3: Throwable) { }
+                try { finish() } catch (e3: Throwable) { }
+            }
         }
     }
 
@@ -74,7 +80,7 @@ class SafeModeActivity : Activity() {
         val root = column()
         root.addView(text(SafeModeList.HEADER, 30f, Color.WHITE))
         var first: View? = null
-        for (row in SafeModeList.minimal(stockLauncherIntent() != null)) {
+        for (row in SafeModeList.minimal(StockLauncher.intent(this) != null, StockLauncher.label(this))) {
             val v: View = if (row is SafeModeList.Row.Notice) {
                 text(row.text, 18f, GREY)
             } else {
@@ -92,7 +98,7 @@ class SafeModeActivity : Activity() {
 
     private fun load() {
         val l = list ?: return
-        val stock = stockLauncherIntent()
+        val stock = StockLauncher.intent(this)
         var failed = false
         val leanback = query(Intent.CATEGORY_LEANBACK_LAUNCHER) { failed = true }
         val launcher = query(Intent.CATEGORY_LAUNCHER) { failed = true }
@@ -125,7 +131,7 @@ class SafeModeActivity : Activity() {
                 start(Intent(this, HomeActivity::class.java)).also { if (it) finish() }
             }
             SafeModeList.Row.SystemSettings -> SettingsEscape.open(this)
-            SafeModeList.Row.StockLauncher -> stockLauncherIntent()?.let(::start) ?: false
+            SafeModeList.Row.StockLauncher -> StockLauncher.start(this)
             is SafeModeList.Row.App -> start(Intent(Intent.ACTION_MAIN).setClassName(row.app.packageName, row.app.activityClass))
             is SafeModeList.Row.Notice -> true
         }
@@ -145,17 +151,6 @@ class SafeModeActivity : Activity() {
     } catch (e: Throwable) {
         onError()
         emptyList()
-    }
-
-    /** The stock TV launcher's HOME activity, only when it is installed and enabled. */
-    private fun stockLauncherIntent(): Intent? = try {
-        val pkg = SafeModeList.STOCK_LAUNCHER
-        val info = try { packageManager.getApplicationInfo(pkg, 0) } catch (e: PackageManager.NameNotFoundException) { null }
-        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage(pkg)
-        val ai = packageManager.resolveActivity(home, 0)?.activityInfo
-        if (SafeModeList.stockAvailable(info != null, info?.enabled == true, ai != null)) home.setClassName(pkg, ai!!.name) else null
-    } catch (e: Throwable) {
-        null
     }
 
     /** It stands in for the home screen: Back does nothing. */
