@@ -12,7 +12,7 @@ class WallpaperSettingsTest {
         assertEquals(0, s.dimPercent)
         assertEquals(ClockPosition.BOTTOM_LEFT, s.clockPosition)
         assertEquals(false, s.notificationsEnabled)
-        assertEquals(true, s.privacyAppNameOnly)
+        assertEquals(false, s.showNotificationText)
     }
 
     @Test fun roundTrip_builtIn() {
@@ -79,10 +79,24 @@ class WallpaperSettingsTest {
         }
     }
 
-    @Test fun showNotificationText_defaultsOff_andRoundTrips() {
-        assertEquals(false, WallpaperSettings().showNotificationText)
-        assertEquals(false, WallpaperSettings.fromJson("""{"notifications":true}""").showNotificationText)
-        val s = WallpaperSettings(notificationsEnabled = true, privacyAppNameOnly = false, showNotificationText = true)
+    @Test fun settings_roundTrip_andMigrationFromOldKey() {
+        val s = WallpaperSettings(notificationsEnabled = true, showNotificationText = true)
         assertEquals(s, WallpaperSettings.fromJson(s.toJson()))
+        assertEquals(false, WallpaperSettings.fromJson(WallpaperSettings().toJson()).showNotificationText)
+        // The old flag is no longer written.
+        assertEquals(false, s.toJson().contains("privacyAppOnly"))
+        // Migration: only an explicit privacyAppOnly=false turns text on.
+        assertEquals(true, WallpaperSettings.fromJson("""{"privacyAppOnly":false}""").showNotificationText)
+        assertEquals(false, WallpaperSettings.fromJson("""{"privacyAppOnly":true}""").showNotificationText)
+        assertEquals(false, WallpaperSettings.fromJson("""{"privacyAppOnly":"no"}""").showNotificationText)
+        assertEquals(false, WallpaperSettings.fromJson("""{"notifications":true}""").showNotificationText)
+        // The new key wins over the old one.
+        assertEquals(false, WallpaperSettings.fromJson("""{"privacyAppOnly":false,"showText":false}""").showNotificationText)
+    }
+
+    @Test fun settings_corruptJson_defaultsOff() {
+        for (bad in listOf("{", "null", "[]", "{\"showText\":\"yes\"}", "{\"showText\":1}")) {
+            assertEquals(bad, false, WallpaperSettings.fromJson(bad).showNotificationText)
+        }
     }
 }

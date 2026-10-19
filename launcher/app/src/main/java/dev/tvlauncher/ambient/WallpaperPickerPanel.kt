@@ -136,6 +136,10 @@ class WallpaperPickerPanel(
             commit(settings.copy(showNotificationText = !settings.showNotificationText))
         }
         panel.addView(textRow, lp(top = 6))
+        panel.addView(TextView(context).apply {
+            style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
+            text = "Only for notifications the app marks public; private ones always show the app name only."
+        }, lp(top = 4))
         val path = UserWallpapers.folder(context)?.path ?: UserWallpapers.DEVICE_PATH
         panel.addView(TextView(context).apply {
             style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
@@ -186,7 +190,7 @@ class WallpaperPickerPanel(
         val thumb = WallpaperPlan.thumbSize()
         for (f in userFiles) {
             val tile = addTile(WallpaperSource.UserImage(f), f.nameWithoutExtension, Theme.SURFACE)
-            jobs += WallpaperLoader.file(f, thumb, thumbConfig()) { b -> setThumb(tile, b) }
+            jobs += WallpaperLoader.file(f, thumb, thumbConfig(), cover = true) { b -> setThumb(tile, b) }
         }
     }
 
@@ -292,8 +296,6 @@ class WallpaperPickerPanel(
         intervalRow.visibility = if (on) View.VISIBLE else View.GONE
         intervalRow.text = "Change every   ‹  ${formatInterval(currentInterval())}  ›"
         dimRow.text = "Dim   ‹  ${settings.dimPercent} %  ›"
-        // Only meaningful once notification chips are switched on (Settings); off by default.
-        textRow.visibility = if (settings.notificationsEnabled) View.VISIBLE else View.GONE
         textRow.text = "Show notification text:  ${if (settings.showNotificationText) "On" else "Off"}"
         emptyText.visibility = if (userFiles.isEmpty()) View.VISIBLE else View.GONE
         emptyText.text = "No pictures of your own yet. Built-in wallpapers are shown above."

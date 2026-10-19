@@ -71,13 +71,13 @@ sealed class SamplePlan {
 
 /**
  * Decode budget for user images (decompression-bomb guard). Rejects bad or huge sources
- * (> [DEFAULT_MAX_SRC_PIXELS] or a side > 65535) using Long math, otherwise picks the smallest
+ * (> [DEFAULT_MAX_SRC_PIXELS] = 120 MP or a side > 65535) using Long math, otherwise picks the smallest
  * power-of-two sample whose decoded pixel count fits [maxDecodedPixels] (default 4x target).
  * The smallest such n is also the least downsampling, so the result never gets needlessly
  * smaller than the target. Used for full-screen wallpapers, slideshow and picker thumbnails.
  */
 object SampleSizePlanner {
-    const val DEFAULT_MAX_SRC_PIXELS = 64_000_000L
+    const val DEFAULT_MAX_SRC_PIXELS = 120_000_000L
     const val MAX_SIDE = 65_535
     private const val FALLBACK_BUDGET = 4L * 1920 * 1080
     private const val MAX_SAMPLE = 1 shl 16
@@ -92,6 +92,27 @@ object SampleSizePlanner {
         val budget = if (maxDecodedPixels > 0) maxDecodedPixels else FALLBACK_BUDGET
         var n = 1
         while (n < MAX_SAMPLE && (srcW / n).toLong() * (srcH / n).toLong() > budget) n *= 2
+        return SamplePlan.Sample(n)
+    }
+
+    /** Decoded-pixel budget for cover (center-crop) decodes such as thumbnails: 16x the target. */
+    fun coverBudget(targetW: Int, targetH: Int): Long = 16L * targetW.coerceAtLeast(1) * targetH.coerceAtLeast(1)
+
+    /**
+     * Thumbnail planning: the largest power-of-two sample that keeps BOTH sides >= the target
+     * (so a center-crop never upscales), then doubled further only if the decoded pixels exceed
+     * [maxDecodedPixels]; on extreme aspect ratios the budget wins.
+     */
+    fun planCover(
+        srcW: Int, srcH: Int, targetW: Int, targetH: Int,
+        maxSrcPixels: Long = DEFAULT_MAX_SRC_PIXELS,
+        maxDecodedPixels: Long = coverBudget(targetW, targetH)
+    ): SamplePlan {
+        if (plan(srcW, srcH, targetW, targetH, maxSrcPixels) is SamplePlan.Reject) return SamplePlan.Reject
+        val tw = targetW.coerceAtLeast(1); val th = targetH.coerceAtLeast(1)
+        var n = 1
+        while (n < MAX_SAMPLE && srcW / (n * 2) >= tw && srcH / (n * 2) >= th) n *= 2
+        while (n < MAX_SAMPLE && (srcW / n).toLong() * (srcH / n).toLong() > maxDecodedPixels) n *= 2
         return SamplePlan.Sample(n)
     }
 }

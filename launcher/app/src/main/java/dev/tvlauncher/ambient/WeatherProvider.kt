@@ -51,6 +51,14 @@ class ContentProviderWeatherSource(context: Context) : WeatherSource {
 }
 
 object WeatherCompanion {
+    @Volatile private var shared: TimeoutWeatherSource? = null
+
+    /** Process-wide bounded source (one worker thread, shared breaker) used by every AmbientView. */
+    fun source(context: Context): TimeoutWeatherSource =
+        shared ?: synchronized(this) {
+            shared ?: TimeoutWeatherSource(ContentProviderWeatherSource(context.applicationContext)).also { shared = it }
+        }
+
     /** Shared across ambient instances so re-showing ambient never spams the companion. */
     val refreshThrottle = RefreshThrottle(15 * 60_000L)
 

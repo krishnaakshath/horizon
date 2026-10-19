@@ -26,7 +26,7 @@ class SampleSizePlannerTest {
     }
 
     @Test fun `20000x20000_sampled`() {
-        // 400 MP is over the 64 MP default source cap, so it is rejected by default...
+        // 400 MP is over the 120 MP default source cap, so it is rejected by default...
         assertTrue(SampleSizePlanner.plan(20_000, 20_000, 1920, 1080) is SamplePlan.Reject)
         // ...and, when allowed, sampled into the decoded-pixel budget.
         val n = sample(SampleSizePlanner.plan(20_000, 20_000, 1920, 1080, maxSrcPixels = Long.MAX_VALUE))
@@ -60,9 +60,40 @@ class SampleSizePlannerTest {
         // 3840x2160 is exactly 4 x 1920x1080: fits at sample 1.
         assertEquals(SamplePlan.Sample(1), SampleSizePlanner.plan(3840, 2160, 1920, 1080))
         assertEquals(SamplePlan.Sample(2), SampleSizePlanner.plan(3841, 2160, 1920, 1080))
-        // Source cap boundary: exactly 64 MP is allowed, one more pixel row is not.
-        assertTrue(SampleSizePlanner.plan(8000, 8000, 1920, 1080) is SamplePlan.Sample)
-        assertTrue(SampleSizePlanner.plan(8000, 8001, 1920, 1080) is SamplePlan.Reject)
+        // Source cap boundary: exactly 120 MP is allowed, one more pixel row is not.
+        assertTrue(SampleSizePlanner.plan(12_000, 10_000, 1920, 1080) is SamplePlan.Sample)
+        assertTrue(SampleSizePlanner.plan(12_000, 10_001, 1920, 1080) is SamplePlan.Reject)
+    }
+
+    @Test fun `12000x9000_acceptedAndSampled`() {
+        val n = sample(SampleSizePlanner.plan(12_000, 9_000, 1920, 1080))
+        assertEquals(4, n)
+        assertTrue(decodedPixels(12_000, 9_000, n) <= 4L * 1920 * 1080)
+    }
+
+    @Test fun thumb_4000x6000_coversTargetOnBothAxes() {
+        val n = sample(SampleSizePlanner.planCover(4000, 6000, 320, 180))
+        assertEquals(8, n)
+        assertTrue(4000 / n >= 320 && 6000 / n >= 180)
+        assertTrue(decodedPixels(4000, 6000, n) <= SampleSizePlanner.coverBudget(320, 180))
+    }
+
+    @Test fun thumb_landscapePhoto_largestSampleStillCovering() {
+        // 4000x3000 -> 500x375 at n=8 covers 320x180; n=16 (250 wide) would not.
+        assertEquals(SamplePlan.Sample(8), SampleSizePlanner.planCover(4000, 3000, 320, 180))
+        assertEquals(SamplePlan.Sample(1), SampleSizePlanner.planCover(300, 200, 320, 180))
+    }
+
+    @Test fun thumb_extremeAspect_prefersBudget() {
+        val n = sample(SampleSizePlanner.planCover(60_000, 1_000, 320, 180))
+        assertTrue(decodedPixels(60_000, 1_000, n) <= SampleSizePlanner.coverBudget(320, 180))
+        assertTrue(1_000 / n < 180) // the budget won over covering the height
+    }
+
+    @Test fun thumb_rejectsLikePlan() {
+        assertTrue(SampleSizePlanner.planCover(0, 10, 320, 180) is SamplePlan.Reject)
+        assertTrue(SampleSizePlanner.planCover(100_000, 1_100, 320, 180) is SamplePlan.Reject)
+        assertTrue(SampleSizePlanner.planCover(20_000, 20_000, 320, 180) is SamplePlan.Reject)
     }
 
     @Test fun invalidTarget_neverLoopsForever() {

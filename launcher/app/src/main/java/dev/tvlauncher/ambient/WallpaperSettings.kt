@@ -46,8 +46,10 @@ data class WallpaperSettings(
     val nightDim: Boolean = true,
     /** Notification chips are opt-in; the listener permission is a separate system grant. */
     val notificationsEnabled: Boolean = false,
-    val privacyAppNameOnly: Boolean = true,
-    /** Owner opted in to showing message text (public notifications only). Default off. */
+    /**
+     * The single notification-content decision: off (default) = chips show app name + time only;
+     * on = public notifications also show title/text. Private/secret ones are always app-name-only.
+     */
     val showNotificationText: Boolean = false,
     /** Minutes of no key input on Home before ambient starts. */
     val idleMinutes: Int = 10
@@ -88,7 +90,6 @@ data class WallpaperSettings(
             .put("clock24h", s.clock24h)
             .put("nightDim", s.nightDim)
             .put("notifications", s.notificationsEnabled)
-            .put("privacyAppOnly", s.privacyAppNameOnly)
             .put("showText", s.showNotificationText)
             .put("idleMinutes", s.idleMinutes)
             .toString()
@@ -111,11 +112,14 @@ data class WallpaperSettings(
                 clock24h = json.optBoolean("clock24h", d.clock24h),
                 nightDim = json.optBoolean("nightDim", d.nightDim),
                 notificationsEnabled = json.optBoolean("notifications", d.notificationsEnabled),
-                privacyAppNameOnly = json.optBoolean("privacyAppOnly", d.privacyAppNameOnly),
-                showNotificationText = json.optBoolean("showText", d.showNotificationText),
+                showNotificationText = showText(json),
                 idleMinutes = json.optInt("idleMinutes", d.idleMinutes)
             ).normalized()
         }
+
+        /** "showText", or migrated from the old "privacyAppOnly" flag only when it was explicitly false. */
+        private fun showText(json: JSONObject): Boolean =
+            if (json.has("showText")) json.opt("showText") == true else json.opt("privacyAppOnly") == false
 
         private fun parseSource(o: JSONObject?): WallpaperSource {
             if (o == null) return WallpaperSource.DEFAULT

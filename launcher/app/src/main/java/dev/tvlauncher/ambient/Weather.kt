@@ -213,33 +213,65 @@ data class WeatherDisplay(
 }
 
 /**
- * Runs each query of [delegate] on its own daemon thread and gives up after [timeoutMs]
- * (the worker is interrupted), so a hung provider cannot block ambient or other queries.
- * Never throws; a timeout or failure reads as "provider missing" (null).
+ * Bounded provider access: ONE dedicated daemon worker (idle-timeout 30 s), an in-flight guard
+ * and a circuit breaker. A query waits at most [timeoutMs]; on timeout the worker is interrupted
+ * and the breaker opens for [BREAKER_MS]. While a query is outstanding (e.g. a provider stuck
+ * ignoring interrupts) or the breaker is open, new queries are rejected without touching the
+ * provider and return the last good result for that table (or null). Never throws.
  */
 class TimeoutWeatherSource(
     private val delegate: WeatherSource,
-    private val timeoutMs: Long = DEFAULT_TIMEOUT_MS
+    private val timeoutMs: Long = DEFAULT_TIMEOUT_MS,
+    private val clock: () -> Long = { System.currentTimeMillis() },
+    threadFactory: java.util.concurrent.ThreadFactory = java.util.concurrent.ThreadFactory { r ->
+        Thread(r, "weather-query").apply { isDaemon = true }
+    }
 ) : WeatherSource {
-    override fun queryCurrent(): List<Map<String, Any?>>? = bounded { delegate.queryCurrent() }
-    override fun queryDaily(): List<Map<String, Any?>>? = bounded { delegate.queryDaily() }
+    private val inFlight = java.util.concurrent.atomic.AtomicBoolean(false)
+    @Volatile private var breakerUntil = Long.MIN_VALUE
+    private val cache = java.util.concurrent.ConcurrentHashMap<Int, List<Map<String, Any?>>>()
+    private val worker = java.util.concurrent.ThreadPoolExecutor(
+        1, 1, 30, java.util.concurrent.TimeUnit.SECONDS, java.util.concurrent.LinkedBlockingQueue(), threadFactory
+    ).apply { allowCoreThreadTimeOut(true) }
 
-    private fun bounded(q: () -> List<Map<String, Any?>>?): List<Map<String, Any?>>? {
-        val f = try { pool.submit(java.util.concurrent.Callable { q() }) } catch (e: Exception) { return null }
-        return try {
-            f.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+    val isInFlight: Boolean get() = inFlight.get()
+    val isBreakerOpen: Boolean get() = breakerUntil != Long.MIN_VALUE && clock() < breakerUntil
+
+    override fun queryCurrent(): List<Map<String, Any?>>? = bounded(CURRENT) { delegate.queryCurrent() }
+    override fun queryDaily(): List<Map<String, Any?>>? = bounded(DAILY) { delegate.queryDaily() }
+
+    private fun bounded(kind: Int, q: () -> List<Map<String, Any?>>?): List<Map<String, Any?>>? {
+        if (isBreakerOpen) return cache[kind]
+        if (!inFlight.compareAndSet(false, true)) return cache[kind]
+        val started = java.util.concurrent.atomic.AtomicBoolean(false)
+        val f = try {
+            worker.submit(java.util.concurrent.Callable {
+                started.set(true)
+                try { q() } finally { inFlight.set(false) }
+            })
         } catch (e: Exception) {
-            f.cancel(true)
+            inFlight.set(false)
+            return cache[kind]
+        }
+        return try {
+            val r = f.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+            if (r != null) cache[kind] = r
+            r
+        } catch (e: java.util.concurrent.TimeoutException) {
+            breakerUntil = clock() + BREAKER_MS
+            // Never started -> its finally will not run, so release the guard here.
+            if (f.cancel(true) && !started.get()) inFlight.set(false)
+            cache[kind]
+        } catch (e: Exception) {
             null
         }
     }
 
     companion object {
         const val DEFAULT_TIMEOUT_MS = 3_000L
-        /** Cached pool: a hung worker never blocks the next query. */
-        private val pool = java.util.concurrent.Executors.newCachedThreadPool { r ->
-            Thread(r, "weather-query").apply { isDaemon = true }
-        }
+        const val BREAKER_MS = 60_000L
+        private const val CURRENT = 0
+        private const val DAILY = 1
     }
 }
 

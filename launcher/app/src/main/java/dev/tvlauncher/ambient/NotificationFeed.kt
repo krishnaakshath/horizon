@@ -37,6 +37,27 @@ object NotificationTime {
     }
 }
 
+/** Pure chip model used by AmbientView, so the settings -> rendered text path is testable. */
+object AmbientViewModel {
+    private const val SEP = "  "
+
+    fun chipsFor(settings: WallpaperSettings, feed: NotificationFeed, accessGranted: Boolean,
+                 nowMs: Long = System.currentTimeMillis(), max: Int = NotificationFeed.MAX_CHIPS): List<NotificationChip> =
+        if (!settings.notificationsEnabled || !accessGranted) emptyList()
+        else feed.chips(settings.showNotificationText, max, nowMs)
+
+    /** "App  Title  5m" (missing parts are omitted). */
+    fun chipText(c: NotificationChip): String = buildString {
+        append(c.app)
+        if (c.title != null) append(SEP).append(c.title)
+        if (c.time.isNotEmpty()) append(SEP).append(c.time)
+    }
+
+    /** start..endExclusive of the secondary-colored title part in [chipText], or null. */
+    fun titleRange(c: NotificationChip): IntRange? =
+        c.title?.let { c.app.length..(c.app.length + SEP.length + it.length) }
+}
+
 /** Pure user-facing text for granting listener access. */
 object NotificationAccessText {
     fun adbLine(pkg: String, serviceClass: String) = "adb shell cmd notification allow_listener $pkg/$serviceClass"
@@ -102,17 +123,16 @@ class NotificationFeed(enabled: Boolean = true) {
     fun snapshot(): List<NotifInfo> = synchronized(lock) { ArrayList(items) }
 
     /**
-     * Up to [max] chips. [appNameOnly] drops titles entirely; private/secret notifications are
-     * always app-name-only; message text appears only when [showText] and the notification is public.
+     * Up to [max] chips. The single decision point for content: PUBLIC && [showText] shows the
+     * title/text; everything else (toggle off, private, secret) is app name (+ age) only.
      */
-    fun chips(appNameOnly: Boolean, showText: Boolean = false, max: Int = MAX_CHIPS,
+    fun chips(showText: Boolean, max: Int = MAX_CHIPS,
               nowMs: Long = System.currentTimeMillis()): List<NotificationChip> = snapshot().take(max).map { n ->
         val app = n.appLabel.trim().ifBlank { n.pkg }.take(MAX_CHARS)
         val t = n.title?.trim()?.takeIf { it.isNotEmpty() }
         val x = n.text?.trim()?.takeIf { it.isNotEmpty() }
         val title = when {
-            appNameOnly || n.visibility != NotifInfo.VISIBILITY_PUBLIC -> null
-            !showText -> t
+            !showText || n.visibility != NotifInfo.VISIBILITY_PUBLIC -> null
             t != null && x != null -> "$t: $x".take(MAX_CHARS)
             else -> t ?: x
         }

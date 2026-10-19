@@ -40,7 +40,7 @@ class AmbientView(
     context: Context,
     private val profile: DeviceProfile,
     private var settings: WallpaperSettings,
-    private val weatherSource: WeatherSource = TimeoutWeatherSource(ContentProviderWeatherSource(context)),
+    private val weatherSource: WeatherSource = WeatherCompanion.source(context),
     private val feed: NotificationFeed = NotificationFeed.shared,
     accent: Int = BuiltInWallpapers.DEFAULT_ACCENT
 ) : FrameLayout(context) {
@@ -380,8 +380,7 @@ class AmbientView(
 
     private fun renderChips() {
         chips.removeAllViews()
-        val on = settings.notificationsEnabled && NotificationAccess.isEnabled(context)
-        val list = if (on) feed.chips(settings.privacyAppNameOnly, settings.showNotificationText, model.maxChips) else emptyList()
+        val list = AmbientViewModel.chipsFor(settings, feed, NotificationAccess.isEnabled(context), max = model.maxChips)
         if (list.isEmpty()) { chips.visibility = GONE; return }
         chips.visibility = VISIBLE
         list.forEachIndexed { i, c ->
@@ -395,16 +394,13 @@ class AmbientView(
                     setColor(0x59101218)
                     setStroke(px(1f), Theme.STROKE)
                 }
-                val sb = SpannableStringBuilder(c.app)
-                if (c.title != null) {
-                    val start = sb.length
-                    sb.append("  ").append(c.title)
-                    sb.setSpan(ForegroundColorSpan(Theme.TEXT_2), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                val plain = AmbientViewModel.chipText(c)
+                val sb = SpannableStringBuilder(plain)
+                AmbientViewModel.titleRange(c)?.let {
+                    sb.setSpan(ForegroundColorSpan(Theme.TEXT_2), it.first, it.last, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
                 if (c.time.isNotEmpty()) {
-                    val start = sb.length
-                    sb.append("  ").append(c.time)
-                    sb.setSpan(ForegroundColorSpan(0x99A7B0C0.toInt()), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    sb.setSpan(ForegroundColorSpan(0x99A7B0C0.toInt()), plain.length - c.time.length, plain.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
                 text = sb
             }

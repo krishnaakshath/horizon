@@ -66,40 +66,42 @@ class NotificationFeedTest {
         assertTrue(f.snapshot().isEmpty())
     }
 
-    @Test fun chips_privateAndSecret_areAppNameOnly_evenWithShowText() {
+    @Test fun showTextOff_publicShowsAppNameOnly() {
         val f = NotificationFeed()
-        f.post(n("s", visibility = NotifInfo.VISIBILITY_SECRET, time = 1))
-        f.post(n("p", visibility = NotifInfo.VISIBILITY_PRIVATE, time = 2))
-        val chips = f.chips(appNameOnly = false, showText = true, nowMs = 2)
-        assertEquals(2, chips.size)
-        chips.forEach { assertNull(it.title) }
+        f.post(n("a", pkg = "com.mail", time = 1_000, title = "Ann", text = "See you at 6"))
+        val c = f.chips(showText = false, nowMs = 1_000 + 5 * 60_000)[0]
+        assertEquals("App com.mail", c.app)
+        assertNull(c.title)
+        assertEquals("5m", c.time)
+    }
+
+    @Test fun showTextOn_publicShowsTitle() {
+        val f = NotificationFeed()
+        f.post(n("a", title = "Ann", text = "See you at 6"))
+        assertEquals("Ann: See you at 6", f.chips(showText = true)[0].title)
+        f.post(n("b", title = "Only title", text = null))
+        assertEquals("Only title", f.chips(showText = true)[0].title)
+        f.post(n("c", title = null, text = "Only text"))
+        assertEquals("Only text", f.chips(showText = true)[0].title)
+    }
+
+    @Test fun showTextOn_privateStillAppNameOnly() {
+        val f = NotificationFeed()
+        f.post(n("p", visibility = NotifInfo.VISIBILITY_PRIVATE, title = "Bank", text = "OTP 1234"))
+        assertNull(f.chips(showText = true)[0].title)
         f.snapshot().forEach { assertNull(it.title); assertNull(it.text) }
     }
 
-    @Test fun chips_publicShowsTitle_privacyModeShowsAppOnly() {
+    @Test fun showTextOn_secretStillAppNameOnly() {
         val f = NotificationFeed()
-        f.post(n("a", pkg = "com.mail", time = 1_000))
-        val full = f.chips(appNameOnly = false, nowMs = 1_000 + 5 * 60_000)[0]
-        assertEquals("App com.mail", full.app)
-        assertEquals("Title a", full.title)
-        assertEquals("5m", full.time)
-        assertNull(f.chips(appNameOnly = true)[0].title)
-    }
-
-    @Test fun chips_textOnlyWhenOwnerChoseShowText_andPublic() {
-        val f = NotificationFeed()
-        f.post(n("a", title = "Ann", text = "See you at 6"))
-        assertEquals("Ann", f.chips(false, showText = false)[0].title)
-        assertEquals("Ann: See you at 6", f.chips(false, showText = true)[0].title)
-        f.post(n("b", title = null, text = "Only text"))
-        assertNull(f.chips(false, showText = false)[0].title)
-        assertEquals("Only text", f.chips(false, showText = true)[0].title)
+        f.post(n("s", visibility = NotifInfo.VISIBILITY_SECRET, title = "Secret", text = "x"))
+        assertNull(f.chips(showText = true)[0].title)
     }
 
     @Test fun chips_capAtThree() {
         val f = NotificationFeed()
         for (i in 1..5) f.post(n("x$i"))
-        assertEquals(3, f.chips(false).size)
+        assertEquals(3, f.chips(showText = true).size)
     }
 
     @Test fun titleAndText_cappedAt80Chars() {
@@ -108,7 +110,7 @@ class NotificationFeedTest {
         val stored = f.snapshot()[0]
         assertEquals(80, stored.title!!.length)
         assertEquals(80, stored.text!!.length)
-        assertTrue(f.chips(false, showText = true)[0].title!!.length <= 80)
+        assertTrue(f.chips(showText = true)[0].title!!.length <= 80)
     }
 
     @Test fun disabledFeed_ignoresPosts_andDisablingClears() {
@@ -130,7 +132,7 @@ class NotificationFeedTest {
     @Test fun chips_blankAppLabel_fallsBackToPackage() {
         val f = NotificationFeed()
         f.post(NotifInfo("k", "com.x", "  ", "T", null, 1, false, false, false, NotifInfo.VISIBILITY_PUBLIC))
-        assertEquals("com.x", f.chips(true)[0].app)
+        assertEquals("com.x", f.chips(showText = false)[0].app)
     }
 
     @Test fun listener_isNotifiedOnChange_andCanBeRemoved() {
@@ -165,7 +167,7 @@ class NotificationFeedTest {
     @Test fun nullTitle_privateVisibility_noTextLeaks() {
         val f = NotificationFeed()
         f.post(n("a", visibility = NotifInfo.VISIBILITY_PRIVATE, title = null, text = "secret code 1234"))
-        assertNull(f.chips(false, showText = true)[0].title)
-        assertNull(f.chips(true)[0].title)
+        assertNull(f.chips(showText = true)[0].title)
+        assertNull(f.chips(showText = false)[0].title)
     }
 }

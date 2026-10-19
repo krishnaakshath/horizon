@@ -106,9 +106,19 @@ object NotificationAccess {
     fun settingsIntent(): Intent =
         Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-    /** Starts the access screen; false when the TV has none (show [instructions] with the ADB line). */
-    fun openSettings(context: Context): Boolean = try {
-        context.startActivity(settingsIntent())
+    /** Short spelling some builds register instead of Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS. */
+    const val SHORT_ACTION = "android.settings.NOTIFICATION_LISTENER_SETTINGS"
+
+    /**
+     * Starts the access screen, trying the long action then the short spelling (both are in
+     * <queries>). False when the TV has neither: show [instructions] with the ADB line.
+     */
+    fun openSettings(context: Context): Boolean =
+        tryStart(context, settingsIntent()) ||
+            tryStart(context, Intent(SHORT_ACTION).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+
+    private fun tryStart(context: Context, i: Intent): Boolean = try {
+        context.startActivity(i)
         true
     } catch (e: ActivityNotFoundException) {
         false

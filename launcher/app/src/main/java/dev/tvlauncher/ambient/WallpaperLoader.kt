@@ -37,7 +37,8 @@ object WallpaperLoader {
         submit(done) { BuiltInWallpapers.render(id, size.width, size.height, accent, config) }
 
     fun file(file: File, size: WallpaperPlan.Size, config: Bitmap.Config = Bitmap.Config.ARGB_8888,
-             done: (Bitmap?) -> Unit): Job = submit(done) { decode(file, size.width, size.height, config) }
+             cover: Boolean = false, done: (Bitmap?) -> Unit): Job =
+        submit(done) { decode(file, size.width, size.height, config, cover) }
 
     /** Runs [work] on the loader thread and delivers on the main thread. */
     fun <T> background(work: () -> T, done: (T) -> Unit) {
@@ -60,7 +61,8 @@ object WallpaperLoader {
     }
 
     /** Synchronous decode (call off the main thread). Null on any failure or oversize file. */
-    fun decode(file: File, w: Int, h: Int, config: Bitmap.Config = Bitmap.Config.ARGB_8888): Bitmap? {
+    /** [cover]: thumbnail planning (both sides stay >= target when the budget allows). */
+    fun decode(file: File, w: Int, h: Int, config: Bitmap.Config = Bitmap.Config.ARGB_8888, cover: Boolean = false): Bitmap? {
         if (!file.isFile || file.length() !in 1..WallpaperPlan.MAX_FILE_BYTES) return null
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.path, bounds)
@@ -69,8 +71,9 @@ object WallpaperLoader {
         val swap = deg == 90 || deg == 270
         val srcW = if (swap) bounds.outHeight else bounds.outWidth
         val srcH = if (swap) bounds.outWidth else bounds.outHeight
-        val sample = when (val plan = SampleSizePlanner.plan(srcW, srcH, w, h)) {
-            is SamplePlan.Reject -> return null // corrupt, > 64 MP or a side > 65535: never decode
+        val planned = if (cover) SampleSizePlanner.planCover(srcW, srcH, w, h) else SampleSizePlanner.plan(srcW, srcH, w, h)
+        val sample = when (val plan = planned) {
+            is SamplePlan.Reject -> return null // corrupt, > 120 MP or a side > 65535: never decode
             is SamplePlan.Sample -> plan.n
         }
         val opts = BitmapFactory.Options().apply {
