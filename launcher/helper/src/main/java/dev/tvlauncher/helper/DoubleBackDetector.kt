@@ -16,6 +16,12 @@ class DoubleBackDetector(windowMs: Long, private val clock: () -> Long) {
         return false
     }
 
+    /** True when the next Back-up would count as the second press. */
+    fun isArmed(): Boolean {
+        val prev = last
+        return prev != NONE && clock() - prev in 0..window
+    }
+
     fun reset() {
         last = NONE
     }

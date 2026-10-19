@@ -47,4 +47,13 @@ class DoubleBackDetectorTest {
         now += 299
         assertTrue(d.onBackUp())
     }
+
+    @Test fun isArmed_after_first_press_only_within_window() {
+        val d = detector()
+        assertFalse(d.isArmed())
+        d.onBackUp()
+        assertTrue(d.isArmed())
+        now += 501
+        assertFalse(d.isArmed())
+    }
 }
