@@ -21,6 +21,7 @@ object Theme {
 
     // Glass layers (Settings screen): translucent white/near-black over BASE, no blur.
     const val GLASS_ROW_FOCUS = 0x26FFFFFF
+    const val GLASS_CHIP = 0x14FFFFFF
     const val GLASS_SCRIM = 0xF2101319.toInt()
     /** Track of a switch that is off. */
     const val TOGGLE_OFF = 0x40FFFFFF
