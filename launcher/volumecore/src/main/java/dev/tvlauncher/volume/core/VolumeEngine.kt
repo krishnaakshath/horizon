@@ -18,13 +18,15 @@ class VolumeEngine(
     enabled: () -> Boolean,
     motion: () -> BarMotion,
     onSeen: (VolumeKey, VolumeResult?) -> Unit = { _, _ -> },
+    /** We just changed the volume ourselves (flags 0, so the TV shows no popup of its own). */
+    onApplied: () -> Unit = {},
 ) {
     private val overlay = VolumeOverlay(context, windowType, face, motion)
     val controller: VolumeController = VolumeBackends.default(context)
     private val router = VolumeKeyRouter(
         enabled = enabled,
         controller = controller,
-        onShow = { overlay.show(it) },
+        onShow = { onApplied(); overlay.show(it) },
         onRelease = { overlay.keepAlive() },
         onSeen = onSeen,
     )

@@ -9,10 +9,12 @@ import android.view.KeyEvent
 import android.view.WindowManager
 import dev.tvlauncher.volume.core.BarMotion
 import dev.tvlauncher.volume.core.VolumeEngine
+import dev.tvlauncher.volume.core.VolumeWatcher
 
 /**
  * The helper's volume bar: our bar over every app, drawn in a TYPE_ACCESSIBILITY_OVERLAY window
- * of [service] (no extra permission). Lives as long as the service is bound; when the service is
+ * of [service] (no extra permission). The same window type is the only one above a TCL TV's own
+ * volume popup, so the cover ([VolumeWatcher]) lives here too. Lives as long as the service is bound; when the service is
  * not running nothing here runs and the TV handles the keys itself.
  */
 class HelperVolume(service: AccessibilityService) {
@@ -26,6 +28,15 @@ class HelperVolume(service: AccessibilityService) {
         true to 0L
     }
 
+    /** "Replace the TV's volume popup": our column over the TV's own popup (TCL builds only). */
+    private val watcher = VolumeWatcher(
+        context = service,
+        windowType = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+        face = font(service),
+        enabled = { prefs.cover },
+        motion = { motion() },
+    ).also { it.start() }
+
     private val engine = VolumeEngine(
         context = service,
         windowType = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
@@ -33,6 +44,7 @@ class HelperVolume(service: AccessibilityService) {
         enabled = { prefs.enabled },
         motion = { motion() },
         onSeen = { key, r -> prefs.recordSeen(key, r) },
+        onApplied = { watcher.noteOwnChange() },
     )
 
     private fun motion(): BarMotion {
@@ -51,7 +63,10 @@ class HelperVolume(service: AccessibilityService) {
         false
     }
 
-    fun release() = engine.release()
+    fun release() {
+        watcher.stop()
+        engine.release()
+    }
 
     private companion object {
         fun font(c: Context): Typeface? = try {

@@ -20,8 +20,17 @@ object HelperVolumeLink {
     private const val NO_ANSWER = -1
     private const val TIMEOUT_MS = 1500L
 
-    /** [setEnabled] null only asks. [onResult] runs once on the main thread (also on timeout). */
-    fun query(context: Context, setEnabled: Boolean?, motion: String?, onResult: (Boolean?, VolumeCopy.HelperState) -> Unit) {
+    /**
+     * [setEnabled] (the Volume bar switch) and [setCover] ("Replace the TV's volume popup") null
+     * only ask. [onResult] runs once on the main thread (also on timeout).
+     */
+    fun query(
+        context: Context,
+        setEnabled: Boolean?,
+        motion: String?,
+        setCover: Boolean? = null,
+        onResult: (Boolean?, VolumeCopy.HelperState) -> Unit,
+    ) {
         val installed = try { ModuleProbe.isAppInstalled(context, HELPER_PACKAGE) } catch (e: Throwable) { false }
         val main = Handler(Looper.getMainLooper())
         if (!installed) {
@@ -39,6 +48,7 @@ object HelperVolumeLink {
         val intent = Intent(ACTION).setPackage(HELPER_PACKAGE).addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
         setEnabled?.let { intent.putExtra("set_enabled", it) }
         motion?.let { intent.putExtra("motion", it) }
+        setCover?.let { intent.putExtra("set_cover", it) }
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) {
                 main.removeCallbacks(timeout)
