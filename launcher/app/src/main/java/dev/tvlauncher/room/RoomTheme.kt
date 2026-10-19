@@ -7,6 +7,10 @@ import android.os.Looper
  *
  * - [palette]: the settled TARGET palette (thread-safe read; use it when building a view).
  * - [frame]: the live, possibly mid-crossfade values (main thread only; use it when painting).
+ *   Always the same object, so a view may keep a reference to it.
+ *
+ * Listeners are held WEAKLY ([ListenerList]): keep your listener in a field. Still call
+ * [removeListener] in onStop/onDestroy; a forgotten one is pruned once its owner is collected.
  *
  * Intended consumption points (wired by the controller in HomeActivity, not in this package):
  * - BackdropView: base gradient [Palette.backdropTop] -> [Palette.backdropBottom]; brand colour
@@ -34,23 +38,22 @@ object RoomTheme {
     @Volatile var mode: RoomMode = RoomMode.STANDARD
         private set
 
+    /** Live values (main thread). Stable identity. */
+    val frame: PaletteFrame = PaletteFrame().set(palette)
+
     private var animator: PaletteAnimator? = null
-    private val fallbackFrame = PaletteFrame().set(palette)
-
-    /** Live values (main thread). */
-    val frame: PaletteFrame get() = animator?.frame ?: fallbackFrame
-
-    private val listeners = ArrayList<Listener>()
-    private var snapshot: Array<Listener> = emptyArray()
+    private val listeners = ListenerList<Listener>()
+    private var dispatchSettled = false
+    private val dispatchAction: (Listener) -> Unit = { it.onRoomPalette(frame, mode, dispatchSettled) }
 
     fun addListener(l: Listener) {
         checkMain()
-        if (l !in listeners) { listeners += l; snapshot = listeners.toTypedArray() }
+        listeners.add(l)
     }
 
     fun removeListener(l: Listener) {
         checkMain()
-        if (listeners.remove(l)) snapshot = listeners.toTypedArray()
+        listeners.remove(l)
     }
 
     /**
@@ -61,19 +64,19 @@ object RoomTheme {
         checkMain()
         mode = newMode
         palette = newPalette
-        val a = animator ?: PaletteAnimator(fallbackFrame.toPalette()) { f, settled -> dispatch(f, settled) }.also { animator = it }
+        val a = animator ?: PaletteAnimator(frame) { _, settled -> dispatch(settled) }.also { animator = it }
         a.animateTo(newPalette, durationMs)
     }
 
     /** Stops a running crossfade at its target (e.g. in onStop). */
     fun finishTransition() {
         val a = animator ?: return
-        if (a.isRunning) { a.cancel(); dispatch(a.frame, true) }
+        if (a.isRunning) { a.cancel(); dispatch(true) }
     }
 
-    private fun dispatch(f: PaletteFrame, settled: Boolean) {
-        val ls = snapshot
-        for (l in ls) l.onRoomPalette(f, mode, settled)
+    private fun dispatch(settled: Boolean) {
+        dispatchSettled = settled
+        listeners.forEach(dispatchAction)
     }
 
     private fun checkMain() {

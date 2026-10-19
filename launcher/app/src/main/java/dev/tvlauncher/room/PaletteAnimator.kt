@@ -6,8 +6,9 @@ import android.animation.ValueAnimator
 import android.view.animation.DecelerateInterpolator
 
 /**
- * Crossfades between two [Palette]s into one pre-allocated [frame]. One reusable [ValueAnimator];
- * per frame it only writes ints/floats into [frame] (Palettes.blendInto) - no allocation.
+ * Crossfades between two [Palette]s into the caller's [frame] (so its identity is stable, e.g.
+ * [RoomTheme.frame]). One reusable [ValueAnimator]; the endpoints' sRGB->linear conversions are
+ * cached per [animateTo] in a [PaletteBlender]; per frame it only writes ints/floats - no allocation.
  *
  * Colours are blended in linear light by [Palettes.color] rather than with ArgbEvaluator, so the
  * result is identical on API 24/25 (ArgbEvaluator blends gamma-encoded there) and on 26+, and
@@ -17,17 +18,16 @@ import android.view.animation.DecelerateInterpolator
  * crossfade mid-way continues from the colours currently on screen. Main thread only.
  */
 class PaletteAnimator(
-    initial: Palette,
+    val frame: PaletteFrame,
     private val onFrame: (frame: PaletteFrame, settled: Boolean) -> Unit
 ) {
-    val frame = PaletteFrame().set(initial)
-    private var from: Palette = initial
-    private var to: Palette = initial
+    private var to: Palette = frame.toPalette()
+    private val blender = PaletteBlender()
     private val animator = ValueAnimator.ofFloat(0f, 1f).apply {
         interpolator = DecelerateInterpolator(1.5f)
         addUpdateListener { a ->
             // animatedFraction is the interpolated fraction and avoids boxing animatedValue.
-            Palettes.blendInto(from, to, a.animatedFraction, frame)
+            blender.blendInto(a.animatedFraction, frame)
             onFrame(frame, false)
         }
         addListener(object : AnimatorListenerAdapter() {
@@ -51,13 +51,14 @@ class PaletteAnimator(
         if (target == to && !animator.isRunning) return
         val running = animator.isRunning
         if (running) animator.cancel()
-        from = if (running) frame.toPalette() else to
+        val from = if (running) frame.toPalette() else to
         to = target
         if (durationMs <= 0L) {
             frame.set(target)
             onFrame(frame, true)
             return
         }
+        blender.prepare(from, target)
         animator.duration = durationMs
         animator.start()
     }
