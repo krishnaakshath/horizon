@@ -92,7 +92,7 @@ object SafeMode {
         if (!guard(home).shouldRedirect()) {
             false
         } else {
-            home.startActivity(Intent(home, SafeModeActivity::class.java))
+            home.startActivity(Intent(home, SafeModeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             home.overridePendingTransition(0, 0)
             home.finish()
             true

@@ -6,19 +6,23 @@ import dev.tvlauncher.apps.AppEntry
 object SafeModeList {
     const val HEADER = "Safe mode — the main launcher crashed repeatedly"
     const val STOCK_LAUNCHER = "com.google.android.tvlauncher"
+    const val APPS_FAILED = "Could not list apps"
 
     sealed class Row {
         object TryNormal : Row()
         object SystemSettings : Row()
         object StockLauncher : Row()
         data class App(val app: AppEntry) : Row()
+        /** Information only; OK does nothing. */
+        data class Notice(val text: String) : Row()
     }
 
     fun build(
         leanback: List<AppEntry>,
         launcher: List<AppEntry>,
         ownPackage: String,
-        stockLauncherAvailable: Boolean
+        stockLauncherAvailable: Boolean,
+        appsFailed: Boolean = false
     ): List<Row> {
         val rows = ArrayList<Row>()
         rows += Row.TryNormal
@@ -30,6 +34,7 @@ object SafeModeList {
                 .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
                 .mapTo(rows) { Row.App(it) }
         }
+        if (appsFailed) rows += Row.Notice(APPS_FAILED)
         return rows
     }
 
@@ -38,6 +43,7 @@ object SafeModeList {
         Row.SystemSettings -> "Open system settings"
         Row.StockLauncher -> "Open stock launcher"
         is Row.App -> row.app.label
+        is Row.Notice -> row.text
     }
 
     /** The stock launcher is offered only when it is installed, enabled and still a HOME activity. */

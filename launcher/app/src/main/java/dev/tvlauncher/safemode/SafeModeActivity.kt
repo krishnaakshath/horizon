@@ -10,6 +10,7 @@ import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -18,47 +19,72 @@ import dev.tvlauncher.HomeActivity
 import dev.tvlauncher.apps.AppEntry
 
 /**
- * Deliberately tiny fallback launcher shown after repeated crashes (see [CrashGuard]). Plain
- * framework views only: no animations, sounds, network/Bluetooth listeners, Spotlight or splash.
- * It is not a HOME candidate itself; HomeActivity redirects here while the guard is tripped.
+ * Deliberately tiny fallback launcher shown after repeated home-screen crashes (see [CrashGuard]).
+ * Framework widgets and an explicit framework theme only (no launcher Theme, fonts, appearance or
+ * sound code); no animations, listeners, Spotlight or splash. It runs in its own task and is not a
+ * HOME candidate; HomeActivity redirects here while the guard is tripped.
+ *
+ * It must never become a trap: building the list is guarded and falls back to a one-button
+ * screen, and if it crashes anyway, the crash handler flags it so the next HOME press runs the
+ * normal launcher instead ([SafeModeGate]).
  */
 class SafeModeActivity : Activity() {
     private var rows: List<SafeModeList.Row> = emptyList()
-    private lateinit var list: ListView
+    private var list: ListView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val pad = px(32)
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.BLACK)
-            setPadding(px(48), px(27), px(48), px(27))
+        try {
+            buildList()
+            load()
+        } catch (e: Exception) {
+            buildFallback()
         }
+        overridePendingTransition(0, 0)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        try { load() } catch (e: Exception) { buildFallback() }
+    }
+
+    private fun buildList() {
+        val root = column()
         root.addView(text(SafeModeList.HEADER, 30f, Color.WHITE))
-        val last = SafeMode.guard(this).history.lastException
+        val last = try { SafeMode.guard(this).history.lastException } catch (e: Exception) { null }
         root.addView(text("Last error: ${last ?: "unknown"}. Pick an app, or try the normal launcher again.", 18f, GREY)
-            .apply { setPadding(0, px(8), 0, pad / 2) })
+            .apply { setPadding(0, px(8), 0, px(16)) })
         list = ListView(this).apply {
             itemsCanFocus = false
-            isVerticalScrollBarEnabled = true
             divider = null
             setOnItemClickListener { _, _, position, _ -> rows.getOrNull(position)?.let(::open) }
         }
         root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
-        overridePendingTransition(0, 0)
-        load()
     }
 
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
-        load()
+    /** Last resort: one line of text and one button. */
+    private fun buildFallback() {
+        list = null
+        val root = column()
+        root.addView(text(SafeModeList.HEADER, 30f, Color.WHITE))
+        val button = Button(this).apply {
+            text = SafeModeList.label(SafeModeList.Row.TryNormal)
+            setOnClickListener { open(SafeModeList.Row.TryNormal) }
+        }
+        root.addView(button, LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(24) })
+        setContentView(root)
+        button.requestFocus()
     }
 
     private fun load() {
+        val l = list ?: return
         val stock = stockLauncherIntent()
-        rows = SafeModeList.build(query(Intent.CATEGORY_LEANBACK_LAUNCHER), query(Intent.CATEGORY_LAUNCHER), packageName, stock != null)
-        list.adapter = object : BaseAdapter() {
+        var failed = false
+        val leanback = query(Intent.CATEGORY_LEANBACK_LAUNCHER) { failed = true }
+        val launcher = query(Intent.CATEGORY_LAUNCHER) { failed = true }
+        rows = SafeModeList.build(leanback, launcher, packageName, stock != null, appsFailed = failed)
+        l.adapter = object : BaseAdapter() {
             override fun getCount() = rows.size
             override fun getItem(position: Int) = rows[position]
             override fun getItemId(position: Int) = position.toLong()
@@ -66,23 +92,29 @@ class SafeModeActivity : Activity() {
                 ((convertView as? TextView) ?: text("", 24f, Color.WHITE).apply {
                     setPadding(px(20), px(14), px(20), px(14))
                 }).apply {
-                    text = SafeModeList.label(rows[position])
-                    setTextColor(if (rows[position] is SafeModeList.Row.App) Color.WHITE else ACCENT)
+                    val row = rows[position]
+                    text = SafeModeList.label(row)
+                    setTextColor(when (row) {
+                        is SafeModeList.Row.App -> Color.WHITE
+                        is SafeModeList.Row.Notice -> GREY
+                        else -> ACCENT
+                    })
                 }
         }
-        list.setSelection(0)
-        list.requestFocus()
+        l.setSelection(0)
+        l.requestFocus()
     }
 
     private fun open(row: SafeModeList.Row) {
         val ok = when (row) {
             SafeModeList.Row.TryNormal -> {
-                SafeMode.guard(this).reset()
+                try { SafeMode.guard(this).reset() } catch (e: Exception) { }
                 start(Intent(this, HomeActivity::class.java)).also { if (it) finish() }
             }
             SafeModeList.Row.SystemSettings -> start(Intent(Settings.ACTION_SETTINGS))
             SafeModeList.Row.StockLauncher -> stockLauncherIntent()?.let(::start) ?: false
             is SafeModeList.Row.App -> start(Intent(Intent.ACTION_MAIN).setClassName(row.app.packageName, row.app.activityClass))
+            is SafeModeList.Row.Notice -> true
         }
         if (!ok) Toast.makeText(this, "Could not open that", Toast.LENGTH_SHORT).show()
     }
@@ -94,10 +126,11 @@ class SafeModeActivity : Activity() {
         false
     }
 
-    private fun query(category: String): List<AppEntry> = try {
+    private fun query(category: String, onError: () -> Unit): List<AppEntry> = try {
         packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(category), 0)
             .mapNotNull { it.activityInfo?.let { ai -> AppEntry(ai.packageName, it.loadLabel(packageManager).toString(), ai.name) } }
     } catch (e: RuntimeException) {
+        onError()
         emptyList()
     }
 
@@ -115,6 +148,12 @@ class SafeModeActivity : Activity() {
     /** It stands in for the home screen: Back does nothing. */
     @Deprecated("Safe mode never exits on Back")
     override fun onBackPressed() = Unit
+
+    private fun column() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setBackgroundColor(Color.BLACK)
+        setPadding(px(48), px(27), px(48), px(27))
+    }
 
     private fun text(s: String, sp: Float, color: Int) = TextView(this).apply {
         text = s

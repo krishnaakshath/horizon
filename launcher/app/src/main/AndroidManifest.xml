@@ -58,13 +58,16 @@
             </intent-filter>
         </activity>
         <!-- Fallback after repeated crashes. Reached only through HomeActivity's redirect:
-             deliberately not a HOME candidate. -->
+             deliberately not a HOME candidate. Own task (empty affinity) and a framework theme,
+             so it shares nothing with the home task or the launcher's styles. -->
         <activity
             android:name=".safemode.SafeModeActivity"
             android:exported="false"
             android:excludeFromRecents="true"
             android:launchMode="singleTask"
-            android:stateNotNeeded="true" />
+            android:taskAffinity=""
+            android:stateNotNeeded="true"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
         <activity
             android:name=".insights.InsightsActivity"
             android:exported="false" />

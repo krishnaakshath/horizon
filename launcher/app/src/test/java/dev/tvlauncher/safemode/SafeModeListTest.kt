@@ -60,4 +60,12 @@ class SafeModeListTest {
         assertFalse(SafeModeList.stockAvailable(installed = false, enabled = true, hasHome = true))
         assertFalse(SafeModeList.stockAvailable(installed = true, enabled = true, hasHome = false))
     }
+
+    @Test
+    fun appsFailed_showsNoticeRow_afterFixedRows() {
+        val rows = SafeModeList.build(emptyList(), emptyList(), "dev.tvlauncher", stockLauncherAvailable = false, appsFailed = true)
+        assertEquals(SafeModeList.Row.TryNormal, rows[0])
+        assertEquals(SafeModeList.Row.Notice(SafeModeList.APPS_FAILED), rows.last())
+        assertEquals("Could not list apps", SafeModeList.label(rows.last()))
+    }
 }
