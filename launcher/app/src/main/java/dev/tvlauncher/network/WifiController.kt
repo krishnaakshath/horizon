@@ -135,8 +135,11 @@ class WifiController(context: Context) {
     private fun WifiManager.isWifiEnabledSafe() = safely(false) { isWifiEnabled }
 
     private fun publish() {
+        val wasLocationOn = snapshot.locationEnabled
         snapshot = build()
         for (l in listeners.toList()) l.onChanged(snapshot)
+        // Location switched back on: leave the EMPTY state without needing a manual scan.
+        if (started && !wasLocationOn && snapshot.locationEnabled) main.post { if (started) scanIfStale() }
         main.removeCallbacks(countdown)
         if (started && snapshot.throttledSeconds > 0) main.postDelayed(countdown, 1000)
     }

@@ -20,13 +20,16 @@ class NetIconsTest {
         assertEquals(R.drawable.ic_net_bt_connected, NetIcons.forBluetooth(NetIcons.BtState.CONNECTED))
     }
 
-    private fun wifiConn(rssi: Int) = WifiConnection(WifiConnection.Kind.WIFI, "x", "b", rssi, 100, 5180, "1.2.3.4")
-
-    @Test fun pillAndPanel_agree_forEveryRssiFrom_minus100_to_minus30() {
-        for (r in -127..-30) {
-            val panelHeader = NetIcons.forWifiLevel(wifiConn(r).level, true)
-            assertEquals("rssi $r", panelHeader, NetIcons.forWifiRssi(r, true))
-        }
+    @Test fun forWifiRssi_hardCodedEdges() {
+        val expected = listOf(
+            -127 to R.drawable.ic_net_wifi_0, -100 to R.drawable.ic_net_wifi_0, -89 to R.drawable.ic_net_wifi_0,
+            -88 to R.drawable.ic_net_wifi_1, -78 to R.drawable.ic_net_wifi_1,
+            -77 to R.drawable.ic_net_wifi_2, -67 to R.drawable.ic_net_wifi_2,
+            -66 to R.drawable.ic_net_wifi_3, -56 to R.drawable.ic_net_wifi_3,
+            -55 to R.drawable.ic_net_wifi_4, -30 to R.drawable.ic_net_wifi_4
+        )
+        for ((rssi, id) in expected) assertEquals("rssi $rssi", id, NetIcons.forWifiRssi(rssi, true))
+        for ((rssi, _) in expected) assertEquals(R.drawable.ic_net_wifi_off, NetIcons.forWifiRssi(rssi, false))
     }
 
     @Test fun rssi_bucketEdges() {
@@ -48,12 +51,5 @@ class NetIconsTest {
             prev = l
         }
         assertEquals(4, prev)
-    }
-
-    @Test fun statusModelAdapter_preservesOrderAndRange() {
-        val m = (0..3).map { NetIcons.levelFromStatusModel(it) }
-        assertEquals(listOf(0, 2, 3, 4), m)
-        assertEquals(0, NetIcons.levelFromStatusModel(-5))
-        assertEquals(4, NetIcons.levelFromStatusModel(9))
     }
 }

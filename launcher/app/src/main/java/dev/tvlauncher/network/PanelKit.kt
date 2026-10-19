@@ -33,9 +33,10 @@ internal object NetColors {
     val CARD_FILL = alpha(Theme.TEXT, 0x14)
     val PILL_FILL = CHIP_FILL
     val ROW_FOCUS = Theme.TEXT
-    val SWITCH_ON = 0xFF34D399.toInt()
-    val SWITCH_OFF = 0xFF5B6475.toInt()
-    val SWITCH_THUMB = Theme.TEXT
+    val SWITCH_ON = Theme.TEXT_2
+    val SWITCH_OFF = alpha(Theme.TEXT_2, 0x55)
+    val SWITCH_THUMB_ON = Theme.TEXT_DARK
+    val SWITCH_THUMB_OFF = Theme.TEXT_2
 }
 
 /** Full-screen scrim that keeps D-pad focus inside the panel while it is open. */

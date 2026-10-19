@@ -28,5 +28,23 @@ object LocationState {
         }
     }
 
+    /**
+     * Classic Bluetooth discovery: Android 6-8.1 (API 23-27) needs only the runtime permission;
+     * from Android 9 (API 28) the device-wide Location services toggle must also be on for
+     * ACTION_FOUND results. Below 28 a "Location off" warning would be false.
+     */
+    fun requiredForBluetoothDiscovery(sdkInt: Int): Boolean = sdkInt >= Build.VERSION_CODES.P
+
+    /** Wi-Fi getScanResults needs Location services on every API level this app supports (24+). */
+    @Suppress("UNUSED_PARAMETER")
+    fun requiredForWifiScan(sdkInt: Int): Boolean = true
+
+    /** True when Bluetooth discovery is not blocked by the Location toggle on this API level. */
+    fun bluetoothLocationOk(sdkInt: Int, toggleOn: Boolean): Boolean =
+        !requiredForBluetoothDiscovery(sdkInt) || toggleOn
+
+    fun bluetoothLocationOk(context: Context): Boolean =
+        bluetoothLocationOk(Build.VERSION.SDK_INT, isEnabled(context))
+
     const val MODE_CHANGED_ACTION = "android.location.MODE_CHANGED"
 }

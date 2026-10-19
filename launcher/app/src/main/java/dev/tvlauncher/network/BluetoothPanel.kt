@@ -313,7 +313,7 @@ class BluetoothPanel(
             rect.set(0f, 0f, width.toFloat(), height.toFloat())
             paint.color = if (checked) NetColors.SWITCH_ON else NetColors.SWITCH_OFF
             canvas.drawRoundRect(rect, height / 2f, height / 2f, paint)
-            paint.color = NetColors.SWITCH_THUMB
+            paint.color = if (checked) NetColors.SWITCH_THUMB_ON else NetColors.SWITCH_THUMB_OFF
             val r = height / 2f - context.dp(3)
             val cx = if (checked) width - height / 2f else height / 2f
             canvas.drawCircle(cx, height / 2f, r, paint)

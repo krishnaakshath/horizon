@@ -2,7 +2,13 @@ package dev.tvlauncher.network
 
 import dev.tvlauncher.R
 
-/** Maps state to the redesigned ic_net_* drawables. The top bar adopts these (see report). */
+/**
+ * Maps state to the redesigned ic_net_* drawables.
+ *
+ * HOST WIRING: StatusIcons/TopBar must call [forWifiRssi] (raw dBm) and [forBluetooth] for the pill,
+ * the same functions the panel header uses, so pill and panel can never disagree. Do not feed
+ * StatusModel's 0..3 level into this object.
+ */
 object NetIcons {
     enum class BtState { OFF, ON, CONNECTED }
 
@@ -21,18 +27,6 @@ object NetIcons {
 
     /** Kept for existing callers; same as [forWifiLevel]. */
     fun forWifi(level: Int, connected: Boolean): Int = forWifiLevel(level, connected)
-
-    /**
-     * Adapter for a host that still holds StatusModel's 0..3 bucket. Order-preserving and spread
-     * over the 0..4 scale: 0->0, 1->2, 2->3, 3->4 (3 is "at or above -55 dBm" in StatusModel, i.e.
-     * full strength). Prefer [forWifiRssi] so both views use the same 5 buckets.
-     */
-    fun levelFromStatusModel(statusLevel0to3: Int): Int = when (statusLevel0to3.coerceIn(0, 3)) {
-        0 -> 0
-        1 -> 2
-        2 -> 3
-        else -> 4
-    }
 
     fun forBluetooth(state: BtState): Int = when (state) {
         BtState.OFF -> R.drawable.ic_net_bt_off

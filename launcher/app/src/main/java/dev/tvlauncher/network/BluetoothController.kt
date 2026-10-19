@@ -109,7 +109,7 @@ class BluetoothController(context: Context) {
         note = Note.NONE
         if (!isEnabled()) return Result.FAILED
         if (!hasLocationPermission()) { note = Note.NEEDS_LOCATION; publish(); return Result.NOT_PERMITTED }
-        if (!LocationState.isEnabled(app)) { note = Note.LOCATION_OFF; publish(); return Result.FAILED }
+        if (!LocationState.bluetoothLocationOk(app)) { note = Note.LOCATION_OFF; publish(); return Result.FAILED }
         return try {
             found.clear()
             if (a.isDiscovering) a.cancelDiscovery()
@@ -131,6 +131,7 @@ class BluetoothController(context: Context) {
 
     fun stopDiscovery(publish: Boolean = true) {
         main.removeCallbacks(stopScanRunnable)
+        scanWhenEnabled = false // never leave an unattended discovery armed for a later STATE_ON
         safely(Unit) { if (adapter?.isDiscovering == true) adapter.cancelDiscovery() }
         scanning = false
         if (publish) publish()
@@ -203,7 +204,7 @@ class BluetoothController(context: Context) {
         return BtSnapshot(
             present = adapter != null, enabled = isEnabled(), scanning = scanning,
             bonded = bonded, found = found.values.toList(), connected = connected,
-            pairing = HashMap(pairing), note = note, locationEnabled = LocationState.isEnabled(app)
+            pairing = HashMap(pairing), note = note, locationEnabled = LocationState.bluetoothLocationOk(app)
         )
     }
 
@@ -276,11 +277,10 @@ class BluetoothController(context: Context) {
                 a.getProfileProxy(app, object : BluetoothProfile.ServiceListener {
                     override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
                         main.post {
+                            // Stale (stopped or restarted since the request): close; pending set was reset.
+                            if (mySession != session) { closeQuietly(profile, proxy); return@post }
                             pendingProfiles.remove(profile)
-                            // Stale (stopped or restarted since the request) or duplicate: close it.
-                            if (!started || mySession != session || proxies.containsKey(profile)) {
-                                closeQuietly(profile, proxy); return@post
-                            }
+                            if (!started || proxies.containsKey(profile)) { closeQuietly(profile, proxy); return@post }
                             proxies[profile] = proxy
                             profileConnected[profile] = safely(emptySet()) { proxy.connectedDevices.map { it.address }.toSet() }
                             publish()
