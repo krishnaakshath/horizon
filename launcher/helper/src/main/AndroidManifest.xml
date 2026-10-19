@@ -8,6 +8,12 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
+    <!-- Same signer as the launcher only: its "Open home after power on" request. Declared in both
+         apps so the install order does not matter. -->
+    <permission
+        android:name="dev.tvlauncher.permission.POWER_ON_HOME"
+        android:protectionLevel="signature" />
+
     <application
         android:allowBackup="false"
         android:banner="@drawable/banner"
@@ -37,5 +43,15 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <!-- Runs the launcher's request through the accessibility service (HOME, like the remote). -->
+        <receiver
+            android:name=".PowerOnHomeReceiver"
+            android:exported="true"
+            android:permission="dev.tvlauncher.permission.POWER_ON_HOME">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.helper.action.HOME_AFTER_POWER_ON" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
