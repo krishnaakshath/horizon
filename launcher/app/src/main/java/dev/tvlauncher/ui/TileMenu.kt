@@ -12,6 +12,9 @@ import dev.tvlauncher.settings.Prefs
 /** Long-press menu for a tile; updates [Prefs] and calls [onChanged] so the shelf reloads. */
 class TileMenu(private val context: Context, private val prefs: Prefs, private val onChanged: () -> Unit) {
     private var dialog: AlertDialog? = null
+    /** Feedback hooks (sounds): an entry was picked / the dialog was dismissed with Back. */
+    var onPicked: () -> Unit = {}
+    var onCancelled: () -> Unit = {}
 
     fun dismiss() {
         dialog?.dismiss()
@@ -35,7 +38,8 @@ class TileMenu(private val context: Context, private val prefs: Prefs, private v
         entries += "App info" to { SystemActions.appInfo(context, pkg) }
         entries += "Uninstall" to { SystemActions.start(context, Intent(Intent.ACTION_DELETE, Uri.parse("package:$pkg"))) }
         dialog = AlertDialog.Builder(context).setTitle(app.label)
-            .setItems(entries.map { it.first }.toTypedArray()) { _, i -> entries[i].second() }
+            .setItems(entries.map { it.first }.toTypedArray()) { _, i -> onPicked(); entries[i].second() }
+            .setOnCancelListener { onCancelled() }
             .show()
     }
 
@@ -61,8 +65,9 @@ class TileMenu(private val context: Context, private val prefs: Prefs, private v
     fun showDockMenu(visible: List<String>, installed: List<AppEntry>) {
         dismiss()
         dialog = AlertDialog.Builder(context).setItems(arrayOf("Unhide all apps")) { _, _ ->
+            onPicked()
             edit(AppFilter.unhideAll(prefs.load(), visible, installed))
-        }.show()
+        }.setOnCancelListener { onCancelled() }.show()
     }
 
     private fun edit(s: LauncherSettings) {

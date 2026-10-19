@@ -14,6 +14,7 @@ import dev.tvlauncher.apps.AppRepository
 import dev.tvlauncher.device.DeviceProfile
 import dev.tvlauncher.device.DeviceProfileReader
 import dev.tvlauncher.device.EffectsMode
+import dev.tvlauncher.home.HomeSounds
 import dev.tvlauncher.launch.AndroidLaunchBackend
 import dev.tvlauncher.launch.AppLauncher
 import dev.tvlauncher.settings.Prefs
@@ -26,6 +27,7 @@ import dev.tvlauncher.ui.QuickStrip
 import dev.tvlauncher.ui.Shelf
 import dev.tvlauncher.ui.ShelfAdapter
 import dev.tvlauncher.ui.SplashOverlay
+import dev.tvlauncher.ui.SplashReveal
 import dev.tvlauncher.ui.SpotlightKeys
 import dev.tvlauncher.ui.SpotlightPanel
 import dev.tvlauncher.ui.SystemActions
@@ -53,6 +55,7 @@ class HomeActivity : Activity() {
     private lateinit var heroBox: HeroBox
     private lateinit var shelfBox: Shelf
     private lateinit var launchOverlay: LaunchOverlay
+    private lateinit var sounds: HomeSounds
     private val loader = Executors.newSingleThreadExecutor()
     private val generation = AtomicInteger()
     private var firstLoad = true
@@ -69,6 +72,7 @@ class HomeActivity : Activity() {
         repo = AppRepository(applicationContext)
         prefs = Prefs(applicationContext)
         profile = DeviceProfileReader.read(this)
+        sounds = HomeSounds(this)
         buildUi()
         val wantsSpotlight = intent?.action == SpotlightKeys.ACTION
         if (wantsSpotlight) setIntent(Intent(intent).setAction(null)) // a recreation must not re-open it
@@ -92,42 +96,45 @@ class HomeActivity : Activity() {
         root.addView(backdrop, FrameLayout.LayoutParams(-1, -1))
         topBar = TopBar(
             this,
-            onInputs = { SystemActions.inputs(this) },
-            onSettings = { if (!SystemActions.launcherSettings(this)) openSpotlight() },
-            onSettingsLongPress = { tileMenu.showDockMenu(visiblePackages(), installed) },
+            onInputs = { sounds.action(SystemActions.inputs(this)) },
+            onSettings = { if (SystemActions.launcherSettings(this)) sounds.action(true) else openSpotlight() },
+            onSettingsLongPress = { tileMenu.showDockMenu(visiblePackages(), installed); sounds.menuOpen() },
             onDown = ::onTopBarDown
         )
         heroBox = HeroBox(this, packageManager)
         launcher = AppLauncher(profile, AndroidLaunchBackend(this))
-        tileMenu = TileMenu(this, prefs) { reload() }
+        tileMenu = TileMenu(this, prefs) { reload() }.also(sounds::bind)
         adapter = ShelfAdapter(
             packageManager, profile,
             onFocused = { pos, app, tile -> onAppFocused(app); strip.onTileFocused(pos, tile, app) },
-            onClick = { app, v -> if (launcher.launch(app, v)) launchOverlay.show() },
-            onLongPress = { app -> tileMenu.show(app, visiblePackages()) },
+            onClick = ::launch,
+            onLongPress = { app -> tileMenu.show(app, visiblePackages()); sounds.menuOpen() },
             onDown = { onTileDown() },
             onDpad = { strip.onTileDpad() }
         )
         shelfBox = Shelf(this, adapter, dp(Theme.MARGIN_H))
         shelf = shelfBox.list
         strip = QuickStrip(this, full, shelf, isFavorite = { tileMenu.isFavorite(it) }) { action, app ->
+            sounds.stripAction(opensMenu = action == QuickStrip.Action.MORE)
             tileMenu.stripAction(action, app, visiblePackages())
         }
         content = HomeContent(this, topBar, heroBox, shelfBox, strip)
         root.addView(content, FrameLayout.LayoutParams(-1, -1))
         spotlight = SpotlightPanel(
             this, packageManager, full,
-            onAction = { SystemActions.quickAction(this, it) },
-            onActionLongPress = { tileMenu.showDockMenu(visiblePackages(), installed) },
-            onLaunch = { app, v -> if (launcher.launch(app, v)) launchOverlay.show() },
+            onAction = { sounds.action(SystemActions.quickAction(this, it)) },
+            onActionLongPress = { tileMenu.showDockMenu(visiblePackages(), installed); sounds.menuOpen() },
+            onLaunch = ::launch,
             onClosed = ::onSpotlightClosed
         )
         root.addView(spotlight, FrameLayout.LayoutParams(-1, -1))
         launchOverlay = LaunchOverlay(this)
         root.addView(launchOverlay, FrameLayout.LayoutParams(-1, -1))
-        root.viewTreeObserver.addOnGlobalFocusChangeListener { _, now -> strip.onGlobalFocus(now) }
+        root.viewTreeObserver.addOnGlobalFocusChangeListener { _, now -> strip.onGlobalFocus(now); sounds.onFocusChanged() }
         setContentView(root)
     }
+
+    private fun launch(app: AppEntry, v: View) = launcher.launch(app, v).let { sounds.launch(it); if (it) launchOverlay.show() }
 
     private fun visiblePackages() = adapter.getItems().map { it.packageName }
 
@@ -157,6 +164,7 @@ class HomeActivity : Activity() {
         restoreIndex = adapter.lastFocused
         strip.setSpotlightOpen(true)
         spotlight.open()
+        sounds.panel(opened = true)
         content.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS // nothing leaks to the shelf
     }
 
@@ -197,6 +205,7 @@ class HomeActivity : Activity() {
         val wasFirst = firstLoad
         firstLoad = false
         if (wasFirst) {
+            sounds.readyIn(if (splash != null) SplashReveal.totalMs(profile.effectsMode == EffectsMode.FULL) else 0L)
             splash?.let { s -> shelf.post { s.reveal(content.revealTargets()) } }
             splash = null
             if (pendingSpotlight) shelf.post { pendingSpotlight = false; openSpotlight() }
@@ -227,9 +236,10 @@ class HomeActivity : Activity() {
 
     /** MENU / SEARCH toggle Spotlight from anywhere on the home screen (including its search field). */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        sounds.onKey(event)
         if (!SpotlightKeys.isToggleKey(event.keyCode)) return super.dispatchKeyEvent(event)
         if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-            if (spotlight.isOpen) spotlight.close() else openSpotlight()
+            if (spotlight.isOpen) { spotlight.close(); sounds.panel(opened = false) } else openSpotlight()
         }
         return true
     }
@@ -249,6 +259,11 @@ class HomeActivity : Activity() {
         super.onPause()
     }
 
+    override fun onResume() {
+        super.onResume()
+        sounds.reload()
+    }
+
     override fun onStart() {
         super.onStart()
         topBar.startStatus()
@@ -264,13 +279,15 @@ class HomeActivity : Activity() {
     /** BACK closes Spotlight, or leaves the quick-strip for its tile. The launcher never finishes. */
     @Deprecated("Home screen never exits on Back")
     override fun onBackPressed() {
-        if (spotlight.isOpen) spotlight.close() else if (strip.hasFocus()) strip.returnToTile()
+        val closed = if (spotlight.isOpen) { spotlight.close(); true } else strip.hasFocus() && strip.returnToTile()
+        sounds.back(closed)
     }
 
     override fun onDestroy() {
         tileMenu.dismiss()
         repo.unregister()
         loader.shutdownNow()
+        sounds.release()
         super.onDestroy()
     }
 }

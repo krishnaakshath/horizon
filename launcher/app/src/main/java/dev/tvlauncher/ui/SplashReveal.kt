@@ -31,6 +31,9 @@ object SplashReveal {
         return Timeline(steps)
     }
 
+    /** Upper bound of the whole reveal (no splash input, e.g. focus sounds, before this). */
+    fun totalMs(full: Boolean): Long = if (full) full(MAX_STAGGERED_TILES).totalMs else lite().totalMs
+
     fun lite(): Timeline = Timeline(
         listOf(
             Step(Part.MARK_IN, 0, 200),

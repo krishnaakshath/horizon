@@ -48,4 +48,10 @@ class SplashRevealTest {
             assertEquals(reachedEnd, t.totalMs)
         }
     }
+
+    @Test fun totalMs_coversEveryTimeline() {
+        assertEquals(SplashReveal.full(SplashReveal.MAX_STAGGERED_TILES).totalMs, SplashReveal.totalMs(full = true))
+        assertEquals(SplashReveal.lite().totalMs, SplashReveal.totalMs(full = false))
+        for (n in 0..12) assertTrue(SplashReveal.full(n).totalMs <= SplashReveal.totalMs(full = true))
+    }
 }
