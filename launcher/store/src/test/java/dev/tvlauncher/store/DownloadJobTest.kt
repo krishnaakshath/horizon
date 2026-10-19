@@ -50,5 +50,8 @@ class DownloadJobTest {
         assertFalse(job.hopAllowed("https://192.168.1.1/app.apk", 1))
         assertFalse(job.hopAllowed("https://localhost/app.apk", 1))
         assertEquals(HashExpectation.None, job.published)
+        // installed.json keeps host + path only; the download itself still uses the full URL
+        assertEquals("https://example.org/dl/app.apk", job.ref)
+        assertEquals("https://example.org/dl/app.apk?x=1", job.url)
     }
 }

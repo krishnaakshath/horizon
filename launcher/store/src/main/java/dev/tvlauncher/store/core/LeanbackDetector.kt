@@ -18,15 +18,22 @@ object LeanbackDetector {
         val leanbackLauncher: Boolean,
         val leanbackFeature: Boolean,
         val banner: Boolean,
+        /** Declares an activity with the phone LAUNCHER category. */
+        val launcher: Boolean = false,
     ) {
+        /** Shows up in a launcher (phone or TV), so our `<queries>` would see it once installed. */
+        val launchable: Boolean get() = leanbackLauncher || launcher
+
         val tvReady: Boolean get() = leanbackLauncher || leanbackFeature
     }
 
     const val LEANBACK_LAUNCHER = "android.intent.category.LEANBACK_LAUNCHER"
+    const val LAUNCHER = "android.intent.category.LAUNCHER"
 
     fun scan(events: Sequence<Event>): Result {
         var pkg: String? = null
         var launcher = false
+        var phoneLauncher = false
         var feature = false
         var banner = false
         val stack = ArrayList<String>()
@@ -40,9 +47,10 @@ object LeanbackDetector {
                         "category" -> {
                             val inFilter = stack.lastOrNull() == "intent-filter"
                             val owner = stack.getOrNull(stack.size - 2)
-                            if (inFilter && (owner == "activity" || owner == "activity-alias") &&
-                                e.attrs["name"] == LEANBACK_LAUNCHER
-                            ) launcher = true
+                            if (inFilter && (owner == "activity" || owner == "activity-alias")) {
+                                if (e.attrs["name"] == LEANBACK_LAUNCHER) launcher = true
+                                if (e.attrs["name"] == LAUNCHER) phoneLauncher = true
+                            }
                         }
                     }
                     stack += e.name
@@ -53,6 +61,6 @@ object LeanbackDetector {
                 }
             }
         }
-        return Result(pkg, launcher, feature, banner)
+        return Result(pkg, launcher, feature, banner, phoneLauncher)
     }
 }

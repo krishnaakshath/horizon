@@ -58,7 +58,7 @@ object InstallReview {
     const val NOT_FOR_TV = "Not designed for TV; may need a mouse/touch"
     const val INSTALLED_SIGNER_UNREADABLE = "Can't verify the installed app's signature, so this update is blocked."
     const val INSTALL_STATE_UNKNOWN =
-        "Couldn't check whether this app is already installed — Android will still block a different signer."
+        "Couldn't check if this is already installed — Android will still block a different signature."
 
     fun evaluate(f: ApkFacts): Review {
         val blockers = ArrayList<String>()
@@ -72,7 +72,8 @@ object InstallReview {
             f.signers,
             f.signerHistory,
         )
-        val sensitive = f.capabilities.size + f.permissions.distinct().count { PermissionRisk.isSensitive(it) }
+        // INFO capabilities (wallpaper, tile, screensaver) are listed but not counted as sensitive.
+        val sensitive = f.capabilities.count { it.severity != ComponentRisk.Severity.INFO } + f.permissions.distinct().count { PermissionRisk.isSensitive(it) }
 
         if (f.packageName == null) {
             blockers += "This file isn't a valid Android app."

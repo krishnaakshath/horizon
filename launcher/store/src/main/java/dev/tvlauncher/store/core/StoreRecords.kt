@@ -62,10 +62,19 @@ object InstalledRegistry {
 object LinkHistory {
     const val MAX = 10
 
+    /** scheme://host/path only: query, fragment and any user-info are removed. */
     fun strip(url: String): String {
-        val u = url.trim()
+        var u = url.trim()
         val cut = u.indexOfFirst { it == '?' || it == '#' }
-        return if (cut >= 0) u.substring(0, cut) else u
+        if (cut >= 0) u = u.substring(0, cut)
+        val schemeEnd = u.indexOf("://")
+        if (schemeEnd >= 0) {
+            val authStart = schemeEnd + 3
+            val pathStart = u.indexOf('/', authStart).let { if (it < 0) u.length else it }
+            val at = u.lastIndexOf('@', pathStart - 1)
+            if (at >= authStart) u = u.substring(0, authStart) + u.substring(at + 1)
+        }
+        return u
     }
 
     fun add(list: List<String>, url: String): List<String> {

@@ -30,6 +30,17 @@ class LeanbackDetectorTest {
         assertEquals(false, LeanbackDetector.scan(phone.asSequence()).leanbackLauncher)
     }
 
+    @Test fun phoneLauncherMakesItLaunchableButNotTvReady() {
+        val phone = listOf(pkg, start("activity"), start("intent-filter"),
+            start("category", "name" to "android.intent.category.LAUNCHER"))
+        val r = LeanbackDetector.scan(phone.asSequence())
+        assertEquals(true, r.launcher)
+        assertEquals(true, r.launchable)
+        assertEquals(false, r.tvReady)
+        val none = LeanbackDetector.scan(listOf(pkg, start("service")).asSequence())
+        assertEquals(false, none.launchable)
+    }
+
     @Test fun categoryOutsideActivityIgnored() {
         val ev = listOf(pkg, start("queries"), start("intent"),
             start("category", "name" to "android.intent.category.LEANBACK_LAUNCHER"), end("intent"), end("queries"))

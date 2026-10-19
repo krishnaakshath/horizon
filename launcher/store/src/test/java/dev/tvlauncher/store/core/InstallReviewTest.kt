@@ -118,13 +118,29 @@ class InstallReviewTest {
         assertFalse(r.isUpdate)
         assertTrue(r.canInstall)
         assertTrue(r.warnings.contains(
-            "Couldn't check whether this app is already installed — Android will still block a different signer."))
+            "Couldn't check if this is already installed — Android will still block a different signature."))
     }
 
     @Test fun rotatedSignerUpdateAllowedViaLineage() {
         val r = InstallReview.evaluate(base.copy(installedVersionCode = 5, installedSigners = setOf(b),
             signers = setOf(a), signerHistory = setOf(b, a)))
         assertTrue(r.canInstall)
+    }
+
+    @Test fun infoCapabilitiesDoNotCountAsSensitive() {
+        val caps = ComponentRisk.collect(listOf(
+            ComponentRisk.Kind.SERVICE to "android.permission.BIND_WALLPAPER",
+            ComponentRisk.Kind.SERVICE to "android.permission.BIND_QUICK_SETTINGS_TILE",
+            ComponentRisk.Kind.SERVICE to "android.permission.BIND_DREAM_SERVICE",
+        ))
+        val r = InstallReview.evaluate(base.copy(capabilities = caps))
+        assertEquals(0, r.sensitiveCount)
+        assertFalse(r.warnings.any { it.startsWith("Contains") })
+        val mixed = InstallReview.evaluate(base.copy(capabilities = caps + ComponentRisk.collect(listOf(
+            ComponentRisk.Kind.SERVICE to "android.permission.BIND_AUTOFILL_SERVICE",
+            ComponentRisk.Kind.SERVICE to "android.permission.BIND_VPN_SERVICE")),
+            permissions = listOf("android.permission.CAMERA")))
+        assertEquals(3, mixed.sensitiveCount)
     }
 
     @Test fun capabilitiesCountTowardsSummary() {

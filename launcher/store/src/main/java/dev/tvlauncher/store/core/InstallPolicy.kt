@@ -2,7 +2,10 @@ package dev.tvlauncher.store.core
 
 /** Accepts installer status broadcasts only for the install we started, and only for a bounded time. */
 object ReceiverTokenPolicy {
-    const val MAX_PENDING_MILLIS = 10L * 60 * 1000
+    /** The UI gives up (and abandons the session) after this long… */
+    const val SESSION_TIMEOUT_MILLIS = 12L * 60 * 1000
+    /** …but a late status is still accepted until this, so a confirm at the last second isn't lost. */
+    const val MAX_PENDING_MILLIS = 14L * 60 * 1000
 
     fun accepts(received: String?, current: String?, issuedAtMillis: Long, nowMillis: Long): Boolean {
         if (received.isNullOrEmpty() || current.isNullOrEmpty()) return false

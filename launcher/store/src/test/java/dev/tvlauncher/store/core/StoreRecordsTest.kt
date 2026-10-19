@@ -53,6 +53,12 @@ class StoreRecordsTest {
         assertEquals(listOf("https://ok.org/a.apk"), LinkHistory.decode("""["https://ok.org/a.apk?sig=abc"]"""))
     }
 
+    @Test fun stripRemovesUserInfoQueryAndFragment() {
+        assertEquals("https://host.example/p/a.apk", LinkHistory.strip("https://user:pw@host.example/p/a.apk?t=1#x"))
+        assertEquals("https://host.example", LinkHistory.strip("https://u@host.example"))
+        assertEquals("https://host.example/a@b.apk", LinkHistory.strip("https://host.example/a@b.apk"))
+    }
+
     @Test fun registryLabelsAreSanitised() {
         val one = InstalledRegistry.decode("""[{"pkg":"a.b","label":"Evil\u202egpj.exe"}]""")
         assertEquals("Evilgpj.exe", one[0].label)

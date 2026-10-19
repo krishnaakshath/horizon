@@ -19,10 +19,14 @@ class InstallPolicyTest {
         assertFalse(ReceiverTokenPolicy.accepts("", "", 1000, 2000))
     }
 
-    @Test fun receiverTokenExpiresAfterTenMinutes() {
+    @Test fun receiverTokenOutlivesTheUiTimeout() {
         val t0 = 1_000_000L
-        assertTrue(ReceiverTokenPolicy.accepts("t", "t", t0, t0 + 10 * 60 * 1000))
-        assertFalse(ReceiverTokenPolicy.accepts("t", "t", t0, t0 + 10 * 60 * 1000 + 1))
+        assertEquals(12L * 60 * 1000, ReceiverTokenPolicy.SESSION_TIMEOUT_MILLIS)
+        assertTrue(ReceiverTokenPolicy.MAX_PENDING_MILLIS > ReceiverTokenPolicy.SESSION_TIMEOUT_MILLIS)
+        // a confirmation at 9:59 (or even at 13:59) is still accepted
+        assertTrue(ReceiverTokenPolicy.accepts("t", "t", t0, t0 + 9 * 60 * 1000 + 59_000))
+        assertTrue(ReceiverTokenPolicy.accepts("t", "t", t0, t0 + 14 * 60 * 1000))
+        assertFalse(ReceiverTokenPolicy.accepts("t", "t", t0, t0 + 14 * 60 * 1000 + 1))
         assertFalse("clock went backwards", ReceiverTokenPolicy.accepts("t", "t", t0, t0 - 1))
     }
 

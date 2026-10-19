@@ -6,6 +6,7 @@ import dev.tvlauncher.store.core.GithubRepoRef
 import dev.tvlauncher.store.core.DisplayText
 import dev.tvlauncher.store.core.HashExpectation
 import dev.tvlauncher.store.core.HostAllowlist
+import dev.tvlauncher.store.core.LinkHistory
 import dev.tvlauncher.store.core.InstalledRecord
 import dev.tvlauncher.store.core.UrlPolicy
 
@@ -40,7 +41,8 @@ data class DownloadJob(
     companion object {
         fun fromLink(url: String) = DownloadJob(
             title = DisplayText.sanitize(url.substringBefore('?').substringBefore('#').substringAfterLast('/'), 60).ifEmpty { "Download" },
-            url = url, source = InstalledRecord.Source.LINK, ref = url, releaseTag = null,
+            // The stored reference (installed.json) keeps host + path only, like the link history.
+            url = url, source = InstalledRecord.Source.LINK, ref = LinkHistory.strip(url), releaseTag = null,
             expectedSha256 = null, declaredSize = -1, expectedPackage = null, expectedSigner = null,
         )
 
