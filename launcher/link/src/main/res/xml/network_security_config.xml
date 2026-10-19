@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Home Assistant and WebDAV servers on the home network are usually plain http, and Android's
+    network security config cannot express "private addresses only". Cleartext is therefore allowed
+    here, and net/UrlPolicy.kt enforces the real rule before every connection: http only to a host
+    that is (or resolves only to) a private, link-local or loopback address; everything else must
+    be https. Only the system CA store is trusted (no user-added CAs).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

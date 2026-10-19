@@ -22,7 +22,7 @@ class NoDeveloperTextTest {
 
     private fun hits(root: File): List<String> {
         val out = ArrayList<String>()
-        root.walkTopDown().filter { it.isFile && (it.extension == "kt" || it.extension == "xml") }.forEach { f ->
+        root.walkTopDown().filter { it.isFile && (it.extension == "kt" || it.extension == "xml" || it.extension == "html") }.forEach { f ->
             f.readLines().forEachIndexed { i, line ->
                 val t = line.trim()
                 if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*") || t.startsWith("<!--")) return@forEachIndexed
@@ -34,7 +34,7 @@ class NoDeveloperTextTest {
     }
 
     @Test fun noModuleShowsDeveloperText() {
-        val modules = listOf("src/main", "../helper/src/main", "../store/src/main", "../browser/src/main", "../weather/src/main", "../volumecore/src/main")
+        val modules = listOf("src/main", "../helper/src/main", "../store/src/main", "../browser/src/main", "../weather/src/main", "../volumecore/src/main", "../link/src/main")
             .map(::File).filter { it.isDirectory }
         assertTrue("module sources not found from ${File(".").absolutePath}", modules.isNotEmpty() && modules[0].isDirectory)
         assertEquals(emptyList<String>(), modules.flatMap(::hits))

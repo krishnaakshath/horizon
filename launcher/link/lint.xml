@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!--
+        ExpiredTargetSdkVersion and OldTargetApi are disabled on purpose: targetSdk 28 matches the
+        launcher (:app). The companion apps are side-loaded on Android TV sets, not published on Google
+        Play. Link asks the launcher to start apps for the phone page, so it keeps the launcher's
+        package-visibility and background rules (see build.gradle.kts).
+    -->
+    <issue id="ExpiredTargetSdkVersion" severity="ignore" />
+    <issue id="OldTargetApi" severity="ignore" />
+</lint>
