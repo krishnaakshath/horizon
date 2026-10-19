@@ -19,6 +19,7 @@ import dev.tvlauncher.home.ModeTracker
 import dev.tvlauncher.home.RecentMode
 import dev.tvlauncher.launch.AndroidLaunchBackend
 import dev.tvlauncher.launch.AppLauncher
+import dev.tvlauncher.safemode.DebugTriggers
 import dev.tvlauncher.safemode.SafeMode
 import dev.tvlauncher.settings.Prefs
 import dev.tvlauncher.ui.BackdropView
@@ -73,6 +74,7 @@ class HomeActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DebugTriggers.handle(this, intent) // debuggable builds only
         if (SafeMode.redirectIfTripped(this)) return // repeated crashes: the tiny safe-mode launcher
         repo = AppRepository(applicationContext)
         prefs = Prefs(applicationContext)
@@ -252,6 +254,7 @@ class HomeActivity : Activity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
+        if (DebugTriggers.handle(this, intent)) { SafeMode.redirectIfTripped(this); return }
         if (intent?.action == SpotlightKeys.ACTION) {
             openSpotlight()
         } else {
