@@ -6,14 +6,14 @@ import dev.tvlauncher.device.DeviceProfile
 
 /**
  * One entry of the Settings sidebar. Other modules implement this and call
- * [SettingsRegistry.register]; a section whose [id] matches a built-in placeholder
- * ("sounds", "insights", "helper", "browser", "devices") takes that placeholder's slot.
+ * [SettingsRegistry.register]; a section whose [id] matches a built-in [Slot]
+ * ("sounds", "insights", "helper", "browser", "devices") fills that slot ([SectionIds]).
  *
  * [group], [availability] and [description] are optional: a section written before groups
  * existed still compiles and is listed under [SettingsGroup.APPS] (or its well-known group).
  */
 interface SettingsSection {
-    /** Stable id; also the key used for focus restoration and placeholder replacement. */
+    /** Stable id; also the key used for focus restoration and slot replacement. */
     val id: String
     val title: String
     /** A 24dp vector drawable, tinted by the sidebar. */

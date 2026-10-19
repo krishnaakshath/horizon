@@ -5,7 +5,7 @@ import android.os.SystemClock
 import android.view.View
 import dev.tvlauncher.R
 import dev.tvlauncher.appsettings.Chip
-import dev.tvlauncher.appsettings.ModulePlaceholderSection
+import dev.tvlauncher.appsettings.SectionIds
 import dev.tvlauncher.appsettings.PageSpec
 import dev.tvlauncher.appsettings.RowKind
 import dev.tvlauncher.appsettings.SettingsGroup
@@ -39,7 +39,7 @@ object VolumeSection : SettingsSection, SpecifiedPage {
 
     /** Settings > Sound lists this page first, above UI sounds. */
     fun register(registry: SettingsRegistry = SettingsRegistry.shared) =
-        registry.registerBefore(this, ModulePlaceholderSection.SOUNDS)
+        registry.registerBefore(this, SectionIds.SOUNDS)
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val page = SettingsPage(context, nav.style, spec)

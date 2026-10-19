@@ -14,7 +14,7 @@ class ModuleSectionsTest {
         val ids = r.sections().map { it.id }
         assertEquals(SettingsRegistry.BUILT_IN_IDS, ids)
         for (id in ModuleSections.IDS) {
-            assertFalse(id, r.sections().first { it.id == id } is ModulePlaceholderSection)
+            assertFalse(id, r.sections().first { it.id == id } is Slot)
         }
     }
 
@@ -45,10 +45,10 @@ class ModuleSectionsTest {
 
     @Test
     fun helperSection_isRegistered_andTargetsHelperSettings() {
-        assertTrue(ModulePlaceholderSection.HELPER in ModuleSections.IDS)
+        assertTrue(SectionIds.HELPER in ModuleSections.IDS)
         val r = SettingsRegistry.newDefault()
         ModuleSections.registerAll(r)
-        val helper = r.sections().first { it.id == ModulePlaceholderSection.HELPER }
+        val helper = r.sections().first { it.id == SectionIds.HELPER }
         assertEquals("Helper", helper.title)
         assertEquals("dev.tvlauncher.helper", ModuleSections.HELPER_PACKAGE)
         assertEquals("dev.tvlauncher.helper.HelperSettingsActivity", ModuleSections.HELPER_ACTIVITY)

@@ -39,7 +39,7 @@ sealed class SectionAvailability {
         override fun resolve(probe: Probe) = true
     }
 
-    /** A slot keeper (a module placeholder): never listed; the module's real page replaces it. */
+    /** A built-in [Slot]: never listed; the module's real page replaces it. */
     object Never : SectionAvailability() {
         override fun resolve(probe: Probe) = false
     }

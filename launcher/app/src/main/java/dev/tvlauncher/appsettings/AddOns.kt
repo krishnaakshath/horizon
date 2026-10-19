@@ -11,10 +11,10 @@ object AddOns {
     const val STORE_PACKAGE = "dev.tvlauncher.store"
 
     val all = listOf(
-        AddOn("browser", "Browser", "A simple web browser built for the remote", QuickActions.BROWSER_PACKAGE, ModulePlaceholderSection.BROWSER),
+        AddOn("browser", "Browser", "A simple web browser built for the remote", QuickActions.BROWSER_PACKAGE, SectionIds.BROWSER),
         AddOn("getapps", "Store", "Install apps from F-Droid, GitHub or a link", STORE_PACKAGE, GetAppsSection.ID),
         AddOn("weather", "Weather", "Local weather for the home screen and ambient", WeatherContract.PACKAGE, null),
-        AddOn("helper", "Helper", "Remote shortcuts such as double-Back to Home", ModuleSections.HELPER_PACKAGE, ModulePlaceholderSection.HELPER)
+        AddOn("helper", "Helper", "Remote shortcuts such as double-Back to Home", ModuleSections.HELPER_PACKAGE, SectionIds.HELPER)
     )
 
     fun byId(id: String): AddOn? = all.firstOrNull { it.id == id }

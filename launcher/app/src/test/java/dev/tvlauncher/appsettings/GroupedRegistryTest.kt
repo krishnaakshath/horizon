@@ -93,7 +93,7 @@ class GroupedRegistryTest {
         val r = SettingsRegistry.newDefault()
         ModuleSections.registerAll(r)
         val visible = GroupedRegistry.build(r.sections(), Probe()).flatMap { it.sections }
-        assertFalse(visible.any { it is ModulePlaceholderSection })
+        assertFalse(visible.any { it is Slot })
         val ids = visible.map { it.id }
         assertFalse("browser" in ids)
         assertFalse("helper" in ids)
@@ -105,6 +105,7 @@ class GroupedRegistryTest {
     fun defaultRegistry_groupsMatchTheInformationArchitecture() {
         val r = SettingsRegistry.newDefault()
         ModuleSections.registerAll(r)
+        r.register(dev.tvlauncher.setup.ConfigBackupSection) // fills the "backup" slot, as in LauncherApp
         val all = setOf("dev.tvlauncher.browser", "dev.tvlauncher.helper", AddOns.STORE_PACKAGE)
         val g = GroupedRegistry.build(r.sections(), Probe(apps = all))
         assertEquals(

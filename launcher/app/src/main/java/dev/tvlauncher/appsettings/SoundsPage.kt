@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference
  */
 object SoundsPage {
     val SPEC = PageSpec(
-        ModulePlaceholderSection.SOUNDS,
+        SectionIds.SOUNDS,
         listOf("sounds.enabled", "sounds.nav", "sounds.launch", "sounds.volume"),
         listOf("sounds.events", "sounds.lab", "sounds.custom", "sounds.folder")
     )

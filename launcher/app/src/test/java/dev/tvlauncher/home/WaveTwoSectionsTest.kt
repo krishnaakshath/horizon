@@ -2,7 +2,7 @@ package dev.tvlauncher.home
 
 import dev.tvlauncher.ambient.AmbientSettingsRows
 import dev.tvlauncher.ambient.WallpaperSettings
-import dev.tvlauncher.appsettings.ModulePlaceholderSection
+import dev.tvlauncher.appsettings.SectionIds
 import dev.tvlauncher.appsettings.PageSpec
 import dev.tvlauncher.appsettings.RowGuard
 import dev.tvlauncher.appsettings.SettingsGroup
@@ -21,8 +21,8 @@ class WaveTwoSectionsTest {
         dev.tvlauncher.system.SystemSections.registerAll(r)
         val after = r.sections()
         val ids = after.map { it.id }
-        assertEquals(before.indexOf(ModulePlaceholderSection.DEVICES), ids.indexOf(ModulePlaceholderSection.DEVICES))
-        assertTrue(after.first { it.id == ModulePlaceholderSection.DEVICES } === dev.tvlauncher.system.DevicesSettingsSection)
+        assertEquals(before.indexOf(SectionIds.DEVICES), ids.indexOf(SectionIds.DEVICES))
+        assertTrue(after.first { it.id == SectionIds.DEVICES } === dev.tvlauncher.system.DevicesSettingsSection)
         assertTrue(WaveTwoSections.AMBIENT_ID in ids)
         assertTrue(WaveTwoSections.HOME_EXTRAS_ID in ids)
         WaveTwoSections.registerAll(r) // idempotent

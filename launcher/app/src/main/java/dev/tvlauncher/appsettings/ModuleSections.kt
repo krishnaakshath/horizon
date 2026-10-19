@@ -10,12 +10,12 @@ import dev.tvlauncher.ui.SystemActions
 
 /**
  * The real Settings pages of the wave-1 modules. [registerAll] runs once from
- * LauncherApp.onCreate, so the first Settings screen already shows them in their placeholders' slots.
+ * LauncherApp.onCreate, so the first Settings screen already shows them in their built-in slots.
  */
 object ModuleSections {
     val IDS = listOf(
-        ModulePlaceholderSection.SOUNDS, ModulePlaceholderSection.INSIGHTS,
-        ModulePlaceholderSection.HELPER, ModulePlaceholderSection.BROWSER
+        SectionIds.SOUNDS, SectionIds.INSIGHTS,
+        SectionIds.HELPER, SectionIds.BROWSER
     )
     const val HELPER_PACKAGE = "dev.tvlauncher.helper"
     const val HELPER_ACTIVITY = "dev.tvlauncher.helper.HelperSettingsActivity"
@@ -37,7 +37,7 @@ object ModuleSections {
 
 /** Hosts [SoundsPage]: SettingsRow-based, with choosers and an Advanced block. */
 object SoundsSection : SettingsSection, SpecifiedPage {
-    override val id = ModulePlaceholderSection.SOUNDS
+    override val id = SectionIds.SOUNDS
     override val title = "UI sounds"
     override val iconRes = R.drawable.ic_set_sounds
     override val group = SettingsGroup.SOUND
@@ -48,7 +48,7 @@ object SoundsSection : SettingsSection, SpecifiedPage {
 }
 
 object InsightsSection : SettingsSection, SpecifiedPage {
-    override val id = ModulePlaceholderSection.INSIGHTS
+    override val id = SectionIds.INSIGHTS
     override val title = "Insights"
     override val iconRes = R.drawable.ic_set_insights
     override val group = SettingsGroup.APPS
@@ -144,12 +144,12 @@ abstract class CompanionSection(private val addOnId: String) : SettingsSection, 
 }
 
 object BrowserSection : CompanionSection("browser") {
-    override val id = ModulePlaceholderSection.BROWSER
+    override val id = SectionIds.BROWSER
 }
 
 /** Link to the separate Launcher Helper app (double-Back to Home, Spotlight shortcut). */
 object HelperSection : CompanionSection("helper") {
-    override val id = ModulePlaceholderSection.HELPER
+    override val id = SectionIds.HELPER
 }
 
 object GetAppsSection : CompanionSection("getapps") {

@@ -5,7 +5,7 @@ import dev.tvlauncher.appsettings.SettingsRegistry
 /**
  * Registers the launcher-owned system pages that are not built in. Wi-Fi & network, Bluetooth
  * and TV & system are built-ins of [SettingsRegistry.newDefault]; "devices" takes its
- * placeholder's slot; Accessibility, Parental controls and Apps are new. Each section is
+ * built-in slot; Accessibility, Parental controls and Apps are new. Each section is
  * registered exactly once (here or as a built-in).
  */
 object SystemSections {
