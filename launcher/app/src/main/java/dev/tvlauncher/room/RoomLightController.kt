@@ -9,16 +9,19 @@ import java.util.Calendar
 import java.util.TimeZone
 
 /**
- * Owns the [RoomLightModel] state for the home screen. Call [start] from onStart and [stop] from
- * onStop. While started it:
+ * Android shell around [RoomEngine] for the home screen. Call [start] from onStart and [stop] from
+ * onStop (both idempotent). While started it:
  * - re-evaluates once a minute, aligned to the wall-clock minute (one Handler runnable, removed
- *   on [stop]), and on every (smoothed, rate-limited) lux event;
+ *   on [stop]), and on every rate-limited lux event;
  * - registers the light sensor only if the device has one AND the choice is AUTO;
  * - emits [onModeChanged] (main thread) only when the mode or palette changes. The first emission
- *   after construction has transitionMs = 0 (no crossfade at launch); later ones use
- *   [RoomTransitions.durationMs] (1200 ms; LITE 600; 0 when animations are off).
+ *   after construction has transitionMs = 0; later ones use [RoomTransitions.durationMs]
+ *   (1200 ms; LITE 600; 0 when animations are off). After [start] the first lux reading applies
+ *   without the 45 s dwell (and fades).
  *
- * @param choiceProvider the current [RoomChoice]; defaults to the saved [RoomSettings].
+ * @param choiceProvider when non-null it OVERRIDES the saved [RoomSettings.choice] (a test/kiosk
+ *   hook). [cycleChoice] still saves the next choice, but it only takes effect once the provider
+ *   returns it. Leave it null for the normal launcher.
  * @param liteProvider true on LITE effects devices (shorter crossfade).
  */
 class RoomLightController(
@@ -30,20 +33,23 @@ class RoomLightController(
     private val app = context.applicationContext
     private val prefs = RoomPrefs(app)
     private val main = Handler(Looper.getMainLooper())
-    private val smoother = LuxSmoother(alpha = 0.25f, clock = { SystemClock.elapsedRealtime() })
-    private val sensor = LightSensorSource(app) { lux -> onLux(lux) }
     private val weather = WeatherDaylightSource(app)
-
-    private var settings: RoomSettings = prefs.load()
-    private var state: RoomLightModel.State? = null
-    private var palette: Palette = Palettes.of(RoomMode.STANDARD)
-    private var emitted = false
-    private var started = false
+    private val engine = RoomEngine(
+        clock = { SystemClock.elapsedRealtime() },
+        minuteOfDay = {
+            val c = Calendar.getInstance()
+            c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
+        },
+        daylight = { s -> daylight(s) },
+        transitionMs = { s -> RoomTransitions.durationMs(s, liteProvider(), animatorScale()) },
+        emit = { m, p, ms -> onModeChanged(m, p, ms) }
+    ).also { it.choiceOverride = choiceProvider }
+    private val sensor = LightSensorSource(app) { lux -> engine.onLux(lux) }
 
     private val tick = object : Runnable {
         override fun run() {
-            if (!started) return
-            evaluate()
+            if (!engine.started) return
+            engine.tick()
             scheduleTick()
         }
     }
@@ -51,105 +57,65 @@ class RoomLightController(
     /** Whether this device has an ambient light sensor (false on the TCL 32S5403AF). */
     val hasLightSensor: Boolean get() = sensor.isAvailable
 
-    /** The mode and palette last decided (STANDARD before the first evaluation). */
-    fun current(): Pair<RoomMode, Palette> = (state?.mode ?: RoomMode.STANDARD) to palette
+    /** The mode and palette last emitted (STANDARD before the first emission). */
+    fun current(): Pair<RoomMode, Palette> = engine.current()
 
     fun start() {
-        if (started) return
-        started = true
-        settings = prefs.load()
-        updateSensor()
-        evaluate()
+        if (engine.started) return
+        val s = prefs.load()
+        engine.start(s, updateSensor(s))
         scheduleTick()
     }
 
     fun stop() {
-        if (!started) return
-        started = false
         main.removeCallbacks(tick)
         sensor.stop()
-        smoother.reset()
+        engine.stop()
     }
 
-    /** Re-reads [RoomSettings] (after Settings or the quick action changed them) and re-evaluates. */
+    /** Re-reads [RoomSettings] (after Settings changed them) and re-evaluates. */
     fun refresh() {
-        settings = prefs.load()
-        if (!started) return
-        updateSensor()
-        evaluate()
+        val s = prefs.load()
+        engine.update(s, if (engine.started) updateSensor(s) else false)
     }
 
     /**
      * Spotlight quick action: saves the next choice (Auto -> Dark -> Evening -> Normal -> Bright ->
-     * Auto), applies it and returns the toast text, e.g. "Room lighting: Bright room (manual)".
+     * Auto), applies it and returns the toast text: "Room lighting: Bright room (manual)" or
+     * "Room lighting: Auto (now Evening)" with the mode actually computed for now.
      */
     fun cycleChoice(): String {
         val s = prefs.load()
         val next = s.copy(choice = RoomChoiceCycler.next(s.choice))
         prefs.save(next)
-        settings = next
-        if (started) { updateSensor(); evaluate() }
-        else state = null
-        val effective = state?.mode ?: next.choice.manualMode ?: RoomMode.STANDARD
-        return RoomChoiceCycler.toast(next.choice, effective)
+        engine.update(next, if (engine.started) updateSensor(next) else false)
+        return RoomChoiceCycler.toast(engine.choice(), engine.previewMode(next))
     }
 
-    private fun choice(): RoomChoice = try {
-        choiceProvider?.invoke() ?: settings.choice
-    } catch (e: RuntimeException) {
-        settings.choice
+    /** Starts/stops the sensor for [s]; returns whether lux is flowing. */
+    private fun updateSensor(s: RoomSettings): Boolean {
+        val choice = try { choiceProvider?.invoke() ?: s.choice } catch (e: RuntimeException) { s.choice }
+        return if (choice == RoomChoice.AUTO && sensor.isAvailable) {
+            sensor.start()
+            sensor.isStarted
+        } else {
+            sensor.stop()
+            false
+        }
     }
 
-    private fun updateSensor() {
-        if (choice() == RoomChoice.AUTO && sensor.isAvailable) sensor.start()
-        else { sensor.stop(); smoother.reset() }
-    }
-
-    private fun onLux(lux: Float) {
-        if (!started) return
-        smoother.add(lux)
-        evaluate()
-    }
-
-    private fun evaluate() {
-        val cal = Calendar.getInstance()
-        val minute = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
-        val c = choice()
-        val lux = if (c == RoomChoice.AUTO && sensor.isStarted) smoother.value() else null
-        // Sun times only matter for the AUTO schedule; skip the provider IPC otherwise.
-        val sun = if (c == RoomChoice.AUTO && lux == null) daylight(cal).let { src ->
-            try { src.sunriseSunsetMinutes() } catch (e: RuntimeException) { null }
-        } else null
-        val inputs = RoomLightModel.Inputs(
-            lux = lux,
-            minuteOfDay = minute,
-            sunriseMin = sun?.first,
-            sunsetMin = sun?.second,
-            choice = c,
-            nowMs = SystemClock.elapsedRealtime(),
-            schedule = settings.schedule
-        )
-        val prev = state
-        val next = if (prev == null) RoomLightModel.initial(inputs) else RoomLightModel.next(prev, inputs)
-        state = next
-        val p = Palettes.of(next.mode, settings.boostTextInBright)
-        if (emitted && prev?.mode == next.mode && p == palette) return
-        palette = p
-        val ms = if (!emitted) 0L else RoomTransitions.durationMs(settings, liteProvider(), animatorScale())
-        emitted = true
-        onModeChanged(next.mode, p, ms)
-    }
-
-    private fun daylight(cal: Calendar): DaylightSource {
-        val lat = settings.latitudeDeg ?: return weather
-        val tz = TimeZone.getDefault()
-        val now = cal.timeInMillis
+    private fun daylight(s: RoomSettings): DaylightSource {
+        val lat = s.latitudeDeg ?: return weather
         val estimate = EstimatedDaylight(
             latitudeDeg = lat,
-            longitudeDeg = null,
-            utcOffsetMinutes = { tz.getOffset(now) / 60_000 },
-            dayOfYear = { cal.get(Calendar.DAY_OF_YEAR) },
-            dstMinutes = { (tz.getOffset(now) - tz.rawOffset) / 60_000 }
+            longitudeDeg = s.longitudeDeg,
+            // Zone offset (incl. DST) at this instant, from the device TimeZone.
+            utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 },
+            dayOfYear = { Calendar.getInstance().get(Calendar.DAY_OF_YEAR) },
+            dstMinutes = {
+                val tz = TimeZone.getDefault()
+                (tz.getOffset(System.currentTimeMillis()) - tz.rawOffset) / 60_000
+            }
         )
         return DaylightSources.firstOf(weather, estimate)
     }

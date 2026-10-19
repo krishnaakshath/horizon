@@ -10,25 +10,32 @@ import java.util.Calendar
  * Sunrise/sunset from the weather companion's `content://dev.tvlauncher.weather/current` row, when
  * (in a future version) it carries them. Accepted columns, first match wins:
  * `sunriseMinute`/`sunsetMinute` (local minutes of day) or `sunrise`/`sunset` (epoch seconds or
- * millis). Today's row has neither, so this returns null and the next source is used.
+ * millis). Today's row has neither, so this is a dormant SEAM: it returns null and the next source
+ * (the latitude estimate) is used.
  *
- * Cached for [ttlMs] (the query is IPC on the main thread); never throws.
+ * Main-thread safety: it never queries unless the authority resolves to an installed provider
+ * (a cheap PackageManager lookup, cached with the result), the result is cached for [ttlMs], and
+ * the controller only asks while AUTO has no light sensor. Never throws. If a future companion
+ * makes the query slow, move it to a background thread and keep the cached value here.
  */
 class WeatherDaylightSource(
     context: Context,
     private val ttlMs: Long = 30 * 60_000L
 ) : DaylightSource {
     private val resolver = context.applicationContext.contentResolver
+    private val packageManager = context.applicationContext.packageManager
     private var cached: Pair<Int, Int>? = null
     private var cachedAt = Long.MIN_VALUE
 
     override fun sunriseSunsetMinutes(): Pair<Int, Int>? {
         val now = SystemClock.elapsedRealtime()
         if (cachedAt != Long.MIN_VALUE && now - cachedAt in 0 until ttlMs) return cached
-        cached = try { query() } catch (e: Exception) { null }
+        cached = try { if (resolvable()) query() else null } catch (e: Exception) { null }
         cachedAt = now
         return cached
     }
+
+    private fun resolvable(): Boolean = packageManager.resolveContentProvider(AUTHORITY, 0) != null
 
     private fun query(): Pair<Int, Int>? {
         val c: Cursor = resolver.query(URI, null, null, null, null) ?: return null
@@ -57,6 +64,7 @@ class WeatherDaylightSource(
     }
 
     companion object {
-        val URI: Uri = Uri.parse("content://dev.tvlauncher.weather/current")
+        const val AUTHORITY = "dev.tvlauncher.weather"
+        val URI: Uri = Uri.parse("content://$AUTHORITY/current")
     }
 }
