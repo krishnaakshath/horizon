@@ -80,7 +80,8 @@ class CursorView(context: Context) : View(context) {
     private var trailHead = 0
     private val trailPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    private val fade = Runnable { animate().alpha(0f).setDuration(200).start() }
+    // Fade out after idle; a hidden cursor stops the busy spinner so nothing redraws invisibly.
+    private val fade = Runnable { animate().alpha(0f).setDuration(200).withEndAction { spinner.cancel() }.start() }
 
     init {
         isClickable = false
@@ -127,7 +128,7 @@ class CursorView(context: Context) : View(context) {
             CursorState.DEFAULT -> Unit
         }
         morph.cancel(); morph.start()
-        if (s == CursorState.BUSY) { if (!spinner.isStarted) spinner.start() } else spinner.cancel()
+        if (s == CursorState.BUSY) { if (!spinner.isStarted && alpha > 0f) spinner.start() } else spinner.cancel()
     }
 
     private fun lerp(i: Int, t: Float) = from[i] + (to[i] - from[i]) * t
@@ -163,6 +164,7 @@ class CursorView(context: Context) : View(context) {
         removeCallbacks(fade)
         animate().cancel()
         alpha = 1f
+        if (state == CursorState.BUSY && isShown && !spinner.isStarted) spinner.start()
         val ms = renderer.settings.autoHideMs
         if (ms > 0) postDelayed(fade, ms)
     }
@@ -175,7 +177,7 @@ class CursorView(context: Context) : View(context) {
 
     override fun onVisibilityAggregated(isVisible: Boolean) {
         super.onVisibilityAggregated(isVisible)
-        if (!isVisible) spinner.cancel() else if (state == CursorState.BUSY && !spinner.isStarted) spinner.start()
+        if (!isVisible) spinner.cancel() else if (state == CursorState.BUSY && alpha > 0f && !spinner.isStarted) spinner.start()
     }
 
     private fun invalidateCursor() = invalidate()

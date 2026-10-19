@@ -83,6 +83,15 @@ import java.io.File
 import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import dev.tvlauncher.browser.data.AtomicText
+import dev.tvlauncher.browser.data.ClearPlan
+import dev.tvlauncher.browser.data.DebouncedSaver
+import dev.tvlauncher.browser.data.FileOps
+import dev.tvlauncher.browser.data.SessionSnapshot
+import dev.tvlauncher.browser.data.SessionState
+import dev.tvlauncher.browser.net.SslErrorPolicy
+import dev.tvlauncher.browser.net.UpgradeLoopGuard
 
 /**
  * TV browser. D-pad drives a virtual mouse cursor by default (hold BACK for focus mode); MENU
@@ -128,6 +137,9 @@ class BrowserActivity : Activity() {
     private val savedStates = HashMap<Long, Bundle>()
     private val thumbs = HashMap<Long, Bitmap>()
     private var pendingScroll = 0
+    /** Main-frame URL currently being loaded (after redirects), for SSL error attribution. */
+    private var loadingUrl: String? = null
+    private val upgradeGuard = UpgradeLoopGuard()
 
     private var web: WebView? = null
     private var webFailed = false
@@ -308,32 +320,51 @@ class BrowserActivity : Activity() {
             if (f.exists()) tabs = TabModel.decode(try { f.readText() } catch (e: Exception) { null })
             tabs.tabs.forEach { t ->
                 val tf = File(cacheDir, "tabs/${t.id}.jpg")
-                if (tf.exists()) BitmapFactory.decodeFile(tf.path)?.let { thumbs[t.id] = it }
+                if (tf.exists()) BitmapFactory.decodeFile(tf.path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })
+                    ?.let { thumbs[t.id] = it }
             }
         }
         activate(tabs.active)
     }
 
-    private val sessionSaver = Runnable { saveSession() }
+    private val sessionFile by lazy { File(filesDir, "session.json") }
 
-    private fun saveSession() {
+    /** Delayed save after page loads; writes go through the single io thread (ordered, atomic). */
+    private val sessionSaver = DebouncedSaver(
+        post = { r, ms -> main.postDelayed(r, ms) },
+        remove = { r -> main.removeCallbacks(r) },
+        write = { json -> io.execute { AtomicText.write(FileOps.Real, sessionFile, json) } }
+    )
+
+    private fun sessionJson(): String {
         snapshotActive(false)
-        val f = File(filesDir, "session.json")
-        if (!restoreSession) { f.delete(); return }
-        val json = tabs.encode()
-        io.execute { try { f.writeText(json) } catch (e: Exception) { } }
+        return tabs.encode()
     }
 
-    /** Copies the live WebView's state into the active tab (and optionally a thumbnail). */
+    private fun scheduleSessionSave() {
+        if (restoreSession) sessionSaver.schedule(2000) { sessionJson() }
+    }
+
+    /** Synchronous, atomic save (onStop): queued after any pending io write so it is the last one. */
+    private fun saveSessionNow() {
+        sessionSaver.cancel()
+        val json = if (restoreSession) sessionJson() else null
+        try {
+            io.submit {
+                if (json == null) sessionFile.delete() else AtomicText.write(FileOps.Real, sessionFile, json)
+            }.get(2, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            Log.w(TAG, "session save", e)
+        }
+    }
+
+    /** Copies the live WebView's state into the active tab (and optionally a thumbnail). Never blanks a page URL. */
     private fun snapshotActive(thumb: Boolean) {
-        val t = tabs.active
         val w = web
-        if (showingStart || w == null) { t.url = null; return }
-        w.url?.takeIf { UrlPolicy.isStorable(it) }?.let { t.url = it }
-        t.title = w.title ?: t.title
-        t.scrollY = w.scrollY
-        savedStates[t.id] = Bundle().also { w.saveState(it) }
-        if (thumb) captureThumb(t.id, w)
+        SessionSnapshot.apply(tabs, w?.let { SessionSnapshot.Web(it.url, it.title, it.scrollY) }, showingStart)
+        if (showingStart || w == null) return
+        savedStates[tabs.active.id] = Bundle().also { w.saveState(it) }
+        if (thumb) captureThumb(tabs.active.id, w)
     }
 
     private fun captureThumb(id: Long, w: WebView) {
@@ -345,7 +376,7 @@ class BrowserActivity : Activity() {
             c.scale(s, s)
             c.translate(-w.scrollX.toFloat(), -w.scrollY.toFloat())
             w.draw(c)
-            thumbs.put(id, bmp)?.takeIf { it !== bmp }?.recycle()
+            thumbs[id] = bmp // the old bitmap may still be compressing on io; let GC free it
             val file = File(cacheDir, "tabs/$id.jpg")
             io.execute {
                 try {
@@ -411,6 +442,8 @@ class BrowserActivity : Activity() {
         showWebUi(firstTime = fromStart)
         tabs.active.url = url
         urlBar.show(url, null)
+        loadingUrl = url
+        upgradeGuard.reset()
         w.loadUrl(url)
         updateNav()
         if (!cursorMode) w.requestFocus()
@@ -548,13 +581,20 @@ class BrowserActivity : Activity() {
                 hint.show("This link can't be opened in the browser")
                 return true // intent:, market:, tel:, javascript:, ... open nothing external
             }
-            if (target != url) { view.loadUrl(target); return true } // http -> https
+            if (target != url) { // http -> https, unless the site keeps bouncing back to http
+                if (upgradeGuard.isLoop(url)) { view.stopLoading(); showError(url, "CLEARTEXT"); return true }
+                loadingUrl = target
+                view.loadUrl(target)
+                return true
+            }
+            loadingUrl = url
             return false
         }
 
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
             if (view !== web) return
             loading = true
+            loadingUrl = url
             urlBar.show(url, null)
             progress.setProgress(5)
             showToolbar(true)
@@ -569,6 +609,7 @@ class BrowserActivity : Activity() {
         override fun onPageFinished(view: WebView, url: String) {
             if (view !== web) return
             loading = false
+            if (url.startsWith("https://") && message.visibility != View.VISIBLE) upgradeGuard.reset()
             if (clearHistoryOnFinish && url != "about:blank") {
                 clearHistoryOnFinish = false
                 view.clearHistory() // BACK from the first page returns to the start page
@@ -578,7 +619,7 @@ class BrowserActivity : Activity() {
             if (UrlPolicy.isStorable(url)) {
                 history.record(url, view.title ?: "", System.currentTimeMillis())
                 saveHistorySoon()
-                main.removeCallbacks(sessionSaver); main.postDelayed(sessionSaver, 2000)
+                scheduleSessionSave()
                 tabs.active.url = url
                 tabs.active.title = view.title ?: ""
             }
@@ -598,8 +639,11 @@ class BrowserActivity : Activity() {
         }
 
         override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
-            handler.cancel()
-            if (view === web) showError(error.url, "SSL")
+            handler.cancel() // always refuse the bad certificate
+            // Only a main-frame failure replaces the page; sub-resources (ads, trackers) are just blocked.
+            if (view === web && SslErrorPolicy.shouldShowPageError(error.url, view.url, loadingUrl)) {
+                showError(error.url, "SSL:${error.primaryError}")
+            }
         }
 
         override fun onReceivedHttpAuthRequest(view: WebView, handler: HttpAuthHandler, host: String, realm: String) {
@@ -690,7 +734,8 @@ class BrowserActivity : Activity() {
         loading = false
         val host = try { Uri.parse(url).host } catch (e: Exception) { null } ?: url
         val (title, body) = when {
-            raw == "SSL" -> "Connection isn't secure" to "$host has a certificate problem, so the page was blocked to keep you safe."
+            raw?.startsWith("SSL") == true -> "Connection isn't secure" to
+                "$host was blocked to keep you safe: " + SslErrorPolicy.reason(raw.substringAfter(':', "-1").toIntOrNull() ?: -1) + "."
             raw == "CRASH" -> "This page stopped" to "The page used too much memory and was closed. You can try loading it again."
             raw?.contains("INTERNET_DISCONNECTED") == true -> "You're offline" to "Check the TV's Wi-Fi or Ethernet connection, then try again."
             raw?.contains("NAME_NOT_RESOLVED") == true -> "Site not found" to "$host couldn't be found. Check the address and try again."
@@ -874,7 +919,8 @@ class BrowserActivity : Activity() {
         items += MenuCard.Item(R.drawable.ic_reload, "Reopen tabs on start", value = { if (restoreSession) "On" else "Off" }, keepOpen = true) {
             prefs.edit().putBoolean(KEY_RESTORE, !restoreSession).apply()
         }
-        items += MenuCard.Item(R.drawable.ic_trash, "Clear browsing data") { clearData() }
+        items += MenuCard.Item(R.drawable.ic_trash, "Clear browsing data") { main.post { confirmClear(false) } }
+        items += MenuCard.Item(R.drawable.ic_trash, "Clear everything incl. bookmarks") { main.post { confirmClear(true) } }
         items += MenuCard.Item(R.drawable.ic_cursor, if (cursorMode) "Switch to focus mode" else "Switch to cursor mode") { toggleMode() }
         items += MenuCard.Item(R.drawable.ic_power, "Close browser") { finish() }
         (menu.layoutParams as FrameLayout.LayoutParams).height = (root.height - dp(TOOLBAR_DP) - dp(10)).coerceAtLeast(dp(200))
@@ -938,20 +984,37 @@ class BrowserActivity : Activity() {
         cursor?.speedFactor = s.speed
     }
 
-    private fun clearData() {
-        try {
-            web?.apply { clearCache(true); clearHistory(); clearFormData() }
-            CookieManager.getInstance().apply { removeAllCookies(null); flush() }
-            WebStorage.getInstance().deleteAllData()
-        } catch (t: Throwable) {
-            Log.w(TAG, "clear data", t)
-        }
-        history.clear(); saveHistorySoon()
-        savedStates.clear()
-        loader.clear()
-        refreshStart()
-        hint.show("Browsing data cleared")
+    /** Confirmation card listing exactly what will be removed. */
+    private fun confirmClear(includeBookmarks: Boolean) {
+        val plan = ClearPlan.forOption(includeBookmarks)
+        showContextMenu(if (includeBookmarks) "Clear everything?" else "Clear browsing data?", listOf(
+            MenuCard.Item(R.drawable.ic_trash, "Clear now") { clearData(plan) },
+            MenuCard.Item(R.drawable.ic_close, "Cancel") { }
+        ))
+        hint.show("Removes " + ClearPlan.describe(plan), 6000)
     }
+
+    private fun clearData(plan: Set<ClearPlan.Item>) {
+        BrowsingDataCleaner(this).clearWebData(plan, web)
+        if (ClearPlan.Item.HISTORY in plan) { history.clear(); main.removeCallbacks(historySaver); historySaver.run() }
+        if (ClearPlan.Item.FAVICONS in plan) loader.clear()
+        if (ClearPlan.Item.TAB_THUMBNAILS in plan) {
+            thumbs.clear()
+            io.execute { File(cacheDir, "tabs").deleteRecursively() }
+        }
+        if (ClearPlan.Item.TAB_STATES in plan) savedStates.clear()
+        if (ClearPlan.Item.INACTIVE_TABS in plan) tabs = SessionState.afterClear(tabs)
+        if (ClearPlan.Item.SESSION_FILE in plan) {
+            sessionSaver.cancel()
+            val json = tabs.encode()
+            io.execute { AtomicText.write(FileOps.Real, sessionFile, json) }
+        }
+        if (ClearPlan.Item.BOOKMARKS in plan) { bookmarks.reset(DefaultFavorites.list); saveBookmarks() }
+        refreshStart()
+        updateNav()
+        hint.show(if (ClearPlan.Item.BOOKMARKS in plan) "Everything cleared" else "Browsing data cleared")
+    }
+
 
     private fun toggleMode() {
         cursorMode = !cursorMode
@@ -1082,16 +1145,26 @@ class BrowserActivity : Activity() {
     private fun longPressAt(x: Float, y: Float) {
         val w = web
         if (w != null && w.visibility == View.VISIBLE && !showingStart && y >= toolbarBottom()) {
+            // Navigation targets come only from WebView's own hit test (never from page JS).
             val r = w.hitTestResult
-            val href = when (r.type) {
-                WebView.HitTestResult.SRC_ANCHOR_TYPE -> r.extra
-                else -> null
-            } ?: lastHit.href
-            if (href != null && UrlPolicy.isStorable(href)) linkMenu(href) else hint.show("Hold OK on a link for link options")
+            when (r.type) {
+                WebView.HitTestResult.SRC_ANCHOR_TYPE -> offerLink(r.extra)
+                WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
+                    val msg = hrefHandler.obtainMessage()
+                    w.requestFocusNodeHref(msg)
+                }
+                else -> hint.show("Hold OK on a link for link options")
+            }
             return
         }
         val v = viewAt(root, x, y) { it.isLongClickable }
         if (v != null) v.performLongClick() else hint.show("Nothing to do here")
+    }
+
+    private val hrefHandler = Handler(Looper.getMainLooper()) { m -> offerLink(m.data?.getString("url")); true }
+
+    private fun offerLink(href: String?) {
+        if (href != null && UrlPolicy.isStorable(href)) linkMenu(href) else hint.show("Hold OK on a link for link options")
     }
 
     private fun toolbarBottom(): Float = if (toolbarShown) dp(TOOLBAR_DP).toFloat() else 0f
@@ -1271,7 +1344,7 @@ class BrowserActivity : Activity() {
     }
 
     override fun onStop() {
-        saveSession()
+        saveSessionNow() // while the WebView still exists
         main.removeCallbacks(historySaver); historySaver.run()
         web?.let { it.onPause(); it.pauseTimers() }
         super.onStop()
@@ -1279,9 +1352,24 @@ class BrowserActivity : Activity() {
 
     override fun onDestroy() {
         if (customView != null) exitFullscreen()
-        suggest.cancel()
+        main.removeCallbacksAndMessages(null) // no late session/history saves after this point
+        hrefHandler.removeCallbacksAndMessages(null)
+        sessionSaver.cancel()
+        suggest.shutdown()
+        loader.shutdown()
         destroyWeb()
+        io.shutdown() // let queued atomic writes finish; nothing new is accepted
         super.onDestroy()
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= TRIM_MEMORY_RUNNING_LOW) {
+            thumbs.clear()
+            val active = tabs.active.id
+            savedStates.keys.retainAll(setOf(active)) // inactive tabs keep their URLs and reload when opened
+            loader.trimMemory()
+        }
     }
 
     private companion object {
