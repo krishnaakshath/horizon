@@ -81,7 +81,8 @@ class AmbientView(
     private val shift = PixelShift(AmbientLayoutModel.SHIFT_DP, seed = System.currentTimeMillis())
     private var status: StatusIcons? = null
     private var shownAt = 0L
-    private var weather: WeatherSnapshot? = null
+    // Nothing is shown until the first read (no "unavailable" flash).
+    private var weather: WeatherRead = WeatherRead.MISSING
     private var attachedGen = 0
 
     private val minuteTick = object : Runnable {
@@ -122,6 +123,7 @@ class AmbientView(
     fun updateSettings(s: WallpaperSettings) {
         settings = s
         clockFormat = timeFormat(s.clock24h)
+        fitClock()
         placeBlocks()
         updateClock()
         if (isAttachedToWindow) {
@@ -161,9 +163,27 @@ class AmbientView(
         clockBlock.orientation = LinearLayout.VERTICAL
         clock.ambient(model.clockSp, Theme.light)
         clock.letterSpacing = -0.02f
+        // A clock is never truncated: no ellipsis, and [fitClock] sizes it so the widest time fits.
+        clock.ellipsize = null
         date.ambient(model.dateSp, Theme.regular, 0xE6F5F7FA.toInt())
-        clockBlock.addView(clock)
+        // Explicit WRAP_CONTENT: the LinearLayout default (MATCH_PARENT) made the block as wide as
+        // the date only, which cut the clock to "01..." (see ClockFit).
+        clockBlock.addView(clock, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         clockBlock.addView(date, LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(4f) })
+        fitClock()
+    }
+
+    /** Shrinks the clock (rarely, e.g. huge font scale) so the widest time in the current format fits the content box. */
+    private fun fitClock() {
+        val available = model.contentRight - model.contentLeft
+        val paint = android.text.TextPaint(clock.paint)
+        val digit = ClockFit.widestDigit { paint.measureText(it.toString()) }
+        val sample = ClockFit.widestSample(settings.clock24h, digit)
+        val sp = ClockFit.fitSp(model.clockSp, MIN_CLOCK_FIT_SP, available) { size ->
+            paint.textSize = sp(size)
+            paint.measureText(sample) + clock.paddingLeft + clock.paddingRight + px(4f)
+        }
+        clock.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp)
     }
 
     private fun buildWeather() {
@@ -172,8 +192,11 @@ class AmbientView(
         val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         row.addView(wxIcon, LinearLayout.LayoutParams(model.weatherIconPx, model.weatherIconPx).apply { marginEnd = px(10f) })
         wxTemp.ambient(model.tempSp, Theme.light)
-        row.addView(wxTemp)
-        weatherBlock.addView(row)
+        wxTemp.ellipsize = null // a temperature is never truncated either
+        row.addView(wxTemp, LinearLayout.LayoutParams(-2, -2))
+        // WRAP_CONTENT for the same reason as the clock: a MATCH_PARENT row is sized to the
+        // condition line, which could squeeze the temperature.
+        weatherBlock.addView(row, LinearLayout.LayoutParams(-2, -2))
         wxCondition.ambient(model.conditionSp, Theme.medium)
         wxHighLow.ambient(model.metaSp + 1f, Theme.regular, Theme.TEXT_2)
         wxLocation.ambient(model.metaSp, Theme.regular, Theme.TEXT_2)
@@ -306,20 +329,20 @@ class AmbientView(
     private fun loadWeather() {
         val gen = attachedGen
         weatherExecutor.execute {
-            val snap = WeatherReader(weatherSource).read()
-            main.post { if (gen == attachedGen) { weather = snap; renderWeather() } }
+            val read = WeatherReader(weatherSource).readState()
+            main.post { if (gen == attachedGen) { weather = read; renderWeather() } }
         }
     }
 
     private fun updateFreshness() {
-        val w = weather
-        if (w == null || !WeatherFreshness.isUsable(w.current.updatedMs, System.currentTimeMillis())) renderWeather()
+        val w = weather.snapshot
+        if (weather.status != WeatherStatus.OK || w == null || !WeatherFreshness.isUsable(w.current.updatedMs, System.currentTimeMillis())) renderWeather()
         else wxFresh.text = WeatherFreshness.label(w.current.updatedMs, System.currentTimeMillis())
     }
 
     private fun renderWeather() {
-        val w = weather
-        val d = WeatherDisplay.from(w, System.currentTimeMillis())
+        val w = weather.snapshot
+        val d = WeatherDisplay.from(weather, System.currentTimeMillis())
         fun TextView.show(s: String?) { visibility = if (s == null) GONE else VISIBLE; text = s ?: "" }
         if (d.icon == null) {
             wxIcon.visibility = GONE
@@ -411,6 +434,7 @@ class AmbientView(
 
     private companion object {
         const val WEATHER_INTERVAL_MS = 10 * 60_000L
+        const val MIN_CLOCK_FIT_SP = 48f
         val weatherExecutor = Executors.newSingleThreadExecutor { r ->
             Thread(r, "ambient-weather").apply { isDaemon = true }
         }

@@ -54,8 +54,8 @@ class HomeWeather(context: Context, private val topBar: TopBar) {
         try {
             e.execute {
                 WeatherCompanion.requestRefresh(app)
-                val snap = WeatherReader(WeatherCompanion.source(app)).read()
-                val chip = WeatherChipModel.from(snap, System.currentTimeMillis(), enabled = true)
+                val read = WeatherReader(WeatherCompanion.source(app)).readState()
+                val chip = WeatherChipModel.from(read, System.currentTimeMillis(), enabled = true)
                 main.post { if (gen == generation && resumed) topBar.showWeather(chip) }
             }
         } catch (t: RuntimeException) {

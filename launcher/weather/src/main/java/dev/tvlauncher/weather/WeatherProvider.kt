@@ -39,6 +39,13 @@ class WeatherProvider : ContentProvider() {
                             WmoCodes.text(snap.code), if (snap.isDay) 1 else 0, snap.highC, snap.lowC,
                             snap.humidity, snap.windKmh, snap.updatedMs, state.unit,
                         ))
+                    } else if (state.place != null) {
+                        // City chosen, first update pending: location only, no values. Consumers
+                        // treat it as "not yet available"; zero rows means "no city chosen".
+                        c.addRow(arrayOf<Any?>(
+                            state.place.name, null, null, null, null, null, null, null,
+                            null, null, 0L, state.unit,
+                        ))
                     }
                 }
                 DAILY -> MatrixCursor(WeatherContract.DAILY_COLUMNS).also { c ->

@@ -138,6 +138,7 @@ class TopBar(
         chip.icon?.let { weatherIcon.setImageResource(WeatherCompanion.drawable(it)) }
         weatherIcon.visibility = if (chip.icon != null) View.VISIBLE else View.GONE
         weatherText.text = chip.text
+        weatherText.setTextColor(if (chip.hint) Theme.TEXT_2 else Theme.TEXT)
         weather.contentDescription = chip.description
     }
 

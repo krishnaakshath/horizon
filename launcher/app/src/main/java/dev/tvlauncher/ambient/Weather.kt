@@ -42,6 +42,35 @@ interface WeatherSource {
     /** null when the provider is missing. */
     fun queryCurrent(): List<Map<String, Any?>>?
     fun queryDaily(): List<Map<String, Any?>>?
+    /** Whether the companion is installed at all (cheap package check, no provider call). */
+    fun isInstalled(): Boolean = true
+}
+
+/**
+ * What the weather surfaces show.
+ * MISSING: companion not installed, show nothing (Settings offers "Get Weather").
+ * NEEDS_LOCATION: installed but no city chosen yet (/current has no row), one calm hint.
+ * UNAVAILABLE: a city is set but the data is missing, stale or unreadable.
+ * OK: fresh data.
+ */
+enum class WeatherStatus { MISSING, NEEDS_LOCATION, UNAVAILABLE, OK }
+
+data class WeatherRead(val status: WeatherStatus, val snapshot: WeatherSnapshot?) {
+    companion object {
+        val MISSING = WeatherRead(WeatherStatus.MISSING, null)
+
+        /**
+         * [currentRows]: the raw /current rows (null when the query failed or timed out).
+         * Zero rows means the companion has no city yet; the companion sends a row with only the
+         * location while the first update for a new city is pending.
+         */
+        fun classify(installed: Boolean, currentRows: List<Map<String, Any?>>?, snap: WeatherSnapshot?, nowMs: Long): WeatherRead = when {
+            !installed -> MISSING
+            snap != null && WeatherFreshness.isUsable(snap.current.updatedMs, nowMs) -> WeatherRead(WeatherStatus.OK, snap)
+            currentRows != null && currentRows.isEmpty() -> WeatherRead(WeatherStatus.NEEDS_LOCATION, null)
+            else -> WeatherRead(WeatherStatus.UNAVAILABLE, snap)
+        }
+    }
 }
 
 enum class WxIcon(val key: String) {
@@ -104,6 +133,7 @@ object WeatherFormat {
 object WeatherFreshness {
     const val STALE_MS = 3 * 60 * 60_000L
     const val UNAVAILABLE = "Weather unavailable"
+    const val SET_LOCATION = "Set a location in Weather"
 
     fun isUsable(updatedMs: Long?, nowMs: Long): Boolean =
         updatedMs != null && updatedMs > 0 && nowMs - updatedMs <= STALE_MS
@@ -172,14 +202,19 @@ object WeatherParser {
 
 /** Reads a snapshot from any [WeatherSource]. Never throws; null when nothing usable. Call off the main thread. */
 class WeatherReader(private val source: WeatherSource) {
-    fun read(): WeatherSnapshot? = try {
-        val cur = source.queryCurrent()?.firstOrNull()?.let { WeatherParser.current(it) }
-        if (cur == null) null else {
+    fun read(): WeatherSnapshot? = readState().snapshot
+
+    /** Snapshot plus [WeatherStatus]; never throws. */
+    fun readState(nowMs: Long = System.currentTimeMillis()): WeatherRead {
+        val installed = try { source.isInstalled() } catch (e: Exception) { false }
+        if (!installed) return WeatherRead.MISSING
+        val rows = try { source.queryCurrent() } catch (e: Exception) { null }
+        val cur = rows?.firstOrNull()?.let { WeatherParser.current(it) }
+        val snap = if (cur == null) null else {
             val days = try { source.queryDaily()?.let { WeatherParser.daily(it) } } catch (e: Exception) { null }
             WeatherSnapshot(cur, days ?: emptyList())
         }
-    } catch (e: Exception) {
-        null
+        return WeatherRead.classify(true, rows, snap, nowMs)
     }
 }
 
@@ -194,6 +229,15 @@ data class WeatherDisplay(
     val freshness: String?
 ) {
     companion object {
+        /** Nothing at all: the companion is not installed. */
+        val HIDDEN = WeatherDisplay(false, null, null, null, null, null, null)
+
+        fun from(read: WeatherRead, nowMs: Long): WeatherDisplay = when (read.status) {
+            WeatherStatus.MISSING -> HIDDEN
+            WeatherStatus.NEEDS_LOCATION -> WeatherDisplay(false, null, null, WeatherFreshness.SET_LOCATION, null, null, null)
+            WeatherStatus.UNAVAILABLE, WeatherStatus.OK -> from(read.snapshot, nowMs)
+        }
+
         fun from(snap: WeatherSnapshot?, nowMs: Long): WeatherDisplay {
             val c = snap?.current
             if (c == null || !WeatherFreshness.isUsable(c.updatedMs, nowMs)) {
@@ -314,6 +358,7 @@ class TimeoutWeatherSource(
 
     override fun queryCurrent(): List<Map<String, Any?>>? = bounded(CURRENT) { delegate.queryCurrent() }
     override fun queryDaily(): List<Map<String, Any?>>? = bounded(DAILY) { delegate.queryDaily() }
+    override fun isInstalled(): Boolean = delegate.isInstalled()
 
     private fun newWorker() = java.util.concurrent.ThreadPoolExecutor(
         1, 1, 30, java.util.concurrent.TimeUnit.SECONDS, java.util.concurrent.LinkedBlockingQueue(), threadFactory
