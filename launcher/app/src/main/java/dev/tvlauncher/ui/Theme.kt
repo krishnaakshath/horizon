@@ -1,0 +1,51 @@
+package dev.tvlauncher.ui
+
+import android.graphics.Typeface
+import android.util.TypedValue
+import android.widget.TextView
+
+/** Visual system: palette, type scale, spacing (dp) and radii (dp). */
+object Theme {
+    const val BASE = 0xFF0B0D12.toInt()
+    const val SURFACE = 0xFF151922.toInt()
+    const val TEXT = 0xFFF5F7FA.toInt()
+    const val TEXT_2 = 0xFFA7B0C0.toInt()
+    const val TEXT_DARK = 0xFF0B0D12.toInt()
+    const val TEXT_DARK_2 = 0xCC0B0D12.toInt()
+    const val STROKE = 0x1FFFFFFF
+
+    // Spacing scale (dp).
+    const val S1 = 4
+    const val S2 = 8
+    const val S3 = 12
+    const val S4 = 16
+    const val S5 = 24
+    const val S6 = 32
+
+    // Overscan-safe margins (dp).
+    const val MARGIN_H = 48
+    const val MARGIN_V = 27
+
+    // Radii (dp).
+    const val RADIUS_TILE = 18
+    const val RADIUS_PILL = 999
+
+    // Type scale (sp).
+    const val SP_CLOCK = 30f
+    const val SP_DATE = 15f
+    const val SP_HERO = 44f
+    const val SP_SUB = 16f
+    const val SP_LABEL = 13f
+    const val SP_BUTTON = 15f
+
+    val medium: Typeface by lazy { Typeface.create("sans-serif-medium", Typeface.NORMAL) }
+    val light: Typeface by lazy { Typeface.create("sans-serif-light", Typeface.NORMAL) }
+    val regular: Typeface by lazy { Typeface.create("sans-serif", Typeface.NORMAL) }
+
+    fun TextView.style(sp: Float, face: Typeface, color: Int = TEXT) {
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, sp)
+        typeface = face
+        setTextColor(color)
+        includeFontPadding = false
+    }
+}

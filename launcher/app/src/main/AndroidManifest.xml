@@ -9,6 +9,8 @@
         android:required="false" />
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
 
     <queries>
         <intent>
@@ -24,7 +26,7 @@
     <application
         android:allowBackup="false"
         android:label="TV Launcher"
-        android:theme="@android:style/Theme.Material.NoActionBar">
+        android:theme="@style/HomeTheme">
         <activity
             android:name=".HomeActivity"
             android:exported="true"

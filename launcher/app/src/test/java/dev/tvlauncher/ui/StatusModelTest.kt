@@ -2,6 +2,7 @@ package dev.tvlauncher.ui
 
 import dev.tvlauncher.ui.StatusModel.NetKind
 import dev.tvlauncher.ui.StatusModel.NetIcon
+import dev.tvlauncher.ui.StatusModel.BtIcon
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -38,9 +39,29 @@ class StatusModelTest {
         assertEquals(NetIcon.OFFLINE, StatusModel.iconFor(NetKind.NONE, 3))
     }
 
-    @Test fun showBluetooth_onlyWhenPresentAndEnabled() {
-        assertEquals(false, StatusModel.showBluetooth(present = false, enabled = false))
-        assertEquals(false, StatusModel.showBluetooth(present = true, enabled = false))
-        assertEquals(true, StatusModel.showBluetooth(present = true, enabled = true))
+    @Test fun netKind_ethernetPreferredOverWifi() {
+        assertEquals(NetKind.ETHERNET, StatusModel.netKind(hasNetwork = true, ethernet = true, wifi = true, wifiEnabled = true))
+        assertEquals(NetKind.WIFI, StatusModel.netKind(hasNetwork = true, ethernet = false, wifi = true, wifiEnabled = true))
+        assertEquals(NetKind.OTHER, StatusModel.netKind(hasNetwork = true, ethernet = false, wifi = false, wifiEnabled = false))
+    }
+
+    @Test fun netKind_noNetwork_dependsOnWifiRadio() {
+        assertEquals(NetKind.WIFI_DISCONNECTED, StatusModel.netKind(hasNetwork = false, ethernet = false, wifi = false, wifiEnabled = true))
+        assertEquals(NetKind.NONE, StatusModel.netKind(hasNetwork = false, ethernet = false, wifi = false, wifiEnabled = false))
+        // Stale transport flags without a network never count as connected.
+        assertEquals(NetKind.NONE, StatusModel.netKind(hasNetwork = false, ethernet = true, wifi = true, wifiEnabled = false))
+    }
+
+    @Test fun ethernet_showsEthernetIcon_evenWithStrongWifi() {
+        val kind = StatusModel.netKind(hasNetwork = true, ethernet = true, wifi = true, wifiEnabled = true)
+        assertEquals(NetIcon.ETHERNET, StatusModel.iconFor(kind, 3))
+    }
+
+    @Test fun bluetoothIcon_mapping() {
+        assertEquals(BtIcon.HIDDEN, StatusModel.bluetoothIcon(present = false, enabled = true, connected = true))
+        assertEquals(BtIcon.HIDDEN, StatusModel.bluetoothIcon(present = true, enabled = false, connected = false))
+        assertEquals(BtIcon.HIDDEN, StatusModel.bluetoothIcon(present = true, enabled = false, connected = true))
+        assertEquals(BtIcon.ON, StatusModel.bluetoothIcon(present = true, enabled = true, connected = false))
+        assertEquals(BtIcon.CONNECTED, StatusModel.bluetoothIcon(present = true, enabled = true, connected = true))
     }
 }

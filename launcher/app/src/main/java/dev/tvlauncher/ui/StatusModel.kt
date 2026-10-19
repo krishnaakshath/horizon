@@ -5,6 +5,23 @@ object StatusModel {
     enum class NetKind { WIFI, WIFI_DISCONNECTED, ETHERNET, OTHER, NONE }
     enum class NetIcon { WIFI_0, WIFI_1, WIFI_2, WIFI_3, WIFI_OFF, ETHERNET, OFFLINE }
 
+    enum class BtIcon { HIDDEN, ON, CONNECTED }
+
+    /** Default-network transports to a kind; Ethernet wins over Wi-Fi when both are reported. */
+    fun netKind(hasNetwork: Boolean, ethernet: Boolean, wifi: Boolean, wifiEnabled: Boolean): NetKind = when {
+        !hasNetwork -> if (wifiEnabled) NetKind.WIFI_DISCONNECTED else NetKind.NONE
+        ethernet -> NetKind.ETHERNET
+        wifi -> NetKind.WIFI
+        else -> NetKind.OTHER
+    }
+
+    /** Hidden unless an adapter exists and is on; CONNECTED when any audio/input device is linked. */
+    fun bluetoothIcon(present: Boolean, enabled: Boolean, connected: Boolean): BtIcon = when {
+        !present || !enabled -> BtIcon.HIDDEN
+        connected -> BtIcon.CONNECTED
+        else -> BtIcon.ON
+    }
+
     const val LEVELS = 4
     private const val MIN_RSSI = -100
     private const val MAX_RSSI = -55
@@ -27,6 +44,4 @@ object StatusModel {
         NetKind.ETHERNET, NetKind.OTHER -> NetIcon.ETHERNET
         NetKind.NONE -> NetIcon.OFFLINE
     }
-
-    fun showBluetooth(present: Boolean, enabled: Boolean) = present && enabled
 }
