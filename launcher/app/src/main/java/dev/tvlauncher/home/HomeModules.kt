@@ -41,7 +41,8 @@ class HomeModules(
 ) {
     private val weather = HomeWeather(activity, topBar)
     val room = HomeRoom(activity, lite = !look.profile.full, backdrop = backdrop)
-    private val nowPlaying = HomeNowPlaying(activity, heroBox)
+    private val nowPlaying = HomeNowPlaying(activity, heroBox, backdrop, root, look.profile.full,
+        dev.tvlauncher.nowplaying.MediaBackdropPolicy.fadeMs(look.profile.motion))
     val panels: HomePanels
     val ambient: HomeAmbient
     private val discover: DiscoverPanel
@@ -94,9 +95,13 @@ class HomeModules(
         panels.release()
         weather.release()
         discover.release()
+        nowPlaying.release()
     }
 
-    fun onUserActivity() = ambient.onUserActivity()
+    fun onUserActivity() {
+        ambient.onUserActivity()
+        nowPlaying.onUserActivity()
+    }
 
     fun onBack(): Boolean = discover.onBack() || panels.onBack()
 

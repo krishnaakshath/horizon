@@ -73,6 +73,8 @@ class AmbientView(
     private val netLabel = TextView(context)
     private val btIcon = ImageView(context)
     private val chips = LinearLayout(context)
+    /** Now Playing: a large, calm card under the date (Settings > Home screen > Now Playing). */
+    private val nowPlaying = dev.tvlauncher.nowplaying.AmbientNowPlaying(context)
 
     private var clockFormat = timeFormat(settings.clock24h)
     private val dateFormat = SimpleDateFormat(
@@ -170,6 +172,8 @@ class AmbientView(
         // the date only, which cut the clock to "01..." (see ClockFit).
         clockBlock.addView(clock, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         clockBlock.addView(date, LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(4f) })
+        clockBlock.addView(nowPlaying.card, LinearLayout.LayoutParams(
+            minOf(px(NOW_PLAYING_WIDTH_DP), model.contentRight - model.contentLeft), -2).apply { topMargin = px(28f) })
         fitClock()
     }
 
@@ -265,6 +269,7 @@ class AmbientView(
         WeatherCompanion.requestRefresh(context)
         status = StatusIcons(context) { renderNetwork(it) }.also { it.start() }
         syncFeedListener()
+        nowPlaying.start()
         content.alpha = 0f
         content.animate().alpha(1f).setDuration(if (lite) 250L else 600L).start()
     }
@@ -276,6 +281,7 @@ class AmbientView(
         main.removeCallbacks(idleDim)
         status?.stop(); status = null
         feed.removeListener(feedListener)
+        nowPlaying.stop()
         content.animate().cancel()
         dimOverlay.animate().cancel()
         wallpaperController.stop()
@@ -435,6 +441,7 @@ class AmbientView(
     private companion object {
         const val WEATHER_INTERVAL_MS = 10 * 60_000L
         const val MIN_CLOCK_FIT_SP = 48f
+        const val NOW_PLAYING_WIDTH_DP = 520f
         val weatherExecutor = Executors.newSingleThreadExecutor { r ->
             Thread(r, "ambient-weather").apply { isDaemon = true }
         }

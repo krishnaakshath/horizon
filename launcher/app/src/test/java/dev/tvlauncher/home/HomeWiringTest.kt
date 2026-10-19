@@ -21,9 +21,19 @@ class HomeWiringTest {
         val on = NowPlayingSettings(nowPlayingEnabled = true, showOnHome = true)
         assertTrue(NowPlayingHome.shouldRun(on, accessGranted = true))
         assertFalse(NowPlayingHome.shouldRun(on, accessGranted = false))
-        assertFalse(NowPlayingHome.shouldRun(on.copy(showOnHome = false), accessGranted = true))
+        // Mini player off: the art backdrop still needs the tracker; both off: nothing runs.
+        assertTrue(NowPlayingHome.shouldRun(on.copy(showOnHome = false), accessGranted = true))
+        assertFalse(NowPlayingHome.shouldRun(on.copy(showOnHome = false, backdropFollows = false), accessGranted = true))
+        assertTrue(NowPlayingHome.shouldRun(on.copy(backdropFollows = false), accessGranted = true))
+        assertFalse(NowPlayingHome.shouldRun(on.copy(nowPlayingEnabled = false), accessGranted = true))
         assertTrue(NowPlayingHome.shouldRun(NowPlayingSettings(), accessGranted = true)) // on by default
         assertFalse(NowPlayingHome.shouldRun(NowPlayingSettings(), accessGranted = false)) // hidden until access exists
+    }
+
+    @Test fun miniPlayer_isTheUpTargetOnlyWhileShown() {
+        assertTrue(NowPlayingHome.upLinkWanted(cardShown = true, focusOnTile = true))
+        assertFalse(NowPlayingHome.upLinkWanted(cardShown = false, focusOnTile = true))
+        assertFalse(NowPlayingHome.upLinkWanted(cardShown = true, focusOnTile = false))
     }
 
     @Test fun accessCard_onlyWhileEnabledButNotGranted() {

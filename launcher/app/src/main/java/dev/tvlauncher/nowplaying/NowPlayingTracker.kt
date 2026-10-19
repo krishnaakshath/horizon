@@ -126,6 +126,26 @@ class NowPlayingTracker(
     /** Sends a transport command to the shown session. */
     fun send(action: TransportAction): Boolean = NowPlayingControls.send(chosen, action)
 
+    /**
+     * Opens the shown session's app from [from] (an activity context): the session's own activity
+     * (usually the player screen), else the app's TV launch intent. Never throws.
+     */
+    fun openApp(from: Context): Boolean {
+        val pkg = lastEmitted?.pkg ?: return false
+        val pi = try { chosen?.sessionActivity } catch (e: Exception) { null }
+        if (pi != null) {
+            try { pi.send(); return true } catch (e: Exception) { }
+        }
+        return try {
+            val pm = from.packageManager
+            val i = pm.getLeanbackLaunchIntentForPackage(pkg) ?: pm.getLaunchIntentForPackage(pkg) ?: return false
+            from.startActivity(i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     // --- sessions ---------------------------------------------------------------------------------
 
     private fun track(controllers: List<MediaController>) {
