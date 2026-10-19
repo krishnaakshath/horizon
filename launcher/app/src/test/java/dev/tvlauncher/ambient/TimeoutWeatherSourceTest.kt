@@ -73,20 +73,6 @@ class TimeoutWeatherSourceTest {
         assertEquals(2, d.calls.get())
     }
 
-    @Test fun whileInFlight_newQueryRejected_noNewThread() {
-        val d = Blocking(stubborn = true)
-        val s = source(d)
-        assertNull(s.queryCurrent())
-        now += 61_000 // breaker closed again, but the stuck worker is still running
-        assertTrue(s.isInFlight)
-        assertNull(s.queryCurrent())
-        assertNull(s.queryDaily())
-        assertEquals(1, d.calls.get())
-        assertEquals(1, created.get())
-        d.release.countDown()
-        waitIdle(s)
-    }
-
     @Test fun whileInFlight_returnsLastCachedResult() {
         var block = false
         val gate = CountDownLatch(1)
@@ -106,17 +92,6 @@ class TimeoutWeatherSourceTest {
         waitIdle(s)
     }
 
-    @Test fun threadCountBounded() {
-        val d = Blocking(stubborn = false)
-        val s = source(d, timeout = 5)
-        repeat(100) {
-            assertNull(s.queryCurrent())
-            waitIdle(s)
-            now += 60_001
-        }
-        assertTrue("threads created: ${created.get()}", created.get() <= 1)
-    }
-
     @Test fun throwingSource_isNull() {
         val s = source(object : WeatherSource {
             override fun queryCurrent(): List<Map<String, Any?>>? = throw SecurityException("no")
@@ -131,5 +106,69 @@ class TimeoutWeatherSourceTest {
         assertNull(WeatherReader(source(d)).read())
         assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0) < 2_000)
         d.release.countDown()
+    }
+
+    @Test fun stuckCall_afterBreaker_replacesWorker_secondThread() {
+        val d = Blocking(stubborn = true)
+        val s = source(d)
+        assertNull(s.queryCurrent())
+        assertEquals(1, created.get())
+        now += 60_000
+        assertNull(s.queryCurrent())
+        assertEquals("fresh worker for the next call", 2, created.get())
+        assertEquals(2, d.calls.get())
+        d.release.countDown()
+    }
+
+    @Test fun stuckCall_thirdAbandon_entersDegraded_noMoreThreads() {
+        val d = Blocking(stubborn = true)
+        val s = source(d)
+        repeat(3) { assertNull(s.queryCurrent()); now += 60_000 }
+        assertEquals(3, created.get())
+        assertNull(s.queryCurrent())
+        assertTrue(s.isDegraded)
+        assertEquals(3, created.get())
+        assertEquals(3, d.calls.get())
+        d.release.countDown()
+    }
+
+    @Test fun breakerExpiry_withoutStuckCall_noNewThread() {
+        val d = Blocking(stubborn = false)
+        val s = source(d)
+        assertNull(s.queryCurrent())
+        waitIdle(s)
+        now += 60_000
+        d.release.countDown()
+        assertEquals(row, s.queryCurrent())
+        assertEquals(1, created.get())
+    }
+
+    @Test fun threadsCreated_atMost3_over1000Timeouts_stubborn() {
+        val d = Blocking(stubborn = true)
+        val s = source(d, timeout = 1)
+        repeat(1000) { s.queryCurrent(); now += 60_001 }
+        assertTrue("threads created: ${created.get()}", created.get() <= 3)
+        d.release.countDown()
+    }
+
+    @Test fun staleCache_olderThan3h_notServed_whenDegraded() {
+        var stuck = false
+        val gate = CountDownLatch(1)
+        val s = source(object : WeatherSource {
+            override fun queryCurrent(): List<Map<String, Any?>>? {
+                if (stuck) while (true) { try { gate.await(); return row } catch (e: InterruptedException) { } }
+                return row
+            }
+            override fun queryDaily(): List<Map<String, Any?>>? = null
+        })
+        assertEquals(row, s.queryCurrent())
+        stuck = true
+        assertEquals("fresh cache served while the breaker is open", row, s.queryCurrent())
+        now += 3 * 3_600_000L + 1
+        // Cache is now older than 3 h: never served, whether busy, broken or degraded.
+        repeat(4) { assertNull(s.queryCurrent()); now += 60_000 }
+        assertTrue(s.isDegraded)
+        assertNull(s.queryCurrent())
+        gate.countDown()
     }
 }

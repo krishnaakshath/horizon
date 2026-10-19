@@ -62,6 +62,7 @@ class NotificationAccessCard(context: Context) : LinearLayout(context) {
         setColor(if (focused) Theme.TEXT else 0x1FFFFFFF)
     }.also { button.setTextColor(if (focused) Theme.TEXT_DARK else Theme.TEXT) }
 
+    /** Re-reads whether access is granted. Call from the host's onResume (the user returns from Settings). */
     fun refresh() {
         val on = NotificationAccess.isEnabled(context)
         status.text = if (on) "Access: allowed" else "Access: not allowed yet"

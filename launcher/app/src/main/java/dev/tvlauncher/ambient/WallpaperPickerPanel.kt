@@ -46,6 +46,10 @@ class WallpaperPickerPanel(
     private lateinit var intervalRow: TextView
     private lateinit var dimRow: TextView
     private lateinit var textRow: TextView
+    private lateinit var textHint: TextView
+    private lateinit var notifRow: TextView
+    private lateinit var notifHint: TextView
+    private lateinit var accessCard: NotificationAccessCard
     private lateinit var emptyText: TextView
 
     val isShowing: Boolean get() = root != null
@@ -132,14 +136,17 @@ class WallpaperPickerPanel(
         panel.addView(slideshowRow, lp(top = 16))
         panel.addView(intervalRow, lp(top = 6))
         panel.addView(dimRow, lp(top = 6))
-        textRow = controlRow {
-            commit(settings.copy(showNotificationText = !settings.showNotificationText))
-        }
+        // Notification rows follow AmbientSettingsRows (same keys, visibility and hints).
+        notifRow = controlRow { commit(AmbientSettingsRows.toggle(settings, "notificationsEnabled")) }
+        notifHint = hintText()
+        accessCard = NotificationAccessCard(context)
+        textRow = controlRow { commit(AmbientSettingsRows.toggle(settings, "showNotificationText")) }
+        textHint = hintText()
+        panel.addView(notifRow, lp(top = 16))
+        panel.addView(notifHint, lp(top = 4))
+        panel.addView(accessCard, lp(top = 6))
         panel.addView(textRow, lp(top = 6))
-        panel.addView(TextView(context).apply {
-            style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
-            text = "Only for notifications the app marks public; private ones always show the app name only."
-        }, lp(top = 4))
+        panel.addView(textHint, lp(top = 4))
         val path = UserWallpapers.folder(context)?.path ?: UserWallpapers.DEVICE_PATH
         panel.addView(TextView(context).apply {
             style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
@@ -149,6 +156,8 @@ class WallpaperPickerPanel(
         }, lp(top = 16))
         return panel
     }
+
+    private fun hintText() = TextView(context).apply { style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2) }
 
     private fun lp(top: Int) = LinearLayout.LayoutParams(-1, -2).apply { topMargin = px(top) }
 
@@ -296,7 +305,18 @@ class WallpaperPickerPanel(
         intervalRow.visibility = if (on) View.VISIBLE else View.GONE
         intervalRow.text = "Change every   ‹  ${formatInterval(currentInterval())}  ›"
         dimRow.text = "Dim   ‹  ${settings.dimPercent} %  ›"
-        textRow.text = "Show notification text:  ${if (settings.showNotificationText) "On" else "Off"}"
+        val rows = AmbientSettingsRows.rows(settings, NotificationAccess.isEnabled(context)).associateBy { it.key }
+        fun bind(row: TextView, hint: TextView, key: String) {
+            val r = rows.getValue(key)
+            row.visibility = if (r.visible) View.VISIBLE else View.GONE
+            row.text = "${r.title}:  ${r.value}"
+            hint.visibility = if (r.visible && r.hint != null) View.VISIBLE else View.GONE
+            hint.text = r.hint ?: ""
+        }
+        bind(notifRow, notifHint, "notificationsEnabled")
+        bind(textRow, textHint, "showNotificationText")
+        accessCard.visibility = if (rows.getValue("notificationAccess").visible) View.VISIBLE else View.GONE
+        accessCard.refresh()
         emptyText.visibility = if (userFiles.isEmpty()) View.VISIBLE else View.GONE
         emptyText.text = "No pictures of your own yet. Built-in wallpapers are shown above."
     }

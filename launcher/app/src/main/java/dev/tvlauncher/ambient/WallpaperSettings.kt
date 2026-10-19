@@ -51,6 +51,8 @@ data class WallpaperSettings(
      * on = public notifications also show title/text. Private/secret ones are always app-name-only.
      */
     val showNotificationText: Boolean = false,
+    /** Burn-in protection: move the ambient content a few dp every minute (on by default). */
+    val pixelShift: Boolean = true,
     /** Minutes of no key input on Home before ambient starts. */
     val idleMinutes: Int = 10
 ) {
@@ -91,6 +93,7 @@ data class WallpaperSettings(
             .put("nightDim", s.nightDim)
             .put("notifications", s.notificationsEnabled)
             .put("showText", s.showNotificationText)
+            .put("pixelShift", s.pixelShift)
             .put("idleMinutes", s.idleMinutes)
             .toString()
     }
@@ -113,6 +116,7 @@ data class WallpaperSettings(
                 nightDim = json.optBoolean("nightDim", d.nightDim),
                 notificationsEnabled = json.optBoolean("notifications", d.notificationsEnabled),
                 showNotificationText = showText(json),
+                pixelShift = json.optBoolean("pixelShift", d.pixelShift),
                 idleMinutes = json.optInt("idleMinutes", d.idleMinutes)
             ).normalized()
         }

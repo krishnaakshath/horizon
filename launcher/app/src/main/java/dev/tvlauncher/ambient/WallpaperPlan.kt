@@ -75,6 +75,11 @@ sealed class SamplePlan {
  * power-of-two sample whose decoded pixel count fits [maxDecodedPixels] (default 4x target).
  * The smallest such n is also the least downsampling, so the result never gets needlessly
  * smaller than the target. Used for full-screen wallpapers, slideshow and picker thumbnails.
+ *
+ * Caveat: the 120 MP source cap bounds memory, not time. Bounds decoding is cheap, but a 100+ MP
+ * image is still fully parsed by the codec even when subsampled, which can take seconds on a slow
+ * TV SoC. It runs on the low-priority loader thread (UI stays responsive); the 8 MB file cap keeps
+ * such files rare.
  */
 object SampleSizePlanner {
     const val DEFAULT_MAX_SRC_PIXELS = 120_000_000L

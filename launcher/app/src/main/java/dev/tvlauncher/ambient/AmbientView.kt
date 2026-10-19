@@ -276,6 +276,10 @@ class AmbientView(
     }
 
     private fun stepShift() {
+        if (!settings.pixelShift) {
+            content.animate().cancel(); content.translationX = 0f; content.translationY = 0f
+            return
+        }
         shift.step()
         val dx = shift.dxPx(density).toFloat()
         val dy = shift.dyPx(density).toFloat()

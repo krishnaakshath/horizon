@@ -213,55 +213,150 @@ data class WeatherDisplay(
 }
 
 /**
- * Bounded provider access: ONE dedicated daemon worker (idle-timeout 30 s), an in-flight guard
- * and a circuit breaker. A query waits at most [timeoutMs]; on timeout the worker is interrupted
- * and the breaker opens for [BREAKER_MS]. While a query is outstanding (e.g. a provider stuck
- * ignoring interrupts) or the breaker is open, new queries are rejected without touching the
- * provider and return the last good result for that table (or null). Never throws.
+ * Pure state machine for provider calls (no threads; the caller holds a lock).
+ *
+ * HEALTHY: one call at a time (RUN; a concurrent query is REJECT_BUSY).
+ * A timeout opens the breaker for [breakerMs] (REJECT_BREAKER). A call that times out before the
+ * worker picked it up (SUBMITTED) is cancelled for good: [tryStart] refuses it later.
+ * When the breaker expires and the previous call is STILL running (a provider stuck in a binder
+ * call ignores interrupts), that worker is abandoned and the query runs on a fresh worker
+ * (RUN_ON_FRESH_WORKER). At most [maxAbandoned] abandoned threads may be alive; one more abandon
+ * enters DEGRADED for the rest of the process (no more threads, callers show "unavailable").
+ * Decision: success does NOT reset the counter (a stuck thread is still stuck); an abandoned call
+ * that eventually returns frees its slot, because its thread is no longer leaked.
+ */
+class StuckProviderPolicy(private val breakerMs: Long = 60_000L, private val maxAbandoned: Int = 2) {
+    enum class Call { IDLE, SUBMITTED, RUNNING }
+    enum class Decision { RUN, RUN_ON_FRESH_WORKER, REJECT_BUSY, REJECT_BREAKER, DEGRADED }
+
+    var call = Call.IDLE
+        private set
+    /** Ticket of the current call; stale tickets (abandoned/old calls) are ignored. */
+    var generation = 0L
+        private set
+    var abandonedAlive = 0
+        private set
+    var isDegraded = false
+        private set
+    private var breakerUntil = NO_BREAKER
+    private val abandoned = HashSet<Long>()
+
+    fun isBreakerOpen(now: Long) = breakerUntil != NO_BREAKER && now < breakerUntil
+
+    fun beforeQuery(now: Long): Decision {
+        if (isDegraded) return Decision.DEGRADED
+        if (isBreakerOpen(now)) return Decision.REJECT_BREAKER
+        val afterTimeout = breakerUntil != NO_BREAKER
+        if (call != Call.IDLE) {
+            if (!afterTimeout) return Decision.REJECT_BUSY
+            if (abandonedAlive >= maxAbandoned) { isDegraded = true; return Decision.DEGRADED }
+            abandonedAlive++
+            abandoned += generation
+            begin()
+            return Decision.RUN_ON_FRESH_WORKER
+        }
+        begin()
+        return Decision.RUN
+    }
+
+    private fun begin() {
+        generation++
+        call = Call.SUBMITTED
+        breakerUntil = NO_BREAKER
+    }
+
+    /** Worker picked the call up. False: it was cancelled/replaced meanwhile, do not call the provider. */
+    fun tryStart(gen: Long): Boolean {
+        if (gen != generation || call != Call.SUBMITTED) return false
+        call = Call.RUNNING
+        return true
+    }
+
+    fun onTimeout(gen: Long, now: Long) {
+        if (gen != generation) return
+        breakerUntil = now + breakerMs
+        if (call == Call.SUBMITTED) call = Call.IDLE // never started: will never run
+    }
+
+    fun onFinished(gen: Long) {
+        if (abandoned.remove(gen)) { abandonedAlive--; return }
+        if (gen == generation && call == Call.RUNNING) call = Call.IDLE
+    }
+
+    private companion object {
+        const val NO_BREAKER = Long.MIN_VALUE
+    }
+}
+
+/**
+ * Bounded provider access driven by [StuckProviderPolicy]: one single-thread worker (replaced
+ * when a stuck call is abandoned, at most 2 times, so <= 3 threads ever), a [timeoutMs] wait per
+ * query and a 60 s breaker. Rejected queries return the last good result for that table only if
+ * it is younger than [WeatherFreshness.STALE_MS] (3 h); DEGRADED always returns null so the UI
+ * shows "Weather unavailable". Never throws.
  */
 class TimeoutWeatherSource(
     private val delegate: WeatherSource,
     private val timeoutMs: Long = DEFAULT_TIMEOUT_MS,
     private val clock: () -> Long = { System.currentTimeMillis() },
-    threadFactory: java.util.concurrent.ThreadFactory = java.util.concurrent.ThreadFactory { r ->
+    private val threadFactory: java.util.concurrent.ThreadFactory = java.util.concurrent.ThreadFactory { r ->
         Thread(r, "weather-query").apply { isDaemon = true }
     }
 ) : WeatherSource {
-    private val inFlight = java.util.concurrent.atomic.AtomicBoolean(false)
-    @Volatile private var breakerUntil = Long.MIN_VALUE
-    private val cache = java.util.concurrent.ConcurrentHashMap<Int, List<Map<String, Any?>>>()
-    private val worker = java.util.concurrent.ThreadPoolExecutor(
-        1, 1, 30, java.util.concurrent.TimeUnit.SECONDS, java.util.concurrent.LinkedBlockingQueue(), threadFactory
-    ).apply { allowCoreThreadTimeOut(true) }
+    private val lock = Any()
+    private val policy = StuckProviderPolicy()
+    private val cache = HashMap<Int, Pair<Long, List<Map<String, Any?>>>>()
+    private var worker = newWorker()
 
-    val isInFlight: Boolean get() = inFlight.get()
-    val isBreakerOpen: Boolean get() = breakerUntil != Long.MIN_VALUE && clock() < breakerUntil
+    val isInFlight: Boolean get() = synchronized(lock) { policy.call != StuckProviderPolicy.Call.IDLE }
+    val isBreakerOpen: Boolean get() = synchronized(lock) { policy.isBreakerOpen(clock()) }
+    val isDegraded: Boolean get() = synchronized(lock) { policy.isDegraded }
 
     override fun queryCurrent(): List<Map<String, Any?>>? = bounded(CURRENT) { delegate.queryCurrent() }
     override fun queryDaily(): List<Map<String, Any?>>? = bounded(DAILY) { delegate.queryDaily() }
 
+    private fun newWorker() = java.util.concurrent.ThreadPoolExecutor(
+        1, 1, 30, java.util.concurrent.TimeUnit.SECONDS, java.util.concurrent.LinkedBlockingQueue(), threadFactory
+    ).apply { allowCoreThreadTimeOut(true) }
+
+    private fun cached(kind: Int): List<Map<String, Any?>>? {
+        val (at, rows) = cache[kind] ?: return null
+        return if (clock() - at <= WeatherFreshness.STALE_MS) rows else null
+    }
+
     private fun bounded(kind: Int, q: () -> List<Map<String, Any?>>?): List<Map<String, Any?>>? {
-        if (isBreakerOpen) return cache[kind]
-        if (!inFlight.compareAndSet(false, true)) return cache[kind]
-        val started = java.util.concurrent.atomic.AtomicBoolean(false)
+        val gen: Long
+        val w: java.util.concurrent.ThreadPoolExecutor
+        synchronized(lock) {
+            when (policy.beforeQuery(clock())) {
+                StuckProviderPolicy.Decision.DEGRADED -> return null
+                StuckProviderPolicy.Decision.REJECT_BUSY, StuckProviderPolicy.Decision.REJECT_BREAKER -> return cached(kind)
+                StuckProviderPolicy.Decision.RUN_ON_FRESH_WORKER -> {
+                    worker.shutdownNow() // abandon the stuck thread
+                    worker = newWorker()
+                }
+                StuckProviderPolicy.Decision.RUN -> Unit
+            }
+            gen = policy.generation
+            w = worker
+        }
         val f = try {
-            worker.submit(java.util.concurrent.Callable {
-                started.set(true)
-                try { q() } finally { inFlight.set(false) }
+            w.submit(java.util.concurrent.Callable {
+                if (!synchronized(lock) { policy.tryStart(gen) }) return@Callable null
+                try { q() } finally { synchronized(lock) { policy.onFinished(gen) } }
             })
         } catch (e: Exception) {
-            inFlight.set(false)
-            return cache[kind]
+            synchronized(lock) { policy.onTimeout(gen, clock()) }
+            return synchronized(lock) { cached(kind) }
         }
         return try {
             val r = f.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
-            if (r != null) cache[kind] = r
+            if (r != null) synchronized(lock) { cache[kind] = clock() to r }
             r
         } catch (e: java.util.concurrent.TimeoutException) {
-            breakerUntil = clock() + BREAKER_MS
-            // Never started -> its finally will not run, so release the guard here.
-            if (f.cancel(true) && !started.get()) inFlight.set(false)
-            cache[kind]
+            synchronized(lock) { policy.onTimeout(gen, clock()) }
+            f.cancel(true)
+            synchronized(lock) { cached(kind) }
         } catch (e: Exception) {
             null
         }
@@ -269,7 +364,6 @@ class TimeoutWeatherSource(
 
     companion object {
         const val DEFAULT_TIMEOUT_MS = 3_000L
-        const val BREAKER_MS = 60_000L
         private const val CURRENT = 0
         private const val DAILY = 1
     }
