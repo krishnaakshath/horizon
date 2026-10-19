@@ -2,10 +2,12 @@ package dev.tvlauncher
 
 import android.app.Application
 import dev.tvlauncher.appsettings.ModuleSections
+import dev.tvlauncher.appsettings.SettingsRegistry
 import dev.tvlauncher.home.WaveTwoSections
 import dev.tvlauncher.power.PowerOn
 import dev.tvlauncher.power.PowerOnSection
 import dev.tvlauncher.safemode.SafeMode
+import dev.tvlauncher.spotlight.SpotlightSection
 import dev.tvlauncher.ui.Theme
 
 /**
@@ -48,6 +50,11 @@ class LauncherApp : Application() {
             dev.tvlauncher.setup.SetupSection.register()
         } catch (e: Throwable) {
             // No Setup page in Settings this run.
+        }
+        try {
+            SettingsRegistry.register(SpotlightSection) // Settings > Home > Spotlight
+        } catch (e: Throwable) {
+            // Spotlight keeps its defaults; only the page is missing.
         }
     }
 }

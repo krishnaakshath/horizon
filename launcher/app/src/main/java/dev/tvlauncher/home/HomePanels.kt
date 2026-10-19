@@ -61,7 +61,7 @@ class HomePanels(
             QuickActions.Route.DEVICES_PANEL -> openDevices(null)
             QuickActions.Route.INPUTS_PANEL -> openInputs(null)
             QuickActions.Route.AMBIENT -> { sounds.action(startAmbient()); true } // handled here, even on failure
-            QuickActions.Route.ROOM_CYCLE, QuickActions.Route.SYSTEM -> false
+            QuickActions.Route.ROOM_CYCLE, QuickActions.Route.DISCOVER, QuickActions.Route.RESTART, QuickActions.Route.SYSTEM -> false
         }
 
     private inline fun open(block: () -> Boolean): Boolean {

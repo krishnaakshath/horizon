@@ -30,6 +30,8 @@ class KeyStateMachine(
     private var swallowBackUp = false
     private var backTainted = false
     private var shortcutDownKey = 0
+    private var lastTapAt = -1L
+    private var tapHeld = false
 
     fun reset() {
         detector = null
@@ -38,6 +40,8 @@ class KeyStateMachine(
         swallowBackUp = false
         backTainted = false
         shortcutDownKey = 0
+        lastTapAt = -1L
+        tapHeld = false
     }
 
     fun handle(input: KeyInput): Decision = try {
@@ -111,16 +115,39 @@ class KeyStateMachine(
         return Decision.PASS_THROUGH
     }
 
+    /**
+     * The Spotlight key ([HelperSettings.effectiveKey]). Single-press mode: DOWN and UP are
+     * consumed and Spotlight opens on UP. Double-press mode (the launcher's key only): the first
+     * press reaches the app as usual; a second DOWN within the window is consumed, and its UP
+     * opens Spotlight. The launcher handles its own key on the home screen, so the launcher's
+     * key passes through while the launcher is in front.
+     */
     private fun handleShortcut(i: KeyInput, s: HelperSettings): Decision {
-        val key = s.shortcutKey
+        val key = s.effectiveKey
         val pending = shortcutDownKey
+        val eligible = key != 0 && i.keyCode == key && ShortcutKeys.isAllowed(key) &&
+            i.foreground != HELPER_PACKAGE && !(s.launcherKey != 0 && i.foreground == LAUNCHER_PACKAGE)
         if (i.action == KeyAction.DOWN) {
-            if (key != 0 && i.keyCode == key && ShortcutKeys.isAllowed(key) &&
-                i.foreground != HELPER_PACKAGE
-            ) {
+            if (!eligible) {
+                if (i.repeatCount == 0 && i.keyCode != key) clearTap()
+                return Decision.PASS_THROUGH
+            }
+            if (!s.effectiveDouble) {
                 if (i.repeatCount == 0) shortcutDownKey = key
                 return Decision.CONSUME
             }
+            if (pending == key) return Decision.CONSUME // repeats of the swallowed second press
+            if (i.repeatCount > 0) {
+                tapHeld = true
+                return Decision.PASS_THROUGH
+            }
+            val t = now()
+            if (lastTapAt >= 0 && t - lastTapAt <= s.launcherWindowMs) {
+                clearTap()
+                shortcutDownKey = key
+                return Decision.CONSUME
+            }
+            clearTap()
             return Decision.PASS_THROUGH
         }
         if (pending != 0 && i.keyCode == pending) {
@@ -128,10 +155,21 @@ class KeyStateMachine(
             if (key == pending && !i.canceled) openSpotlight()
             return Decision.CONSUME
         }
+        if (eligible && s.effectiveDouble) {
+            // First press done: arm for a second one (not after a long press or a cancel).
+            if (!i.canceled && !tapHeld) lastTapAt = now() else clearTap()
+            tapHeld = false
+        }
         return Decision.PASS_THROUGH
+    }
+
+    private fun clearTap() {
+        lastTapAt = -1L
+        tapHeld = false
     }
 
     companion object {
         const val HELPER_PACKAGE = "dev.tvlauncher.helper"
+        const val LAUNCHER_PACKAGE = "dev.tvlauncher"
     }
 }

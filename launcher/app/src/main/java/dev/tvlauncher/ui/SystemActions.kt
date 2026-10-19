@@ -63,7 +63,36 @@ object SystemActions {
         QuickActions.Item.ROOM -> false // handled on the home screen (HomeModules)
         QuickActions.Item.INSIGHTS -> insights(context)
         QuickActions.Item.BROWSER -> launchPackage(context, QuickActions.BROWSER_PACKAGE)
+        QuickActions.Item.ACCESSIBILITY -> settingsPage(context, Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        QuickActions.Item.SLEEP_TIMER -> sleepTimer(context)
+        QuickActions.Item.GET_APPS -> launchPackage(context, QuickActions.GET_APPS_PACKAGE)
+        // Handled on the home screen (HomeModules); nothing to fall back to here.
+        QuickActions.Item.RESTART, QuickActions.Item.DISCOVER -> false
     }
+
+    /**
+     * The TV's own sleep-timer screen. UNVERIFIED on the TCL: these are candidates only, each
+     * checked with resolveActivity first, so a TV without one simply never shows the action
+     * (see QuickActions.unavailableReason). Confirm the real action on the TV and put it first.
+     */
+    val SLEEP_TIMER_ACTIONS = listOf(
+        "com.tcl.settings" to "com.tcl.settings.action.SLEEP_TIMER",
+        "com.tcl.settings" to "com.tcl.settings.SLEEP_TIMER",
+        "com.android.tv.settings" to "android.settings.SLEEP_TIMER_SETTINGS"
+    )
+
+    /** The first sleep-timer intent that resolves on this TV, or null. */
+    fun sleepTimerIntent(context: Context): Intent? = SLEEP_TIMER_ACTIONS.asSequence()
+        .map { (pkg, action) -> Intent(action).setPackage(pkg) }
+        .firstOrNull { i ->
+            try {
+                context.packageManager.resolveActivity(i, 0) != null
+            } catch (e: RuntimeException) {
+                false
+            }
+        }
+
+    fun sleepTimer(context: Context): Boolean = sleepTimerIntent(context)?.let { start(context, it) } ?: false
 
     /** The launcher's own settings screen ([AppSettingsActivity]); false if it does not resolve. */
     fun launcherSettings(context: Context): Boolean {

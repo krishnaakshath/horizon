@@ -31,9 +31,18 @@ import android.widget.TextView
 import dev.tvlauncher.R
 import dev.tvlauncher.apps.AppEntry
 import dev.tvlauncher.apps.component
+import dev.tvlauncher.appsettings.AppSettingsActivity
+import dev.tvlauncher.appsettings.SectionAvailability
+import dev.tvlauncher.appsettings.SettingsRegistry
 import dev.tvlauncher.audit.AuditTags
 import dev.tvlauncher.audit.auditTag
 import dev.tvlauncher.panel.PanelStyle
+import dev.tvlauncher.spotlight.SearchScope
+import dev.tvlauncher.spotlight.SettingsHit
+import dev.tvlauncher.spotlight.SpotlightConfig
+import dev.tvlauncher.spotlight.SpotlightPrefs
+import dev.tvlauncher.spotlight.SpotlightResult
+import dev.tvlauncher.spotlight.SpotlightResults
 import dev.tvlauncher.ui.QuickActions.Item
 import dev.tvlauncher.ui.Theme.style
 import java.util.concurrent.ExecutorService
@@ -44,6 +53,10 @@ import java.util.concurrent.Executors
  * field (OK opens the keyboard; typing ranks apps with [SpotlightSearch]), round quick-action
  * buttons ([QuickActions]) and, for a non-empty query, matching apps. While open, D-pad focus
  * is trapped inside the panel. Hidden (GONE) when closed, so it costs nothing at rest.
+ *
+ * Settings > Home > Spotlight ([SpotlightConfig], re-read on every open) picks the actions and
+ * their order, the search scope (apps only, or apps + Settings pages + recently opened apps),
+ * the hints and whether an action closes the panel.
  */
 class SpotlightPanel(
     context: Context,
@@ -61,6 +74,19 @@ class SpotlightPanel(
     private var apps: List<AppEntry> = emptyList()
     private var installedPackages: Set<String> = emptySet()
     private var shownActions: List<Item> = emptyList()
+    private val prefs = SpotlightPrefs(context)
+    private var config: SpotlightConfig = SpotlightConfig.DEFAULT
+    private var settingsHits: List<SettingsHit> = emptyList()
+    private var recent: List<String> = emptyList()
+    private var sleepTimer: Boolean? = null
+
+    /**
+     * Set when "Close after an action" is off and an action left the home screen: the panel is
+     * still open when the owner comes back (HomeActivity skips its close in onStop).
+     */
+    var keepOpenOnStop = false
+        private set
+
     // Icon cache and loader: icons resolve off the main thread; all maps are main-thread only.
     private val icons = HashMap<String, Drawable>()
     private val iconViews = HashMap<String, ImageView>()
@@ -146,6 +172,11 @@ class SpotlightPanel(
         style(PanelStyle.DETAIL_SP, Theme.medium, Theme.TEXT_2)
         gravity = Gravity.CENTER
     }
+    private val hintLine = TextView(context).apply {
+        style(PanelStyle.DETAIL_SP, Theme.regular, Theme.TEXT_2)
+        gravity = Gravity.CENTER
+        alpha = 0.8f
+    }
     private val results = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         clipChildren = false
@@ -160,7 +191,7 @@ class SpotlightPanel(
         addView(results)
     }
     private val noMatches = TextView(context).apply {
-        text = "No matching apps"
+        text = NO_APPS
         style(Theme.SP_SUB, Theme.regular, Theme.TEXT_2)
         gravity = Gravity.CENTER
     }
@@ -183,6 +214,7 @@ class SpotlightPanel(
         card.addView(actionsRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(Theme.S5) })
         card.addView(actionLabel, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(Theme.S2) })
         card.addView(resultsBox, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(Theme.S3) })
+        card.addView(hintLine, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(Theme.S3) })
         addView(card, LayoutParams(context.dp(CARD_W_DP), -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
             bottomMargin = context.dp(Theme.MARGIN_V)
         })
@@ -194,7 +226,7 @@ class SpotlightPanel(
         installedPackages = installed
         if (!isOpen) return
         scheduleRank()
-        val items = QuickActions.items(installed)
+        val items = currentItems()
         if (items != shownActions) {
             val hadFocus = actionsRow.hasFocus()
             rebuildActions(items)
@@ -205,10 +237,13 @@ class SpotlightPanel(
     fun open() {
         if (isOpen) return
         isOpen = true
+        keepOpenOnStop = false
         descendantFocusability = FOCUS_AFTER_DESCENDANTS
-        val items = QuickActions.items(installedPackages)
+        loadConfig()
+        val items = currentItems()
         if (items != shownActions) rebuildActions(items) else refreshAction(Item.ROOM) // choice may have changed in Settings
         search.setText("")
+        updateResults() // an empty query may show recent apps
         animate().cancel(); scrim.animate().cancel(); card.animate().cancel()
         visibility = View.VISIBLE
         alpha = 1f
@@ -224,6 +259,7 @@ class SpotlightPanel(
     fun close(animate: Boolean = true) {
         if (!isOpen) return
         isOpen = false
+        keepOpenOnStop = false
         hideIme()
         onClosed() // focus goes back to the shelf while we are still laid out
         descendantFocusability = FOCUS_BLOCK_DESCENDANTS
@@ -251,18 +287,53 @@ class SpotlightPanel(
         return FocusFinder.getInstance().findNextFocus(this, focused, direction) ?: focused
     }
 
+    /** Settings > Spotlight, re-read on every open; the scope, hints and search hint follow it. */
+    private fun loadConfig() {
+        config = try { prefs.load() } catch (e: RuntimeException) { SpotlightConfig.DEFAULT }
+        val all = config.scope == SearchScope.ALL
+        search.hint = if (all) "Search apps and settings" else "Search apps"
+        noMatches.text = if (all) NO_MATCHES else NO_APPS
+        settingsHits = if (all) settingsPages() else emptyList()
+        recent = if (all) prefs.recent() else emptyList()
+        hintLine.text = HINT
+        hintLine.visibility = if (config.showHints) View.VISIBLE else View.GONE
+        actionLabel.visibility = if (config.showHints) View.VISIBLE else View.GONE
+    }
+
+    private fun currentItems(): List<Item> {
+        val sleep = sleepTimer ?: (SystemActions.sleepTimerIntent(context) != null).also { sleepTimer = it }
+        return QuickActions.items(QuickActions.Availability(installedPackages, sleep), config)
+    }
+
+    /** The launcher's Settings pages listed in its sidebar on this TV. */
+    private fun settingsPages(): List<SettingsHit> = try {
+        val probe = object : SectionAvailability.Probe {
+            override fun appInstalled(pkg: String) = pkg in installedPackages
+            override fun classPresent(name: String) = try { Class.forName(name); true } catch (e: Throwable) { false }
+        }
+        SettingsRegistry.shared.sections().filter { it.availability.resolve(probe) }.map { SettingsHit(it.id, it.title, it.iconRes) }
+    } catch (e: RuntimeException) {
+        emptyList()
+    }
+
+    private fun runAction(item: Item) {
+        onAction(item)
+        if (!isOpen || !QuickActions.closesSpotlight(item)) return
+        if (config.closeAfterAction) close() else keepOpenOnStop = true
+    }
+
     /** Re-reads [item]'s icon (after room lighting cycled). */
     fun refreshAction(item: Item) {
         val i = shownActions.indexOf(item)
         if (i < 0) return
-        (actionsRow.getChildAt(i) as? RoundButton)?.setIcon(iconFor(item) ?: iconOf(item), item.title)
+        (actionsRow.getChildAt(i) as? RoundButton)?.setIcon(iconFor(item) ?: QuickActions.iconRes(item), item.title)
     }
 
     private fun rebuildActions(items: List<Item>) {
         shownActions = items
         actionsRow.removeAllViews()
         items.forEachIndexed { i, item ->
-            val b = RoundButton(context, iconFor(item) ?: iconOf(item), item.title) { onAction(item) }
+            val b = RoundButton(context, iconFor(item) ?: QuickActions.iconRes(item), item.title) { runAction(item) }
             val p = context.dp(14)
             b.setPadding(p, p, p, p)
             if (item.hasLongPress) b.setOnLongClickListener { onActionLongPress(item); true }
@@ -274,19 +345,6 @@ class SpotlightPanel(
                 if (i > 0) marginStart = context.dp(Theme.S4)
             })
         }
-    }
-
-    private fun iconOf(item: Item) = when (item) {
-        Item.INPUTS -> R.drawable.ic_input
-        Item.SETTINGS -> R.drawable.ic_settings
-        Item.NETWORK -> R.drawable.ic_net_wifi_4
-        Item.BLUETOOTH -> R.drawable.ic_net_bt_on
-        Item.SOUND -> R.drawable.ic_volume
-        Item.DEVICES -> R.drawable.ic_set_devices
-        Item.AMBIENT -> R.drawable.ic_qa_ambient
-        Item.ROOM -> R.drawable.ic_room_auto
-        Item.INSIGHTS -> R.drawable.ic_insights
-        Item.BROWSER -> R.drawable.ic_browser
     }
 
     private fun scheduleRank() {
@@ -302,26 +360,54 @@ class SpotlightPanel(
     }
 
     private fun updateResults() {
-        val q = search.text?.toString().orEmpty()
-        val ranked = SpotlightSearch.rank(q, apps)
+        val q = if (isOpen) search.text?.toString().orEmpty() else ""
+        val shown = SpotlightResults.compute(q, if (isOpen) config.scope else SearchScope.APPS, apps, settingsHits, recent)
+        val ranked = shown.results
         val keepFocus = results.hasFocus()
         results.removeAllViews()
         iconViews.clear()
-        resultsBox.visibility = if (q.isBlank()) View.GONE else View.VISIBLE
+        resultsBox.visibility = if (shown.visible) View.VISIBLE else View.GONE
         noMatches.visibility = if (ranked.isEmpty()) View.VISIBLE else View.GONE
         resultsScroll.visibility = if (ranked.isEmpty()) View.INVISIBLE else View.VISIBLE
-        ranked.forEach { app -> results.addView(resultTile(app)) }
+        ranked.forEach { r ->
+            results.addView(when (r) {
+                is SpotlightResult.App -> resultTile(r.app)
+                is SpotlightResult.Setting -> settingTile(r.hit)
+            })
+        }
         resultsScroll.scrollTo(0, 0)
         if (keepFocus) (if (results.childCount > 0) results.getChildAt(0) else search).requestFocus()
     }
 
     private fun resultTile(app: AppEntry): View {
+        val icon = ImageView(context).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+        }
+        bindIcon(app, icon)
+        return tile(app.label, icon) { tile -> onLaunch(app, tile) }
+    }
+
+    /** A Settings page found by the search (scope "Apps, settings and recent"). */
+    private fun settingTile(hit: SettingsHit): View {
+        val icon = ImageView(context).apply {
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            setImageResource(hit.iconRes)
+            imageTintList = ColorStateList.valueOf(Theme.TEXT)
+            background = rounded(0x1AFFFFFF, 0x1AFFFFFF, RESULT_RADIUS_DP)
+        }
+        return tile(hit.title, icon) {
+            close(animate = false)
+            SystemActions.start(context, AppSettingsActivity.intent(context, hit.id))
+        }
+    }
+
+    private fun tile(title: String, icon: ImageView, onClick: (View) -> Unit): View {
         val tile = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             isFocusable = true
             isClickable = true
-            contentDescription = app.label
+            contentDescription = title
             val p = context.dp(Theme.S2)
             setPadding(p, p, p, p)
             background = StateListDrawable().apply {
@@ -329,12 +415,8 @@ class SpotlightPanel(
                 addState(intArrayOf(), GradientDrawable())
             }
         }
-        val icon = ImageView(context).apply {
-            scaleType = ImageView.ScaleType.FIT_CENTER
-        }
-        bindIcon(app, icon)
         val label = TextView(context).apply {
-            text = app.label
+            text = title
             style(PanelStyle.DETAIL_SP, Theme.medium)
             gravity = Gravity.CENTER_HORIZONTAL
             isSingleLine = true
@@ -342,7 +424,7 @@ class SpotlightPanel(
         }
         tile.addView(icon, LinearLayout.LayoutParams(context.dp(RESULT_ICON_DP), context.dp(RESULT_ICON_DP)))
         tile.addView(label, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(Theme.S2) })
-        tile.setOnClickListener { onLaunch(app, tile) }
+        tile.setOnClickListener { onClick(tile) }
         tile.setOnFocusChangeListener { v, has ->
             val s = if (has) 1.06f else 1f
             v.animate().cancel()
@@ -421,5 +503,8 @@ class SpotlightPanel(
         const val RESULT_ICON_DP = 56
         const val RESULT_RADIUS_DP = 16
         const val RANK_DEBOUNCE_MS = 60L
+        const val NO_APPS = "No matching apps"
+        const val NO_MATCHES = "Nothing matches"
+        const val HINT = "OK on the search field opens the keyboard · Back closes"
     }
 }

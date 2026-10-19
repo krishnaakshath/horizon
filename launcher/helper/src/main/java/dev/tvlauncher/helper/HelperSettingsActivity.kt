@@ -98,6 +98,8 @@ class HelperSettingsActivity : Activity() {
         val keyValue = when {
             learning -> "Press a key now... (Back cancels)"
             learnMessage != null -> learnMessage!!
+            s.launcherKey != 0 -> "Set in the launcher (Settings › Spotlight): " + KeyEvent.keyCodeToString(s.launcherKey) +
+                if (s.launcherDouble) ", press twice" else ""
             s.shortcutKey != 0 -> KeyEvent.keyCodeToString(s.shortcutKey)
             else -> "None"
         }
@@ -113,6 +115,7 @@ class HelperSettingsActivity : Activity() {
                 learning = false
                 learnMessage = null
                 prefs.update { it.copy(shortcutKey = 0) }
+                SpotlightSync.sendState(this, hello = false)
                 render()
             },
         )
@@ -133,6 +136,7 @@ class HelperSettingsActivity : Activity() {
                 learnMessage = "Cancelled"
             } else if (ShortcutKeys.isAllowed(keyCode)) {
                 prefs.update { it.copy(shortcutKey = keyCode) }
+                SpotlightSync.sendState(this, hello = false)
                 learning = false
                 learnMessage = "Saved: ${KeyEvent.keyCodeToString(keyCode)}"
             } else {
