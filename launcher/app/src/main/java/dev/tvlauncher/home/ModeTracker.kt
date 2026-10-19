@@ -9,7 +9,6 @@ import dev.tvlauncher.insights.DEFAULT_IGNORE
 import dev.tvlauncher.insights.ModeClassifier
 import dev.tvlauncher.insights.ModeDetector
 import dev.tvlauncher.insights.UsageAccess
-import dev.tvlauncher.insights.UsageAggregator
 import dev.tvlauncher.insights.UsageEvent
 import dev.tvlauncher.insights.UsageStatsSource
 import java.util.concurrent.Executors
@@ -21,9 +20,10 @@ object RecentMode {
     const val WINDOW_MS = 3L * 60 * 1000
 
     /**
-     * The mode of the app that is still in front ([ModeDetector]), else of the last app session
-     * (launcher, SystemUI and other [ignore]d packages skipped) that ended at most [WINDOW_MS]
-     * before [nowMs]. OTHER when there is none or that app is not video, music or a game.
+     * The mode of an app still in front that resumed at most [WINDOW_MS] ago ([ModeDetector]),
+     * else of the app whose PAUSED (launcher, SystemUI and other [ignore]d packages skipped) is the
+     * last event and at most [WINDOW_MS] before [nowMs]. A RESUMED without PAUSED older than the
+     * window (a lost event) gives OTHER. OTHER also when the app is not video, music or a game.
      */
     fun recentMode(
         events: List<UsageEvent>,
@@ -31,11 +31,12 @@ object RecentMode {
         nowMs: Long,
         ignore: Set<String> = DEFAULT_IGNORE
     ): AppMode {
-        val live = ModeDetector.currentMode(events, classify, ignore, nowMs = nowMs, maxStaleMs = LOOKBACK_MS)
+        val live = ModeDetector.currentMode(events, classify, ignore, nowMs = nowMs, maxStaleMs = WINDOW_MS)
         if (live != AppMode.OTHER) return live
-        val last = UsageAggregator.sessions(events, nowMs - LOOKBACK_MS, nowMs, ignore).maxByOrNull { it.endMs }
+        val last = events.filter { it.pkg !in ignore && it.timeMs <= nowMs }.sortedBy { it.timeMs }.lastOrNull()
             ?: return AppMode.OTHER
-        return if (nowMs - last.endMs <= WINDOW_MS) classify(last.pkg) else AppMode.OTHER
+        if (last.type != UsageEvent.Type.PAUSED || nowMs - last.timeMs > WINDOW_MS) return AppMode.OTHER
+        return classify(last.pkg)
     }
 
     /** The hero's mode chip; null hides it. */

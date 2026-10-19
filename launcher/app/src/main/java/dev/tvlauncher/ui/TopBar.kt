@@ -100,9 +100,20 @@ class TopBar(
         if (!a.showStatusIcons) bluetooth.visibility = View.GONE
     }
 
-    fun startStatus() = status.start()
+    private var statusRunning = false
 
-    fun stopStatus() = status.stop()
+    /** Idempotent and paired with [stopStatus], whatever path onStart/onStop took. */
+    fun startStatus() {
+        if (statusRunning) return
+        statusRunning = true
+        status.start()
+    }
+
+    fun stopStatus() {
+        if (!statusRunning) return
+        statusRunning = false
+        status.stop()
+    }
 
     /** Focusable icon + label pill with a white focused state. */
     class PillButton(context: Context, iconRes: Int, text: String, onClick: () -> Unit) : LinearLayout(context) {

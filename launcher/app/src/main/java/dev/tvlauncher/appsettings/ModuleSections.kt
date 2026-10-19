@@ -5,7 +5,6 @@ import android.content.Intent
 import android.view.View
 import android.widget.FrameLayout
 import dev.tvlauncher.R
-import dev.tvlauncher.home.HomeSounds
 import dev.tvlauncher.insights.UsageAccess
 import dev.tvlauncher.sound.SoundPlayer
 import dev.tvlauncher.sound.SoundPrefs
@@ -42,9 +41,9 @@ object ModuleSections {
 }
 
 /**
- * Hosts [SoundSettingsPanel] in a bounded-height container. Previews and edits go through the
- * home screen's player when it is alive ([HomeSounds.active]); otherwise the page owns a player
- * that it releases when it is detached.
+ * Hosts [SoundSettingsPanel] in a bounded-height container. The page owns its preview player
+ * (created on build, released on detach); the panel saves to SoundPrefs and the home screen
+ * re-reads them in onResume (HomeSounds.reload).
  */
 object SoundsSection : SettingsSection {
     override val id = ModulePlaceholderSection.SOUNDS
@@ -53,23 +52,18 @@ object SoundsSection : SettingsSection {
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val prefs = SoundPrefs(context)
-        val home = HomeSounds.active
         val latest = AtomicReference(prefs.load())
-        val own = if (home == null) SoundPlayer(context.applicationContext, settings = { latest.get() }) else null
-        val player = home?.player ?: own
+        val player = SoundPlayer(context.applicationContext, settings = { latest.get() })
         val panel = SoundSettingsPanel(
             context, prefs, player,
-            player?.customDir()?.path ?: "Android/data/${context.packageName}/files/sounds",
-            onChanged = { s ->
-                // The panel has saved [s] already; make the next sounds use it.
-                if (home != null) home.applied(s) else { latest.set(s); own?.prewarm() }
-            },
+            player.customDir()?.path ?: "Android/data/${context.packageName}/files/sounds",
+            onChanged = { s -> latest.set(s); player.prewarm() }, // the panel saved [s] already
             embedded = true
         )
-        own?.prewarm()
+        player.prewarm()
         return object : FrameLayout(context) {
             override fun onDetachedFromWindow() {
-                own?.release()
+                player.release()
                 super.onDetachedFromWindow()
             }
         }.apply { addView(panel, FrameLayout.LayoutParams(-1, -1)) }

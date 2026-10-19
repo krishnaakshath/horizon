@@ -7,7 +7,6 @@ import dev.tvlauncher.sound.SoundEvent
 import dev.tvlauncher.sound.SoundEventMapper
 import dev.tvlauncher.sound.SoundPlayer
 import dev.tvlauncher.sound.SoundPrefs
-import dev.tvlauncher.sound.SoundSettings
 import dev.tvlauncher.sound.UiSoundsFacade
 import dev.tvlauncher.ui.TileMenu
 import java.util.concurrent.atomic.AtomicReference
@@ -15,8 +14,8 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * The home screen's one [SoundPlayer] / [UiSoundsFacade], created once by HomeActivity.
  * The settings supplier reads an [AtomicReference] because the player calls it from its builder
- * thread. Decisions come from [SoundEventMapper]; audibility only from [SoundSettings].
- * [active] lets the Settings screen's Sounds page reuse this player for previews and push edits.
+ * thread. Decisions come from [SoundEventMapper]; audibility only from the sound settings.
+ * Edits made in Settings (which has its own preview player) are picked up by [reload] in onResume.
  */
 class HomeSounds(context: Context) {
     private val prefs = SoundPrefs(context)
@@ -27,19 +26,12 @@ class HomeSounds(context: Context) {
     private var lastDpadMs = SoundEventMapper.NEVER
 
     init {
-        active = this
         facade.prewarm()
     }
 
     /** onResume: pick up edits made elsewhere and make sure the sounds are built. */
     fun reload() {
         current.set(prefs.load())
-        facade.prewarm()
-    }
-
-    /** The sound panel saved [s]; use it right away. */
-    fun applied(s: SoundSettings) {
-        current.set(s)
         facade.prewarm()
     }
 
@@ -81,15 +73,5 @@ class HomeSounds(context: Context) {
         }
     }
 
-    fun release() {
-        if (active === this) active = null
-        facade.release()
-    }
-
-    companion object {
-        /** The live home-screen instance, or null when HomeActivity is not alive. */
-        @Volatile
-        var active: HomeSounds? = null
-            private set
-    }
+    fun release() = facade.release()
 }

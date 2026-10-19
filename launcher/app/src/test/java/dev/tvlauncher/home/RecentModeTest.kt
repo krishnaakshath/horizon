@@ -67,9 +67,16 @@ class RecentModeTest {
     }
 
     @Test
-    fun stillResumedApp_isUsed() {
-        val events = listOf(ev("com.google.android.youtube.tv", RESUMED, now - 5 * min))
+    fun stillResumedApp_withinWindow_isUsed() {
+        val events = listOf(ev("com.google.android.youtube.tv", RESUMED, now - 2 * min))
         assertEquals(AppMode.VIDEO, RecentMode.recentMode(events, classify, now))
+    }
+
+    @Test
+    fun resumedWithoutPause_olderThanWindow_isOther() {
+        // A RESUMED with no PAUSED (lost event) must not show a stale chip.
+        val events = listOf(ev("com.google.android.youtube.tv", RESUMED, now - 5 * min))
+        assertEquals(AppMode.OTHER, RecentMode.recentMode(events, classify, now))
     }
 
     @Test

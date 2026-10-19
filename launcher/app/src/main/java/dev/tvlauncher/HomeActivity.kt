@@ -270,6 +270,7 @@ class HomeActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (isChangingConfigurations || isFinishing) return // e.g. the appearance rebuild in onStart
         sounds.reload()
         modes.onResume()
     }
@@ -284,9 +285,11 @@ class HomeActivity : Activity() {
     }
 
     override fun onStop() {
-        launchOverlay.hide()
-        spotlight.close(animate = false)
-        topBar.stopStatus()
+        if (!isChangingConfigurations && !isFinishing) {
+            launchOverlay.hide()
+            spotlight.close(animate = false)
+        }
+        topBar.stopStatus() // always paired with startStatus (TopBar tracks it)
         super.onStop()
     }
 

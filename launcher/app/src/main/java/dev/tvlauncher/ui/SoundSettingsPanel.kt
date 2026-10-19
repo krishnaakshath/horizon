@@ -70,9 +70,6 @@ class SoundSettingsPanel(
         super.onDetachedFromWindow()
     }
 
-    /** Focuses the first row; for hosts that enter the panel themselves. */
-    fun focusFirstRow(): Boolean = firstRow?.requestFocus() ?: false
-
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     init {

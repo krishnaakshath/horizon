@@ -27,13 +27,13 @@ object AppearanceSection : SettingsSection {
 
         page.group("Color")
         page.row(
-            "appearance.accentMode", "Accent color",
+            "appearance.accentMode", "Backdrop and highlights",
             RowKind.Choice(listOf("Auto from app", "Fixed"), a.accentMode.ordinal) { i ->
                 prefs.update { it.copy(accentMode = AccentMode.values()[i]) }
                 nav.appearanceChanged()
             },
             subtitle = if (a.accentMode == AccentMode.AUTO_BRAND) "Follows the brand color of the focused app"
-            else "One color for highlights everywhere",
+            else "One color for the backdrop and the hero; tiles keep their app colors",
             iconRes = R.drawable.ic_set_palette
         )
         if (a.accentMode == AccentMode.FIXED) {

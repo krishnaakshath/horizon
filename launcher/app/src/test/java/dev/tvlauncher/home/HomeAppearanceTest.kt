@@ -90,4 +90,13 @@ class HomeAppearanceTest {
         assertEquals(HomeAppearance.Change.LIVE,
             HomeAppearance.change(a, EffectsMode.LITE, a.copy(animationLevel = AnimationLevel.LITE), EffectsMode.LITE))
     }
+
+    @Test
+    fun fixedAccent_coversBackdropAndHero_tilesKeepBrandColors() {
+        val brand = 0xFF123456.toInt()
+        val fixed = AppearanceSettings(accentMode = AccentMode.FIXED, fixedAccent = 0xFF00FF00.toInt())
+        assertEquals(0xFF00FF00.toInt(), HomeAppearance.accent(fixed) { brand })
+        assertEquals(brand, HomeAppearance.tileAccent(fixed, brand))
+        assertEquals(brand, HomeAppearance.tileAccent(AppearanceSettings(), brand))
+    }
 }
