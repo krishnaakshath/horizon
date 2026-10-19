@@ -50,6 +50,7 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
     private val subtitle = TextView(context)
     private val sweep = SweepView(context)
     private val card = FrameLayout(context)
+    private val clipLayer = FrameLayout(context)
     private var running: Animator? = null
     private var pulse: Animator? = null
     private var kind = DeviceKind.UNKNOWN
@@ -66,18 +67,20 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
 
         val radius = context.dp(20).toFloat()
-        card.background = GradientDrawable().apply {
+        // Only this layer is clipped to the rounded card; the medallion rings live in the
+        // unclipped parents so they can ripple past the card edge.
+        clipLayer.background = GradientDrawable().apply {
             setColor(0xCC151922.toInt())
             cornerRadius = radius
             setStroke(context.dp(1), 0x33FFFFFF)
         }
-        card.clipChildren = false
-        card.clipToOutline = true
-        card.outlineProvider = object : ViewOutlineProvider() {
+        clipLayer.clipToOutline = true
+        clipLayer.outlineProvider = object : ViewOutlineProvider() {
             override fun getOutline(view: View, outline: Outline) = outline.setRoundRect(0, 0, view.width, view.height, radius)
         }
+        card.clipChildren = false
 
-        repeat(ringCount + 1) { // one spare for the longer Bluetooth ripple
+        repeat(if (!animationsOn) 0 else if (lite) 1 else 3) { // 3rd ring only used by the FULL Bluetooth audio ripple
             rings.add(View(context).apply { visibility = INVISIBLE })
         }
         for (r in rings) medallion.addView(r, LayoutParams(medallionSize, medallionSize))
@@ -104,17 +107,18 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
             addView(medallion, LinearLayout.LayoutParams(medallionSize, medallionSize))
             addView(texts, LinearLayout.LayoutParams(-2, -2).apply { marginStart = context.dp(16) })
         }
+        clipLayer.addView(sweep, LayoutParams(context.dp(120), LayoutParams.MATCH_PARENT))
+        card.addView(clipLayer, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         card.addView(row, LayoutParams(-2, -2))
-        card.addView(sweep, LayoutParams(context.dp(120), LayoutParams.MATCH_PARENT))
         sweep.visibility = GONE
         addView(card, LayoutParams(-2, -2))
         minimumWidth = context.dp(300)
-        // The medallion rings extend beyond the card inside the host; give them room.
+        // Padding gives the rings room to ripple past the card edge without being clipped.
         setPadding(context.dp(12), context.dp(12), context.dp(12), context.dp(12))
     }
 
     fun bind(event: DeviceEvent) {
-        val connected = event is DeviceEvent.Connected
+        val connected = event !is DeviceEvent.Disconnected
         kind = event.device.kind
         accent = DeviceAccent.of(kind)
         title.text = DeviceCopy.title(event.device, connected)
@@ -140,7 +144,7 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
     fun animateIn(connected: Boolean, onShown: () -> Unit) {
         cancel()
         val d = if (animationsOn) entranceMs else 0L
-        if (!lite && animationsOn) card.setLayerType(LAYER_TYPE_HARDWARE, null)
+        if (!lite && animationsOn) setLayerType(LAYER_TYPE_HARDWARE, null)
         val slide = context.dp(40).toFloat()
         alpha = 0f
         card.translationX = slide
@@ -200,7 +204,7 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
             override fun onAnimationCancel(a: Animator) { cancelled = true }
             override fun onAnimationEnd(a: Animator) {
                 running = null
-                if (!lite) card.setLayerType(LAYER_TYPE_NONE, null)
+                if (!lite) setLayerType(LAYER_TYPE_NONE, null)
                 if (!cancelled) onShown()
             }
         })
@@ -212,7 +216,7 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
     fun animateOut(onGone: () -> Unit) {
         cancel()
         val d = if (animationsOn) exitMs else 0L
-        if (!lite && animationsOn) card.setLayerType(LAYER_TYPE_HARDWARE, null)
+        if (!lite && animationsOn) setLayerType(LAYER_TYPE_HARDWARE, null)
         val set = AnimatorSet()
         set.playTogether(
             ObjectAnimator.ofFloat(this, ALPHA, alpha, 0f).setDuration(d),
@@ -224,7 +228,7 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
             override fun onAnimationCancel(a: Animator) { cancelled = true }
             override fun onAnimationEnd(a: Animator) {
                 running = null
-                if (!lite) card.setLayerType(LAYER_TYPE_NONE, null)
+                if (!lite) setLayerType(LAYER_TYPE_NONE, null)
                 if (!cancelled) onGone()
             }
         })
@@ -239,7 +243,7 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
         for (r in rings) { r.visibility = INVISIBLE; r.animate().cancel() }
         sweep.visibility = GONE
         sweep.animate().cancel()
-        if (!lite) card.setLayerType(LAYER_TYPE_NONE, null)
+        if (!lite) setLayerType(LAYER_TYPE_NONE, null)
     }
 
     private fun sweepAnimator(): Animator {
@@ -265,8 +269,8 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
             ring.alpha = 0f
             val a = ObjectAnimator.ofPropertyValuesHolder(
                 ring,
-                PropertyValuesHolder.ofFloat(SCALE_X, 1f, 1.55f),
-                PropertyValuesHolder.ofFloat(SCALE_Y, 1f, 1.55f),
+                PropertyValuesHolder.ofFloat(SCALE_X, 1f, 1.9f),
+                PropertyValuesHolder.ofFloat(SCALE_Y, 1f, 1.9f),
                 PropertyValuesHolder.ofFloat(ALPHA, 0.55f, 0f)
             ).setDuration(if (lite) 600L else 800L)
             a.startDelay = delay + i * 220L

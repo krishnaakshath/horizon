@@ -71,36 +71,3 @@ class DeviceRegistryTest {
         assertTrue(deb.accept(DeviceEvent.Disconnected(dev("a"))))
     }
 }
-
-class CrossSourceDeduperTest {
-    private fun ev(kind: DeviceKind) = DeviceEvent.Connected(ConnectedDevice("x", "x", kind, null, null))
-
-    @Test fun sameFamilyOtherSourceWithinGap_dropped() {
-        var now = 0L
-        val d = CrossSourceDeduper(1500) { now }
-        assertTrue(d.accept("usb", ev(DeviceKind.KEYBOARD)))
-        now = 300
-        assertFalse(d.accept("input", ev(DeviceKind.KEYBOARD)))
-    }
-
-    @Test fun btAndInputGamepad_sameFamily() {
-        var now = 0L
-        val d = CrossSourceDeduper(1500) { now }
-        assertTrue(d.accept("bt", ev(DeviceKind.BT_GAMEPAD)))
-        assertFalse(d.accept("input", ev(DeviceKind.GAMEPAD)))
-    }
-
-    @Test fun sameSource_notDropped() {
-        val d = CrossSourceDeduper(1500) { 0L }
-        assertTrue(d.accept("usb", ev(DeviceKind.USB_STORAGE)))
-        assertTrue(d.accept("usb", ev(DeviceKind.USB_STORAGE)))
-    }
-
-    @Test fun afterGap_passes() {
-        var now = 0L
-        val d = CrossSourceDeduper(1500) { now }
-        assertTrue(d.accept("usb", ev(DeviceKind.KEYBOARD)))
-        now = 2000
-        assertTrue(d.accept("input", ev(DeviceKind.KEYBOARD)))
-    }
-}

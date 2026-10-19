@@ -54,4 +54,27 @@ class DeviceClassifierTest {
     @Test fun usbHidGamepad_byName() = assertEquals(DeviceKind.GAMEPAD, DeviceClassifier.fromUsb(3, 0, "Game Controller"))
     @Test fun usbHidOther() = assertEquals(DeviceKind.USB_HID_OTHER, DeviceClassifier.fromUsb(3, 0, "Dongle"))
     @Test fun usbHub_unknown() = assertEquals(DeviceKind.UNKNOWN, DeviceClassifier.fromUsb(9, 0, null))
+
+    private fun hdmi(n: String) = DeviceClassifier.fromHdmiName(n)
+    @Test fun falsePositives_pinned() {
+        for (n in listOf("Skylight", "Dishwasher", "Capcom", "Network Switch", "Spectrum", "Windshield",
+            "Microsoft Surface", "Epcot Display", "Tatami", "PCB tester", "HDMI Switch", "Bosework"))
+            assertEquals(n, DeviceKind.HDMI_OTHER, hdmi(n))
+    }
+    @Test fun positives_table() {
+        assertEquals(DeviceKind.CONSOLE_PLAYSTATION, hdmi("PlayStation 5"))
+        assertEquals(DeviceKind.CONSOLE_PLAYSTATION, hdmi("PS5"))
+        assertEquals(DeviceKind.CONSOLE_PLAYSTATION, hdmi("Sony Interactive Entertainment"))
+        assertEquals(DeviceKind.CONSOLE_XBOX, hdmi("Xbox Series X"))
+        assertEquals(DeviceKind.CONSOLE_NINTENDO, hdmi("Nintendo Switch"))
+        assertEquals(DeviceKind.CONSOLE_NINTENDO, hdmi("Switch"))
+        assertEquals(DeviceKind.STREAMER, hdmi("NVIDIA SHIELD"))
+        assertEquals(DeviceKind.STREAMER, hdmi("Fire TV Stick"))
+        assertEquals(DeviceKind.STREAMER, hdmi("Chromecast"))
+        assertEquals(DeviceKind.STREAMER, hdmi("Apple TV 4K"))
+        assertEquals(DeviceKind.STREAMER, hdmi("Mi Box S"))
+        assertEquals(DeviceKind.SOUNDBAR_AUDIO, hdmi("Denon AVR-X1700H"))
+        assertEquals(DeviceKind.SET_TOP_BOX, hdmi("Sky Q"))
+        assertEquals(DeviceKind.BLURAY_DVD, hdmi("Samsung Blu-ray"))
+    }
 }

@@ -21,6 +21,9 @@ sealed class DeviceEvent {
     abstract val device: ConnectedDevice
     data class Connected(override val device: ConnectedDevice) : DeviceEvent()
     data class Disconnected(override val device: ConnectedDevice) : DeviceEvent()
+
+    /** Same identity, new content (e.g. an HDMI port that now shows a named console). */
+    data class Updated(override val device: ConnectedDevice, val previous: ConnectedDevice) : DeviceEvent()
 }
 
 /** Coarse grouping used for ordering and for the Devices panel sections. */

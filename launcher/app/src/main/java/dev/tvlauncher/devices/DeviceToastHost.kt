@@ -47,7 +47,7 @@ class DeviceToastHost(context: Context, private val mode: EffectsMode) : FrameLa
         view = v
         exiting = false
         addView(v, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END))
-        val connected = e is DeviceEvent.Connected
+        val connected = e !is DeviceEvent.Disconnected
         v.animateIn(connected) { main.postDelayed(hold, DeviceToastView.HOLD_MS) }
         v.announceForAccessibility(v.contentDescription)
     }
@@ -76,8 +76,7 @@ class DeviceToastHost(context: Context, private val mode: EffectsMode) : FrameLa
     }
 
     override fun onDetachedFromWindow() {
-        main.removeCallbacks(hold)
-        view?.cancel()
+        clear()
         super.onDetachedFromWindow()
     }
 }

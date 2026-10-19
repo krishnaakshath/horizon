@@ -1,9 +1,7 @@
 package dev.tvlauncher.devices
 
-import android.bluetooth.BluetoothA2dp
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothHeadset
 import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -27,17 +25,23 @@ import android.view.InputDevice
  * Watches everything that can be attached to the TV (HDMI/AV inputs, USB, input devices,
  * Bluetooth, network) and reports changes as [DeviceEvent]s on the main thread.
  *
- * [start] (HomeActivity.onStart) seeds the current state silently - devices already present do
- * not animate - then registers listeners; [stop] (onStop) unregisters everything. Every source
- * is wrapped so a missing permission or service never crashes the launcher.
+ * [start] (HomeActivity.onStart) seeds the current state silently - devices already present or
+ * bonded do not animate - then registers listeners; [stop] (onStop) unregisters everything and
+ * forgets all state. Every source is wrapped so a missing permission, service or API level never
+ * crashes the launcher.
  */
 class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit) {
     private val ctx = context.applicationContext
     private val main = Handler(Looper.getMainLooper())
+    private val clock: () -> Long = { SystemClock.elapsedRealtime() }
     private val registry = DeviceRegistry()
     private val bySource = HashMap<String, List<ConnectedDevice>>()
-    private val debouncer = Debouncer(DEBOUNCE_MS) { SystemClock.elapsedRealtime() }
-    private val crossSource = CrossSourceDeduper(DEBOUNCE_MS) { SystemClock.elapsedRealtime() }
+    private var debouncer = Debouncer(DEBOUNCE_MS, clock)
+    private var dedupe = CrossSourceDedupe(6000L, clock)
+    private val remoteFilter = RemoteFilter()
+    private val tracker = HdmiPortTracker(clock)
+    private var netPolicy = NetworkEventPolicy(3000L, clock)
+    private val anonymousBt = HashSet<String>()
     private var started = false
     private var seeding = false
 
@@ -47,7 +51,6 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
     /** Current devices, ordered for display. */
     fun devices(): List<ConnectedDevice> = registry.snapshot()
 
-    // ---- sources' registrations
     private var tvCallback: TvInputManager.TvInputCallback? = null
     private var usbReceiver: BroadcastReceiver? = null
     private var inputListener: InputManager.InputDeviceListener? = null
@@ -56,11 +59,20 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
     private val btDevices = LinkedHashMap<String, ConnectedDevice>()
     private val btProxies = ArrayList<Pair<Int, BluetoothProfile>>()
 
+    private val tick = Runnable {
+        if (started) {
+            emit("tv", tracker.tick())
+            emit("net", netPolicy.tick())
+            scheduleTick()
+        }
+    }
+
     fun start() {
         if (started) return
         started = true
         seeding = true
         refreshTvInputs(); refreshUsb(); refreshInput(); seedBluetooth(); refreshNetwork()
+        for (src in listOf("usb", "input", "bt")) bySource[src].orEmpty().forEach { remoteFilter.seed(it.id) }
         seeding = false
         registerTv(); registerUsb(); registerInput(); registerBluetooth(); registerNetwork()
     }
@@ -80,29 +92,51 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
         guard { netCallback?.let { (ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager)?.unregisterNetworkCallback(it) } }
         netCallback = null
         closeBtProxies()
+        // Forget everything so nothing stale survives a stop()/start() cycle.
+        btDevices.clear(); bySource.clear(); registry.clear(); anonymousBt.clear()
+        remoteFilter.reset(); tracker.reset(); netPolicy = NetworkEventPolicy(3000L, clock)
+        debouncer = Debouncer(DEBOUNCE_MS, clock); dedupe = CrossSourceDedupe(6000L, clock)
+        onChanged?.invoke()
     }
 
     // ---- core
 
-    private fun publish(source: String, now: List<ConnectedDevice>) {
+    /** Updates the registry for [source] and returns the id-level diff (no emission). */
+    private fun apply(source: String, now: List<ConnectedDevice>): List<DeviceEvent> {
         val before = bySource[source].orEmpty()
         val events = DeviceRegistry.diff(before, now)
         bySource[source] = now
-        for (e in events) when (e) {
-            is DeviceEvent.Connected -> registry.applyConnected(e.device)
-            is DeviceEvent.Disconnected -> registry.applyDisconnected(e.device.id)
+        for (e in events) {
+            if (e is DeviceEvent.Disconnected) registry.applyDisconnected(e.device.id)
         }
-        // Renames / kind changes: keep the registry current without emitting.
         for (d in now) registry.applyConnected(d)
-        if (events.isNotEmpty() || now.size != before.size) onChanged?.invoke()
+        if (events.isNotEmpty() || now.size != before.size || now != before) onChanged?.invoke()
+        return events
+    }
+
+    /** Applies debounce, remote filtering and cross-source dedupe, then delivers. */
+    private fun emit(source: String, events: List<DeviceEvent>) {
         if (seeding || !started) return
         for (e in events) {
-            if (debouncer.accept(e) && crossSource.accept(source, e)) onEvent(e)
+            if (!debouncer.accept(e)) continue
+            if (source == "usb" || source == "input" || source == "bt") {
+                val d = e.device
+                val cand = Candidate(DeviceSource.of(d.id), d.id, d.name, d.kind, d.id in anonymousBt)
+                if (!remoteFilter.shouldAnnounce(cand)) continue
+                if (!dedupe.accept(source, e)) continue
+            }
+            onEvent(e)
         }
     }
 
+    private fun scheduleTick() {
+        main.removeCallbacks(tick)
+        val due = listOfNotNull(tracker.nextDueDelayMs(), netPolicy.nextDueDelayMs()).minOrNull() ?: return
+        main.postDelayed(tick, due + 20L)
+    }
+
     private inline fun guard(block: () -> Unit) {
-        try { block() } catch (e: RuntimeException) { /* permission / service missing: ignore */ }
+        try { block() } catch (t: Throwable) { if (t is OutOfMemoryError) throw t }
     }
 
     private fun unregister(r: BroadcastReceiver?) {
@@ -111,7 +145,7 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
 
     private fun postMain(block: () -> Unit) { main.post { if (started) block() } }
 
-    // ---- TV inputs (HDMI CEC devices, composite, component, ...)
+    // ---- TV inputs (HDMI ports + CEC devices, composite, component, ...)
 
     private fun registerTv() = guard {
         val tim = ctx.getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager ?: return
@@ -126,31 +160,29 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
     }
 
     private fun refreshTvInputs() {
-        val out = ArrayList<ConnectedDevice>()
+        val snaps = ArrayList<InputSnapshot>()
         guard {
             val tim = ctx.getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager ?: return@guard
-            val inputs = tim.tvInputList.filter { it.isPassthroughInput }
-            val states = inputs.associate { it.id to tim.getInputState(it.id) }
-            fun live(i: TvInputInfo) = (states[i.id] ?: TvInputManager.INPUT_STATE_DISCONNECTED) != TvInputManager.INPUT_STATE_DISCONNECTED
-            val labelOf = inputs.associate { it.id to safeLabel(it) }
-            // A physical HDMI port whose CEC child device is connected is reported via the child only.
-            val parentsWithChild = inputs.filter { live(it) }.mapNotNull { it.parentId }.toSet()
-            for (info in inputs) {
-                if (!live(info) || info.id in parentsWithChild) continue
-                val label = labelOf[info.id].orEmpty()
-                val parentLabel = info.parentId?.let { labelOf[it] }
-                val port = (parentLabel ?: label).takeIf { it.isNotBlank() }
-                val kind = DeviceClassifier.fromTvInputType(info.type, label)
-                if (kind == DeviceKind.UNKNOWN) continue
-                out.add(ConnectedDevice("tv:" + info.id, label.ifBlank { port ?: "HDMI device" }, kind, port, null))
+            for (info in tim.tvInputList) {
+                if (!info.isPassthroughInput) continue
+                val state = try { tim.getInputState(info.id) } catch (e: RuntimeException) { InputSnapshot.STATE_DISCONNECTED }
+                snaps.add(InputSnapshot(info.id, parentIdOf(info), labelOf(info), info.type, state))
             }
         }
-        publish("tv", out)
+        val events = tracker.update(snaps, emit = started && !seeding)
+        apply("tv", tracker.devices())
+        emit("tv", events)
+        if (started) scheduleTick()
     }
 
-    private fun safeLabel(info: TvInputInfo): String = try {
-        (info.loadCustomLabel(ctx) ?: info.loadLabel(ctx))?.toString().orEmpty()
-    } catch (e: RuntimeException) { "" }
+    /** getParentId is API 26; below that the tracker derives the parent from the id string. */
+    private fun parentIdOf(info: TvInputInfo): String? =
+        if (Build.VERSION.SDK_INT >= 26) try { info.parentId } catch (t: Throwable) { null } else null
+
+    private fun labelOf(info: TvInputInfo): String = try {
+        val custom = if (Build.VERSION.SDK_INT >= 24) info.loadCustomLabel(ctx) else null
+        (custom ?: info.loadLabel(ctx))?.toString().orEmpty()
+    } catch (t: Throwable) { "" }
 
     // ---- USB
 
@@ -186,10 +218,10 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
                 out.add(ConnectedDevice("usb:$key", name.ifEmpty { "USB device" }, kind, "USB", null))
             }
         }
-        publish("usb", out)
+        emit("usb", apply("usb", out))
     }
 
-    // ---- Input devices (gamepads, keyboards, mice; the TV remote is ignored by the classifier)
+    // ---- Input devices (gamepads, keyboards, mice; remotes are filtered)
 
     private fun registerInput() = guard {
         val im = ctx.getSystemService(Context.INPUT_SERVICE) as? InputManager ?: return
@@ -215,7 +247,7 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
                 out.add(ConnectedDevice("input:" + d.descriptor, d.name.orEmpty().ifBlank { DeviceCopy.label(kind) }, kind, null, null))
             }
         }
-        publish("input", out)
+        emit("input", apply("input", out))
     }
 
     // ---- Bluetooth (battery level is not reliably readable on TV builds, so it is never shown)
@@ -229,11 +261,12 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
                     BluetoothDevice.ACTION_ACL_CONNECTED -> btDevices[dev.address] = toDevice(dev)
                     BluetoothDevice.ACTION_ACL_DISCONNECTED -> btDevices.remove(dev.address)
                     BluetoothDevice.ACTION_BOND_STATE_CHANGED ->
-                        if (i.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1) == BluetoothDevice.BOND_NONE) btDevices.remove(dev.address)
-                        else return
+                        if (i.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, -1) == BluetoothDevice.BOND_NONE) {
+                            btDevices.remove(dev.address)
+                        } else return
                     else -> return
                 }
-                publish("bt", btDevices.values.toList())
+                emit("bt", apply("bt", btDevices.values.toList()))
             }
         }
         val f = IntentFilter().apply {
@@ -254,46 +287,51 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
     private fun toDevice(dev: BluetoothDevice): ConnectedDevice {
         var name = ""
         var kind = DeviceKind.BT_OTHER
+        var classNull = true
         try {
             name = dev.name.orEmpty()
             val cls = dev.bluetoothClass
+            classNull = cls == null
             kind = DeviceClassifier.fromBluetooth(cls?.majorDeviceClass ?: 0, cls?.deviceClass ?: 0, name)
         } catch (e: SecurityException) { }
-        return ConnectedDevice("bt:" + dev.address, name.ifBlank { DeviceCopy.label(kind) }, kind, "Bluetooth", null)
+        val id = "bt:" + dev.address
+        if (classNull && name.isBlank()) anonymousBt.add(id) else anonymousBt.remove(id)
+        return ConnectedDevice(id, name.ifBlank { DeviceCopy.label(kind) }, kind, "Bluetooth", null)
     }
 
-    /** Devices already connected over A2DP/headset when we start (HID pads come via InputManager). */
+    /**
+     * Seeds every bonded device as "known" (so reconnects of remotes/keyboards stay silent) and the
+     * currently connected A2DP / headset / HID-host devices into the panel without any card.
+     * PROFILE 4 is BluetoothProfile.INPUT_DEVICE (HID host).
+     */
     @Suppress("DEPRECATION", "MissingPermission")
     private fun seedBluetooth() = guard {
         val adapter = BluetoothAdapter.getDefaultAdapter() ?: return
         if (!adapter.isEnabled) return
+        guard { adapter.bondedDevices?.forEach { remoteFilter.seed("bt:" + it.address) } }
         val listener = object : BluetoothProfile.ServiceListener {
             override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
-                try {
-                    if (!started) return
+                if (!started) { guard { adapter.closeProfileProxy(profile, proxy) }; return }
+                btProxies.add(profile to proxy)
+                guard {
                     var changed = false
                     for (d in proxy.connectedDevices) {
+                        remoteFilter.seed("bt:" + d.address)
                         if (!btDevices.containsKey(d.address)) { btDevices[d.address] = toDevice(d); changed = true }
                     }
-                    if (changed) {
-                        // Silent: these were already connected before start().
-                        val wasSeeding = seeding
-                        seeding = true
-                        publish("bt", btDevices.values.toList())
-                        seeding = wasSeeding
-                    }
-                } catch (e: RuntimeException) { }
-                btProxies.add(profile to proxy)
+                    if (changed) apply("bt", btDevices.values.toList()) // silent: connected before start()
+                }
             }
             override fun onServiceDisconnected(profile: Int) { btProxies.removeAll { it.first == profile } }
         }
         adapter.getProfileProxy(ctx, listener, BluetoothProfile.A2DP)
         adapter.getProfileProxy(ctx, listener, BluetoothProfile.HEADSET)
+        adapter.getProfileProxy(ctx, listener, 4)
     }
 
     @Suppress("DEPRECATION")
     private fun closeBtProxies() {
-        val adapter = try { BluetoothAdapter.getDefaultAdapter() } catch (e: RuntimeException) { null }
+        val adapter = try { BluetoothAdapter.getDefaultAdapter() } catch (t: Throwable) { null }
         for ((profile, proxy) in btProxies) guard { adapter?.closeProfileProxy(profile, proxy) }
         btProxies.clear()
     }
@@ -323,7 +361,10 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
                     out.add(ConnectedDevice("net:wifi", "Wi-Fi", DeviceKind.NETWORK_WIFI, null, ssidOrNull()))
             }
         }
-        publish("net", out)
+        val events = apply("net", out)
+        if (seeding || !started) return
+        emit("net", netPolicy.submitAll(events))
+        scheduleTick()
     }
 
     /** SSID only when readable without location permission; otherwise null. */
@@ -332,7 +373,7 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
         val wm = ctx.getSystemService(Context.WIFI_SERVICE) as? WifiManager
         val raw = wm?.connectionInfo?.ssid?.trim('"')
         if (raw.isNullOrBlank() || raw == WifiManager.UNKNOWN_SSID) null else raw
-    } catch (e: RuntimeException) { null }
+    } catch (t: Throwable) { null }
 
     companion object {
         const val DEBOUNCE_MS = 1500L
