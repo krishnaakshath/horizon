@@ -16,21 +16,25 @@ class Tree {
         text: String? = null, focusable: Boolean = false, tag: String? = null,
         clip: Boolean = true, alpha: Float = 1f, visible: Boolean = true, textPx: Float = 40f,
         maxLines: Int = Int.MAX_VALUE, lineCount: Int = if (text != null) 1 else 0, ellipsized: Boolean = false,
-        name: String? = null,
+        name: String? = null, bg: Float = 0f, bgKnown: Boolean = true,
     ): Int {
         val id = nodes.size
         val z = childCount.getOrDefault(parent, 0)
         childCount[parent] = z + 1
         nodes += Node(id, parent, cls, name, l, t, r, b, visible, alpha, clip, text, if (text != null) textPx else 0f,
-            maxLines, lineCount, ellipsized, focusable, tag, z)
+            maxLines, lineCount, ellipsized, focusable, tag, z, bg, bgKnown)
         return id
     }
+
+    fun idOf(name: String) = nodes.single { it.name == name }.id
 
     fun text(parent: Int, l: Int, t: Int, r: Int, b: Int, s: String = "Label", textPx: Float = 40f, tag: String? = null, alpha: Float = 1f, visible: Boolean = true) =
         add(parent, "android.widget.TextView", l, t, r, b, text = s, textPx = textPx, tag = tag, alpha = alpha, visible = visible)
 
-    fun frame(parent: Int, l: Int, t: Int, r: Int, b: Int, tag: String? = null, clip: Boolean = true, focusable: Boolean = false) =
-        add(parent, "android.widget.FrameLayout", l, t, r, b, tag = tag, clip = clip, focusable = focusable)
+    fun frame(parent: Int, l: Int, t: Int, r: Int, b: Int, tag: String? = null, clip: Boolean = true, focusable: Boolean = false,
+              bg: Float = 0f, alpha: Float = 1f, visible: Boolean = true, name: String? = null) =
+        add(parent, "android.widget.FrameLayout", l, t, r, b, tag = tag, clip = clip, focusable = focusable, bg = bg,
+            alpha = alpha, visible = visible, name = name)
 
     companion object {
         /** A tree with a screen-sized window root (id 0). */
@@ -48,7 +52,7 @@ class AuditEngineTest {
     fun overlap_siblingText_detected() {
         val t = Tree.screen()
         val a = t.text(0, 100, 100, 300, 140, "Wi-Fi")
-        val b = t.text(0, 280, 120, 480, 160, "Connected")
+        val b = t.text(0, 280, 130, 480, 170, "Connected") // offset rows: not the same text row
         val f = audit(t)
         assertEquals(f.toString(), 1, f.size)
         val o = f.single()
@@ -56,8 +60,8 @@ class AuditEngineTest {
         assertEquals(Severity.HIGH, o.severity)
         assertEquals(a, o.a)
         assertEquals(b, o.b)
-        assertEquals(listOf(280, 120, 300, 140), o.rect)
-        assertTrue(o.message, o.message.contains("5%"))
+        assertEquals(listOf(280, 130, 300, 140), o.rect)
+        assertTrue(o.message, o.message.contains("3%")) // 20x10 of 200x40
     }
 
     @Test
@@ -113,30 +117,32 @@ class AuditEngineTest {
     @Test
     fun overlap_smallTouch_ignoredBelowThreshold() {
         val t = Tree.screen()
-        t.text(0, 100, 100, 303, 140)
-        t.text(0, 300, 100, 500, 140) // 3 px = 3 dp deep: below 4 dp
+        t.text(0, 100, 100, 300, 140)
+        t.text(0, 100, 137, 300, 177) // stacked rows touching by 3 px = 3 dp: below 4 dp
         assertEquals(emptyList<Finding>(), audit(t))
 
         val d2 = Tree.screen(1920, 1080)
-        d2.text(0, 200, 200, 606, 280)
-        d2.text(0, 600, 200, 1000, 280) // 6 px at density 2 = 3 dp
+        d2.text(0, 200, 200, 600, 280)
+        d2.text(0, 200, 274, 600, 354) // 6 px at density 2 = 3 dp
         assertEquals(emptyList<Finding>(), audit(d2, density = 2f, w = 1920, h = 1080))
 
         val d3 = Tree.screen(1920, 1080)
-        d3.text(0, 200, 200, 608, 280)
-        d3.text(0, 600, 200, 1000, 280) // 8 px at density 2 = 4 dp
+        d3.text(0, 200, 200, 600, 280)
+        d3.text(0, 200, 272, 600, 352) // 8 px at density 2 = 4 dp
         assertEquals(listOf(Kind.OVERLAP), audit(d3, density = 2f, w = 1920, h = 1080).map { it.kind })
     }
 
     @Test
-    fun overlap_suppressedBehindFullScreenOverlay() {
-        val t = Tree.screen()
-        val home = t.frame(0, 0, 0, 1280, 720)
-        t.text(home, 100, 100, 300, 140)
-        val panel = t.frame(0, 0, 0, 1280, 720) // drawn later, covers the screen
-        t.text(panel, 120, 110, 320, 150)
-        assertEquals(emptyList<Finding>(), audit(t))
-        assertEquals(1, audit(t, config = AuditConfig(suppressBehindFullScreenOverlays = false)).size)
+    fun overlap_underOpaquePanel_suppressed_butNotByBoundsAlone() {
+        fun tree(bg: Float) = Tree.screen().also { t ->
+            val home = t.frame(0, 0, 0, 1280, 720)
+            t.text(home, 100, 100, 300, 140)
+            val panel = t.frame(0, 0, 0, 1280, 720, bg = bg) // drawn later, covers the screen
+            t.text(panel, 120, 110, 320, 150)
+        }
+        assertEquals(emptyList<Finding>(), audit(tree(bg = 1f)))
+        // A transparent full-screen container hides nothing.
+        assertEquals(listOf(Kind.OVERLAP), audit(tree(bg = 0f)).map { it.kind })
     }
 
     // ---- CLIPPED ----
@@ -167,7 +173,7 @@ class AuditEngineTest {
     @Test
     fun clipped_scrollContainer_isLow_andScrolledOutIsSilent() {
         val t = Tree.screen()
-        val rv = t.add(0, "androidx.recyclerview.widget.RecyclerView", 100, 100, 600, 300, clip = false)
+        val rv = t.add(0, "androidx.recyclerview.widget.RecyclerView", 100, 100, 600, 300, clip = true)
         t.frame(rv, 500, 120, 700, 280, focusable = true) // peeking
         t.frame(rv, 900, 120, 1100, 280, focusable = true) // fully scrolled out
         val f = audit(t)
@@ -314,7 +320,9 @@ class AuditEngineTest {
         val arr = o.getJSONArray("findings")
         assertEquals(1, arr.length())
         val x = arr.getJSONObject(0)
-        assertEquals("OVERLAP", x.getString("kind"))
+        assertEquals("TEXT_OVERFLOW_VALUE", x.getString("kind")) // same-row text siblings
+        assertTrue(o.getJSONObject("summary").has("stats"))
+        assertEquals(0, o.getJSONObject("summary").getJSONArray("notes").length())
         assertEquals("HIGH", x.getString("severity"))
         assertEquals(1, x.getInt("a"))
         assertEquals(2, x.getInt("b"))
@@ -333,19 +341,21 @@ class AuditEngineTest {
 
     @Test
     fun homeFixture_legitTree_hasNoFindings() {
-        val f = AuditEngine.audit(HomeFixture.build(planted = false).nodes, 1280, 720, 1f)
-        assertEquals(emptyList<Finding>(), f)
+        val r = AuditEngine.run(HomeFixture.build(planted = false).nodes, 1280, 720, 1f)
+        assertEquals(emptyList<Finding>(), r.findings)
+        assertEquals(emptyList<String>(), r.notes)
     }
 
     @Test
-    fun homeFixture_plantedOverlap_isTheOnlyFinding() {
+    fun homeFixture_plantedTextCollision_isTheOnlyFinding() {
         val fx = HomeFixture.build(planted = true)
         val f = AuditEngine.audit(fx.nodes, 1280, 720, 1f)
         assertEquals(f.toString(), 1, f.size)
         val o = f.single()
-        assertEquals(Kind.OVERLAP, o.kind)
+        assertEquals(Kind.TEXT_OVERFLOW_VALUE, o.kind) // date runs into the weather value on the bar row
         assertEquals(Severity.HIGH, o.severity)
-        assertEquals(setOf(HomeFixture.DATE, fx.nodes.size - 1), setOf(o.a, o.b))
+        assertEquals(HomeFixture.DATE, o.a)
+        assertEquals(fx.nodes.size - 1, o.b)
         assertFalse(AuditReport.summary(f).isBlank())
     }
 }
@@ -354,7 +364,17 @@ class AuditEngineTest {
 object HomeFixture {
     const val DATE = 6
 
-    fun build(planted: Boolean): Tree {
+    /**
+     * An overlay added over the home column, like Spotlight: a full-screen transparent holder
+     * ("holder") with the panel ("panel", optional text "panelText") inside.
+     */
+    data class Panel(
+        val bg: Float, val l: Int = 240, val t: Int = 300, val r: Int = 1040, val b: Int = 690,
+        val tag: String? = null, val visible: Boolean = true, val alpha: Float = 1f, val text: Boolean = true,
+        val textRect: List<Int> = listOf(280, 320, 600, 360),
+    )
+
+    fun build(planted: Boolean = false, panel: Panel? = null): Tree {
         val t = Tree.screen()
         val content = t.frame(0, 0, 0, 1280, 720)
         t.add(content, "dev.tvlauncher.ui.BackdropView", 0, 0, 1280, 720, tag = AuditTokens.FULLBLEED)
@@ -372,7 +392,7 @@ object HomeFixture {
         }
         val hero = t.add(column, "dev.tvlauncher.ui.HeroView", 0, 91, 1280, 431, tag = AuditTokens.LAYER)
         t.add(hero, "android.widget.ImageView", 0, 91, 1280, 431)
-        t.add(hero, "android.view.View", 0, 91, 1280, 431, name = "scrim")
+        t.add(hero, "android.view.View", 0, 91, 1280, 431, name = "scrim", bg = 0.5f) // translucent, but inside the layer
         t.text(hero, 64, 300, 700, 356, "Big Buck Bunny", textPx = 48f)
         t.text(hero, 64, 364, 700, 392, "Movies · 2008", textPx = 20f)
         t.text(column, 64, 447, 400, 475, "Apps", textPx = 20f)
@@ -387,6 +407,16 @@ object HomeFixture {
         val dock = t.add(column, "android.widget.LinearLayout", 440, 651, 840, 693)
         for (i in 0 until 3) t.add(dock, "dev.tvlauncher.ui.RoundButton", 440 + i * 56, 652, 480 + i * 56, 692, focusable = true)
         if (planted) t.text(bar, 330, 47, 520, 71, "18° Cloudy", textPx = 18f)
+        if (panel != null) {
+            val holder = t.frame(content, 0, 0, 1280, 720, name = "holder")
+            val p = t.frame(holder, panel.l, panel.t, panel.r, panel.b, tag = panel.tag, bg = panel.bg * panel.alpha,
+                alpha = panel.alpha, visible = panel.visible, name = "panel")
+            if (panel.text) {
+                val (l, tp, r, b) = panel.textRect
+                t.add(p, "android.widget.TextView", l, tp, r, b, text = "Search apps", textPx = 24f, alpha = panel.alpha,
+                    visible = panel.visible, name = "panelText")
+            }
+        }
         return t
     }
 }

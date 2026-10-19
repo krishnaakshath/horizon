@@ -17,6 +17,8 @@ object AuditReport {
             "low" to (result.bySeverity[Severity.LOW] ?: 0),
             "byKind" to result.byKind.filterValues { it > 0 }.mapKeys { it.key.name },
             "text" to summary(result),
+            "notes" to result.notes,
+            "stats" to result.stats,
         )
         val list = result.findings.map {
             linkedMapOf<String, Any?>("kind" to it.kind.name, "severity" to it.severity.name, "a" to it.a, "b" to it.b,
@@ -30,7 +32,8 @@ object AuditReport {
             linkedMapOf<String, Any?>("id" to it.id, "parent" to it.parent, "cls" to it.cls, "name" to it.name,
                 "rect" to listOf(it.left, it.top, it.right, it.bottom), "visible" to it.visible, "alpha" to it.alpha,
                 "clipChildren" to it.clipChildren, "text" to it.text, "textSizePx" to it.textSizePx, "maxLines" to it.maxLines,
-                "lineCount" to it.lineCount, "ellipsized" to it.ellipsized, "focusable" to it.focusable, "tag" to it.tag, "z" to it.z)
+                "lineCount" to it.lineCount, "ellipsized" to it.ellipsized, "focusable" to it.focusable, "tag" to it.tag, "z" to it.z,
+                "bgAlpha" to it.bgAlpha, "bgKnown" to it.bgKnown)
         }
         return Json.write(linkedMapOf("meta" to meta, "nodes" to list))
     }

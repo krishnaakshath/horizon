@@ -10,6 +10,9 @@ package dev.tvlauncher.audit
  * values (the view and all its ancestors are VISIBLE / the product of all alphas). [parent] is -1 for
  * a window root. [z] is the drawing order among siblings (for roots: the window order).
  * [tag] holds whitespace/comma separated `audit:*` tokens (see AuditTags), or null.
+ * [bgAlpha] is the EFFECTIVE alpha of the view's own background fill (drawable alpha × effective view
+ * alpha; 0 = no background). [bgKnown] is false when the drawable's opacity could not be read; such a
+ * node is never treated as opaque nor as translucent.
  */
 data class Node(
     val id: Int,
@@ -31,12 +34,15 @@ data class Node(
     val focusable: Boolean,
     val tag: String?,
     val z: Int,
+    val bgAlpha: Float = 0f,
+    val bgKnown: Boolean = true,
 ) {
     val width: Int get() = right - left
     val height: Int get() = bottom - top
 }
 
-enum class Kind { OVERLAP, CLIPPED, OFFSCREEN, SAFE_AREA, TEXT_TRUNCATED, TOO_SMALL_TARGET, TOO_SMALL_TEXT, TEXT_OVERFLOW_VALUE, EMPTY_VISIBLE }
+/** Declared in priority order (findings of equal severity sort by this order). */
+enum class Kind { OVERLAP, TEXT_OVERFLOW_VALUE, SEE_THROUGH, CLIPPED, OFFSCREEN, SAFE_AREA, TEXT_TRUNCATED, TOO_SMALL_TARGET, TOO_SMALL_TEXT, EMPTY_VISIBLE }
 
 /** Declared most severe first; findings are sorted by this order. */
 enum class Severity { HIGH, MEDIUM, LOW }
@@ -50,6 +56,10 @@ data class AuditResult(
     val total: Int,
     val bySeverity: Map<Severity, Int>,
     val byKind: Map<Kind, Int>,
+    /** Warnings about the audit itself (e.g. "TRUNCATED: ...", too many exempt nodes). */
+    val notes: List<String> = emptyList(),
+    /** Node counts: nodes, visibleNodes, ignoredNodes, layerNodes, scrimNodes. */
+    val stats: Map<String, Int> = emptyMap(),
 ) {
     val truncated: Boolean get() = total > findings.size
 }
@@ -74,9 +84,21 @@ data class AuditConfig(
     /** TOO_SMALL_TEXT: TV body/caption recommendation; below it is LOW when [reportBelowBodyText]. */
     val bodyTextSp: Float = 18f,
     val reportBelowBodyText: Boolean = false,
-    /** Overlaps under a later sibling subtree that covers this fraction of the screen are suppressed. */
-    val overlayCoverage: Float = 0.9f,
-    val suppressBehindFullScreenOverlays: Boolean = true,
+    /**
+     * A non-content container whose effective background alpha is at least this is OPAQUE: overlaps it
+     * fully covers (drawn above) are hidden and not reported. Never decided by bounds alone.
+     */
+    val opaqueAlpha: Float = 0.95f,
+    /** SEE_THROUGH: a container fill at least this visible (and below [opaqueAlpha]) is "translucent". */
+    val seeThroughMinAlpha: Float = 0.05f,
+    /** TEXT_OVERFLOW_VALUE: same-row text siblings crossing by at least this much. */
+    val textOverflowMinDp: Float = 2f,
+    /** TEXT_OVERFLOW_VALUE: "same row" = vertical intersection ≥ this fraction of the smaller height. */
+    val rowOverlapRatio: Float = 0.5f,
+    /** Overlap/see-through pair enumeration stops after this many raw pairs (a "TRUNCATED" note is added). */
+    val maxPairs: Int = 2000,
+    /** Warn when more than this fraction of visible nodes is exempt via audit:ignore / audit:layer. */
+    val exemptWarnRatio: Float = 0.3f,
     /** Report children cut by SCROLLING containers (peeking shelf tiles); always LOW. */
     val reportScrollClipping: Boolean = true,
     /** Class-name fragments that mark a scrolling container. */
@@ -94,6 +116,7 @@ object AuditTokens {
     const val FULLBLEED = AuditTags.FULLBLEED
     const val DENSE = AuditTags.DENSE
     const val CONTENT = AuditTags.CONTENT
+    const val SCRIM = AuditTags.SCRIM
 
     fun parse(tag: String?): Set<String> =
         if (tag.isNullOrBlank()) emptySet()

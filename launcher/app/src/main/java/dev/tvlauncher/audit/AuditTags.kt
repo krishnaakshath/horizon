@@ -13,6 +13,7 @@ import dev.tvlauncher.R
  * - [FULLBLEED]: may run to the screen edge (backdrops, hero art); exempt from safe-area/offscreen.
  * - [DENSE]: a dense label; exempt from the (opt-in) 18 sp body-text check, not from the 14 sp floor.
  * - [CONTENT]: treat a plain view as content for overlap/clipping checks.
+ * - [SCRIM]: a deliberately translucent dimming layer; never reported as "content shows through".
  *
  * Usage: `view.auditTag(AuditTags.LAYER)` or `view.auditTag(AuditTags.FULLBLEED, AuditTags.LAYER)`.
  */
@@ -22,6 +23,7 @@ object AuditTags {
     const val FULLBLEED = "audit:fullbleed"
     const val DENSE = "audit:dense"
     const val CONTENT = "audit:content"
+    const val SCRIM = "audit:scrim"
 
     /** The key for [View.setTag]/[View.getTag]; frees the plain `view.tag` for app use. */
     val KEY: Int get() = R.id.audit_tag
