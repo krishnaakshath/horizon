@@ -15,6 +15,14 @@ class SpotlightKeysTest {
         assertFalse(SpotlightKeys.isToggleKey(KeyEvent.KEYCODE_BACK))
     }
 
+    @Test fun toggleKeys_ignoredWhileTileMenuVisible() {
+        assertTrue(SpotlightKeys.togglesSpotlight(KeyEvent.KEYCODE_MENU, tileMenuVisible = false))
+        assertTrue(SpotlightKeys.togglesSpotlight(KeyEvent.KEYCODE_SEARCH, tileMenuVisible = false))
+        assertFalse(SpotlightKeys.togglesSpotlight(KeyEvent.KEYCODE_MENU, tileMenuVisible = true))
+        assertFalse(SpotlightKeys.togglesSpotlight(KeyEvent.KEYCODE_SEARCH, tileMenuVisible = true))
+        assertFalse(SpotlightKeys.togglesSpotlight(KeyEvent.KEYCODE_DPAD_DOWN, tileMenuVisible = false))
+    }
+
     @Test fun downOnTile_prefersVisibleStrip() {
         assertEquals(TileDown.STRIP, SpotlightKeys.onTileDown(stripVisible = true))
         assertEquals(TileDown.SPOTLIGHT, SpotlightKeys.onTileDown(stripVisible = false))

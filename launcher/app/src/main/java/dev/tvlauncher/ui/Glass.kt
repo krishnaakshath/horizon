@@ -5,61 +5,28 @@ import android.content.res.ColorStateList
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.LayerDrawable
 import android.widget.ImageView
+import dev.tvlauncher.panel.PanelStyle
 
 /**
- * "Glass" surfaces without blur: a translucent dark fill, a 1dp light border and (FULL only) a
- * faint top highlight. LITE is more opaque and skips the highlight layer.
+ * "Glass" surfaces without blur, in the shared panel style ([PanelStyle]): a near-opaque dark
+ * fill (96 %, LITE 98 %) with no border, so content underneath never shows through a floating
+ * card (Spotlight, the quick-strip) and the layout auditor reads it as opaque.
  */
 object Glass {
-    const val FILL_FULL = 0xB8151922.toInt()
-    const val FILL_LITE = 0xE6151922.toInt()
-    const val BORDER = 0x33FFFFFF
-    const val HIGHLIGHT = 0x1AFFFFFF
+    const val FILL_FULL = PanelStyle.SURFACE
+    const val FILL_LITE = PanelStyle.SURFACE_LITE
 
     /** Near-opaque panel fills (Spotlight): nothing under the panel may read through it. */
-    const val PANEL_FULL = 0xF5151922.toInt()
-    const val PANEL_LITE = 0xFC151922.toInt()
+    const val PANEL_FULL = PanelStyle.SURFACE
+    const val PANEL_LITE = PanelStyle.SURFACE_LITE
 
-    /**
-     * A floating panel over other content: [PANEL_FULL]/[PANEL_LITE] fill, no border (the scrim
-     * and the fill separate it), plus the FULL top highlight.
-     */
-    fun panel(context: Context, full: Boolean, radiusDp: Int): Drawable {
-        val r = context.dp(radiusDp).toFloat()
-        val base = GradientDrawable().apply {
-            setColor(if (full) PANEL_FULL else PANEL_LITE)
-            cornerRadius = r
-        }
-        if (!full) return base
-        val highlight = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(HIGHLIGHT, 0)).apply {
-            cornerRadius = r
-        }
-        return TopLit(arrayOf(base, highlight))
-    }
+    /** A floating panel over other content (Spotlight): the shared [PanelStyle] surface. */
+    fun panel(context: Context, full: Boolean, radiusDp: Int): Drawable =
+        PanelStyle.surface(context, lite = !full, radiusDp = radiusDp)
 
-    fun surface(context: Context, full: Boolean, radiusDp: Int): Drawable {
-        val r = context.dp(radiusDp).toFloat()
-        val base = GradientDrawable().apply {
-            setColor(if (full) FILL_FULL else FILL_LITE)
-            cornerRadius = r
-            setStroke(context.dp(1), BORDER)
-        }
-        if (!full) return base
-        val highlight = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(HIGHLIGHT, 0)).apply {
-            cornerRadius = r
-        }
-        return TopLit(arrayOf(base, highlight))
-    }
-
-    /** Keeps the highlight layer on the top 40% of whatever bounds the surface gets. */
-    private class TopLit(layers: Array<Drawable>) : LayerDrawable(layers) {
-        override fun onBoundsChange(bounds: Rect) {
-            setLayerInset(1, 0, 0, 0, (bounds.height() * 0.6f).toInt())
-            super.onBoundsChange(bounds)
-        }
-    }
+    fun surface(context: Context, full: Boolean, radiusDp: Int): Drawable =
+        PanelStyle.surface(context, lite = !full, radiusDp = radiusDp)
 }
 
 /** Circular focusable icon button; white fill with dark icon when focused. */

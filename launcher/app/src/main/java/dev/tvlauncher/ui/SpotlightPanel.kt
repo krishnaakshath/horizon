@@ -30,9 +30,10 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import dev.tvlauncher.R
 import dev.tvlauncher.apps.AppEntry
+import dev.tvlauncher.apps.component
 import dev.tvlauncher.audit.AuditTags
 import dev.tvlauncher.audit.auditTag
-import dev.tvlauncher.apps.component
+import dev.tvlauncher.panel.PanelStyle
 import dev.tvlauncher.ui.QuickActions.Item
 import dev.tvlauncher.ui.Theme.style
 import java.util.concurrent.ExecutorService
@@ -142,7 +143,7 @@ class SpotlightPanel(
         clipToPadding = false
     }
     private val actionLabel = TextView(context).apply {
-        style(Theme.SP_LABEL, Theme.medium, Theme.TEXT_2)
+        style(PanelStyle.DETAIL_SP, Theme.medium, Theme.TEXT_2)
         gravity = Gravity.CENTER
     }
     private val results = LinearLayout(context).apply {
@@ -334,7 +335,7 @@ class SpotlightPanel(
         bindIcon(app, icon)
         val label = TextView(context).apply {
             text = app.label
-            style(Theme.SP_LABEL, Theme.medium)
+            style(PanelStyle.DETAIL_SP, Theme.medium)
             gravity = Gravity.CENTER_HORIZONTAL
             isSingleLine = true
             ellipsize = TextUtils.TruncateAt.END

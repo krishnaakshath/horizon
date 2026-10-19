@@ -27,10 +27,15 @@ object QuickActions {
         Item.INPUTS, Item.SETTINGS, Item.NETWORK, Item.BLUETOOTH, Item.SOUND, Item.DEVICES, Item.AMBIENT, Item.ROOM, Item.INSIGHTS
     )
 
-    enum class Route { WIFI_PANEL, BLUETOOTH_PANEL, DEVICES_PANEL, AMBIENT, ROOM_CYCLE, SYSTEM }
+    enum class Route { WIFI_PANEL, BLUETOOTH_PANEL, DEVICES_PANEL, INPUTS_PANEL, AMBIENT, ROOM_CYCLE, SYSTEM }
 
-    /** Wi-Fi and Bluetooth open the home panels directly; Bluetooth without an adapter uses system settings. */
+    /**
+     * Wi-Fi, Bluetooth, Devices and Inputs open the home panels directly; Bluetooth without an
+     * adapter uses system settings (and the Inputs panel falls back to the system input switch
+     * when the TV has no inputs).
+     */
     fun route(item: Item, bluetoothPresent: Boolean): Route = when (item) {
+        Item.INPUTS -> Route.INPUTS_PANEL
         Item.NETWORK -> Route.WIFI_PANEL
         Item.BLUETOOTH -> if (bluetoothPresent) Route.BLUETOOTH_PANEL else Route.SYSTEM
         Item.DEVICES -> Route.DEVICES_PANEL

@@ -7,6 +7,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -14,15 +15,27 @@ import android.widget.ScrollView
 import android.widget.TextView
 import dev.tvlauncher.device.DeviceProfile
 import dev.tvlauncher.device.EffectsMode
+import dev.tvlauncher.R
+import dev.tvlauncher.audit.AuditTags
+import dev.tvlauncher.audit.auditTag
+import dev.tvlauncher.panel.PanelHeader
+import dev.tvlauncher.panel.PanelHeaderView
+import dev.tvlauncher.panel.PanelList
+import dev.tvlauncher.panel.PanelMotion
+import dev.tvlauncher.panel.PanelRowView
+import dev.tvlauncher.panel.PanelStyle
+import dev.tvlauncher.panel.PanelStyle.panelText
+import dev.tvlauncher.type.FontWeight
+import dev.tvlauncher.ui.Motion
 import dev.tvlauncher.ui.Theme
-import dev.tvlauncher.ui.Theme.style
 import java.io.File
 import kotlin.math.min
 
 /**
- * Glass wallpaper picker (D-pad first). Thumbnail grid of the six built-ins and the user's
- * pictures (rendered at most 320x180, off the main thread), a ring on the current choice,
- * a Slideshow toggle with an interval stepper, a dim stepper and the honest "how to add
+ * Wallpaper picker (D-pad first) in the shared panel anatomy. Thumbnail grid of the built-in
+ * collections and the owner's picture collections (rendered at most 320x180, off the main
+ * thread), a ring on the current choice, then [WallpaperPanelModel] rows: Slideshow switch,
+ * interval and dim steppers, notification rows, Pictures/USB access and the honest "how to add
  * pictures" text. Focus is trapped inside while open; [onBack] closes it.
  */
 class WallpaperPickerPanel(
@@ -47,16 +60,10 @@ class WallpaperPickerPanel(
     private val jobs = ArrayList<WallpaperLoader.Job>()
     private val tiles = ArrayList<Pair<WallpaperSource, View>>()
     private lateinit var grid: LinearLayout
-    private lateinit var slideshowRow: TextView
-    private lateinit var intervalRow: TextView
-    private lateinit var dimRow: TextView
-    private lateinit var textRow: TextView
-    private lateinit var textHint: TextView
-    private lateinit var notifRow: TextView
-    private lateinit var notifHint: TextView
-    private lateinit var accessCard: NotificationAccessCard
-    private lateinit var emptyText: TextView
-    private lateinit var accessRow: TextView
+    private lateinit var controls: PanelList
+    /** True once the first collection scan finished (no "no pictures" message before that). */
+    private var scanned = false
+    private var accessNote: String? = null
 
     val isShowing: Boolean get() = root != null
 
@@ -67,17 +74,22 @@ class WallpaperPickerPanel(
         this.host = host
         settings = store.load()
         val r = TrapLayout(context)
-        r.setBackgroundColor(0x99000000.toInt())
+        r.setBackgroundColor(PanelStyle.SCRIM)
+        r.auditTag(AuditTags.SCRIM)
         r.isClickable = true
+        scanned = false
+        accessNote = null
         val panel = buildPanel()
         val w = min(px(760), (host.width.takeIf { it > 0 } ?: context.resources.displayMetrics.widthPixels) - px(96))
-        columns = WallpaperPlan.tileColumns(w - px(28) * 2 - px(6) * 2, px(TILE_W_DP) + px(12), COLUMNS)
+        // Panel padding G1 + scroll padding G1 on each side, then the tile row's own padding.
+        columns = WallpaperPlan.tileColumns(w - px(PanelStyle.G1) * 4 - px(6) * 2, px(TILE_W_DP) + px(12), COLUMNS)
         r.addView(panel, FrameLayout.LayoutParams(w, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
         host.addView(r, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         root = r
-        if (!lite) {
-            panel.alpha = 0f; panel.translationY = px(16).toFloat()
-            panel.animate().alpha(1f).translationY(0f).setDuration(180L).start()
+        val ms = PanelStyle.openMs(context, lite)
+        if (ms > 0) {
+            panel.alpha = 0f; panel.translationY = px(PanelStyle.G1).toFloat()
+            panel.animate().alpha(1f).translationY(0f).setDuration(ms).setInterpolator(DecelerateInterpolator(2f)).start()
         }
         addBuiltInTiles()
         userSectionsStart = grid.childCount
@@ -97,6 +109,7 @@ class WallpaperPickerPanel(
         WallpaperLoader.background({ UserWallpapers.collections(roots) }) { found ->
             if (root !== r) return@background
             collections = found
+            scanned = true
             rebuildUserSections()
             refreshControls()
         }
@@ -126,83 +139,45 @@ class WallpaperPickerPanel(
     private fun buildPanel(): View {
         val panel = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(px(28), px(24), px(28), px(24))
-            background = GradientDrawable().apply {
-                cornerRadius = px(24).toFloat()
-                setColor(0xF2151922.toInt())
-                setStroke(px(1), Theme.STROKE)
-            }
+            setPadding(px(PanelStyle.G1), px(PanelStyle.G2), px(PanelStyle.G1), px(PanelStyle.G1))
+            background = PanelStyle.surface(context, lite)
         }
-        panel.addView(TextView(context).apply { style(22f, Theme.medium); text = "Wallpaper" })
-        panel.addView(TextView(context).apply {
-            style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
-            text = "Used by the ambient screen and screensaver."
-        }, lp(top = 4))
+        panel.addView(PanelHeaderView(context).apply {
+            bind(PanelHeader(R.drawable.ic_qa_ambient, "Wallpaper", "For the ambient screen and screensaver"))
+        })
         grid = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val scroll = ScrollView(context).apply {
             isVerticalScrollBarEnabled = false
             isFillViewport = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            setPadding(px(PanelStyle.G1), 0, px(PanelStyle.G1), 0)
+            clipToPadding = false
             addView(grid)
         }
-        panel.addView(scroll, LinearLayout.LayoutParams(-1, min(px(300), (context.resources.displayMetrics.heightPixels * 0.45f).toInt())).apply { topMargin = px(16) })
-        emptyText = TextView(context).apply { style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2); visibility = View.GONE }
-        panel.addView(emptyText, lp(top = 8))
-        slideshowRow = controlRow { toggleSlideshow() }
-        intervalRow = stepperRow { delta -> stepInterval(delta) }
-        dimRow = stepperRow { delta -> stepDim(delta) }
-        panel.addView(slideshowRow, lp(top = 16))
-        panel.addView(intervalRow, lp(top = 6))
-        panel.addView(dimRow, lp(top = 6))
-        // Notification rows follow AmbientSettingsRows (same keys, visibility and hints).
-        notifRow = controlRow { commit(AmbientSettingsRows.toggle(settings, "notificationsEnabled")) }
-        notifHint = hintText()
-        accessCard = NotificationAccessCard(context)
-        textRow = controlRow { commit(AmbientSettingsRows.toggle(settings, "showNotificationText")) }
-        textHint = hintText()
-        panel.addView(notifRow, lp(top = 16))
-        panel.addView(notifHint, lp(top = 4))
-        panel.addView(accessCard, lp(top = 6))
-        panel.addView(textRow, lp(top = 6))
-        panel.addView(textHint, lp(top = 4))
-        accessRow = controlRow { askForPictures() }
-        panel.addView(accessRow, lp(top = 16))
-        panel.addView(TextView(context).apply {
-            style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
-            text = "Add your own: each folder in Pictures/TVLauncher (or TVLauncher on a USB stick) is a collection, " +
-                "named after the folder. JPG, PNG or WebP up to 8 MB, ${WallpaperPlan.MAX_FILES} per folder.\n" +
-                "From a computer: ${UserWallpapers.ADB_PUSH_FOLDER}"
-            maxLines = 8
-        }, lp(top = 8))
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, min(px(300), (context.resources.displayMetrics.heightPixels * 0.45f).toInt())).apply { topMargin = px(PanelStyle.G1) })
+        controls = PanelList(context).apply {
+            onRowClick = { row -> onControl(row.key, +1) }
+            onRowKey = { row, code ->
+                if (row.key in WallpaperPanelModel.STEPPERS) {
+                    onControl(row.key, if (code == KeyEvent.KEYCODE_DPAD_LEFT) -1 else +1); true
+                } else false
+            }
+        }
+        panel.addView(controls, LinearLayout.LayoutParams(-1, -2).apply { topMargin = px(PanelStyle.G1) })
         return panel
     }
 
-    private fun hintText() = TextView(context).apply { style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2) }
-
-    private fun lp(top: Int) = LinearLayout.LayoutParams(-1, -2).apply { topMargin = px(top) }
-
-    private fun rowBackground(focused: Boolean) = GradientDrawable().apply {
-        cornerRadius = px(12).toFloat()
-        setColor(if (focused) 0x26FFFFFF else 0x0FFFFFFF)
-        if (focused) setStroke(px(2), Theme.TEXT)
-    }
-
-    private fun controlRow(onClick: () -> Unit) = TextView(context).apply {
-        style(Theme.SP_BUTTON, Theme.medium)
-        isFocusable = true
-        setPadding(px(16), px(10), px(16), px(10))
-        background = rowBackground(false)
-        setOnFocusChangeListener { v, f -> v.background = rowBackground(f) }
-        setOnClickListener { onClick() }
-    }
-
-    private fun stepperRow(onStep: (Int) -> Unit) = controlRow { onStep(+1) }.apply {
-        setOnKeyListener { _, code, ev ->
-            if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
-            when (code) {
-                KeyEvent.KEYCODE_DPAD_LEFT -> { onStep(-1); true }
-                KeyEvent.KEYCODE_DPAD_RIGHT -> { onStep(+1); true }
-                else -> false
+    private fun onControl(key: String, delta: Int) {
+        when (key) {
+            WallpaperPanelModel.SLIDESHOW -> toggleSlideshow()
+            WallpaperPanelModel.INTERVAL -> stepInterval(delta)
+            WallpaperPanelModel.DIM -> stepDim(delta)
+            WallpaperPanelModel.NOTIFICATIONS, WallpaperPanelModel.TEXT -> commit(AmbientSettingsRows.toggle(settings, key))
+            WallpaperPanelModel.ACCESS -> {
+                accessNote = NotificationAccess.instructions(NotificationAccess.openSettings(context))
+                refreshControls()
             }
+            WallpaperPanelModel.PICTURES -> askForPictures()
         }
     }
 
@@ -244,7 +219,7 @@ class WallpaperPickerPanel(
     /** A titled block of tile rows inside [grid]. */
     private fun section(title: String): LinearLayout {
         grid.addView(TextView(context).apply {
-            style(Theme.SP_LABEL, Theme.medium, Theme.TEXT_2)
+            panelText(PanelStyle.SECTION_SP, FontWeight.MEDIUM, PanelStyle.TEXT_2)
             text = title
             setPadding(px(6), px(10), px(6), 0)
         })
@@ -288,9 +263,8 @@ class WallpaperPickerPanel(
         }
         tile.addView(ImageView(context).apply { scaleType = ImageView.ScaleType.CENTER_CROP }, FrameLayout.LayoutParams(-1, -1))
         tile.addView(TextView(context).apply {
-            style(12f, Theme.medium)
+            panelText(PanelStyle.DETAIL_SP, FontWeight.SEMIBOLD)
             text = title
-            maxLines = 1
             setShadowLayer(px(6).toFloat(), 0f, 0f, 0xCC000000.toInt())
             setPadding(px(8), 0, px(8), px(6))
         }, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
@@ -298,7 +272,7 @@ class WallpaperPickerPanel(
         tile.addView(ring, FrameLayout.LayoutParams(-1, -1))
         tile.setOnFocusChangeListener { v, f ->
             updateRing(v, source)
-            if (!lite) v.animate().scaleX(if (f) 1.06f else 1f).scaleY(if (f) 1.06f else 1f).setDuration(120L).start()
+            if (!lite) v.animate().scaleX(if (f) 1.06f else 1f).scaleY(if (f) 1.06f else 1f).setDuration(Motion.ms(PanelMotion.LITE_MS)).start()
         }
         tile.setOnClickListener { select(source) }
         tiles += source to tile
@@ -326,7 +300,7 @@ class WallpaperPickerPanel(
         val ring = (tile as ViewGroup).getChildAt(2)
         ring.background = when {
             tile.isFocused -> GradientDrawable().apply { cornerRadius = px(12).toFloat(); setStroke(px(3), Theme.TEXT) }
-            isCurrent(source) -> GradientDrawable().apply { cornerRadius = px(12).toFloat(); setStroke(px(2), 0xFF7FA8FF.toInt()) }
+            isCurrent(source) -> GradientDrawable().apply { cornerRadius = px(12).toFloat(); setStroke(px(2), PanelStyle.ACCENT) }
             else -> null
         }
     }
@@ -374,32 +348,18 @@ class WallpaperPickerPanel(
     }
 
     private fun refreshControls() {
-        if (!::slideshowRow.isInitialized) return
-        val on = AmbientSettingsRows.slideInterval(settings.source) != null
-        slideshowRow.text = "Slideshow:  ${if (on) "On" else "Off"}"
-        val granted = UserWallpapers.canReadShared(context)
-        accessRow.visibility = if (granted) View.GONE else View.VISIBLE
-        accessRow.text = "Pictures folder and USB sticks:  Allow access"
-        intervalRow.visibility = if (on) View.VISIBLE else View.GONE
-        intervalRow.text = "Change every   ‹  ${formatInterval(currentInterval())}  ›"
-        dimRow.text = "Dim   ‹  ${settings.dimPercent} %  ›"
-        val rows = AmbientSettingsRows.rows(settings, NotificationAccess.isEnabled(context)).associateBy { it.key }
-        fun bind(row: TextView, hint: TextView, key: String) {
-            val r = rows.getValue(key)
-            row.visibility = if (r.visible) View.VISIBLE else View.GONE
-            row.text = "${r.title}:  ${r.value}"
-            hint.visibility = if (r.visible && r.hint != null) View.VISIBLE else View.GONE
-            hint.text = r.hint ?: ""
+        if (!::controls.isInitialized) return
+        val entries = WallpaperPanelModel.entries(settings, NotificationAccess.isEnabled(context),
+            hasPictures = collections.isNotEmpty() || !scanned, accessNote = accessNote,
+            folderPath = "Pictures/${UserWallpapers.COLLECTIONS_DIR}",
+            picturesGranted = UserWallpapers.canReadShared(context))
+        val focusedKey = (controls.findFocus() as? PanelRowView)?.key
+        if (controls.render(entries) && focusedKey != null) {
+            // Rebuilt (a row appeared or went away): focus stays on the same control.
+            val rows = controls.rowViews()
+            (rows.firstOrNull { it.key == focusedKey } ?: rows.firstOrNull())?.requestFocus()
         }
-        bind(notifRow, notifHint, "notificationsEnabled")
-        bind(textRow, textHint, "showNotificationText")
-        accessCard.visibility = if (rows.getValue("notificationAccess").visible) View.VISIBLE else View.GONE
-        accessCard.refresh()
-        emptyText.visibility = if (collections.isEmpty()) View.VISIBLE else View.GONE
-        emptyText.text = "No pictures of your own yet. Built-in wallpapers are shown above."
     }
-
-    private fun formatInterval(sec: Int) = if (sec < 60) "$sec s" else "${sec / 60} min"
 
     /** Keeps D-pad focus inside the panel while it is open. */
     private class TrapLayout(context: Context) : FrameLayout(context) {
