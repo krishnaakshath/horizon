@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 24-25 launcher icon: rounded tile + logomark. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M24,6 H84 Q102,6 102,24 V84 Q102,102 84,102 H24 Q6,102 6,84 V24 Q6,6 24,6 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54" android:centerY="40"
+                android:gradientRadius="78"
+                android:startColor="#FF1C2638"
+                android:endColor="#FF0B0D12" />
+        </aapt:attr>
+    </path>
+    <group android:scaleX="1.25" android:scaleY="1.25" android:pivotX="54" android:pivotY="54">
+        <path
+            android:pathData="M24,47 L32,56 L32,72 Q32,78 38,78 L70,78 Q76,78 76,72 L76,56 L84,47"
+            android:strokeColor="#FFF5F7FA"
+            android:strokeWidth="6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M54,26 L54,62 M43,51 L54,62 L65,51"
+            android:strokeColor="#FF7CF2C8"
+            android:strokeWidth="7"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>
