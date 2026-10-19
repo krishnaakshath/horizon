@@ -31,7 +31,4 @@ object SystemActions {
         } ?: return false
         return start(context, Intent(Intent.ACTION_VIEW, TvContract.buildChannelUriForPassthroughInput(id)))
     }
-
-    fun assistant(context: Context): Boolean =
-        start(context, Intent(Intent.ACTION_VOICE_COMMAND)) || start(context, Intent(Intent.ACTION_ASSIST))
 }
