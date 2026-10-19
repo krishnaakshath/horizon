@@ -43,6 +43,7 @@ class TileView(context: Context) : FrameLayout(context) {
     }
 
     private var parallax = false
+    private var effectsFull = false
 
     init {
         isFocusable = true
@@ -63,8 +64,17 @@ class TileView(context: Context) : FrameLayout(context) {
     }
 
     fun bind(app: AppEntry, art: TileArt<Drawable>, profile: DeviceProfile) {
+        animate().cancel()
+        bgView.animate().cancel()
+        fgView.animate().cancel()
+        scaleX = 1f
+        scaleY = 1f
+        alpha = TileSpec.REST_ALPHA
+        translationZ = 0f
+        setLayerType(LAYER_TYPE_NONE, null)
         labelView.text = app.label
-        parallax = profile.effectsMode == EffectsMode.FULL || TileSpec.PARALLAX_IN_LITE
+        effectsFull = profile.effectsMode == EffectsMode.FULL
+        parallax = effectsFull || TileSpec.PARALLAX_IN_LITE
         bgView.translationX = 0f; fgView.translationX = 0f
         bgView.translationY = 0f; fgView.translationY = 0f
         fgView.setImageDrawable(null)
@@ -93,16 +103,18 @@ class TileView(context: Context) : FrameLayout(context) {
     private fun animateFocus(focused: Boolean) {
         val s = if (focused) TileSpec.FOCUS_SCALE else 1f
         val z = dp(if (focused) TileSpec.FOCUS_ELEVATION_DP else TileSpec.REST_ELEVATION_DP)
-        setLayerType(LAYER_TYPE_HARDWARE, null)
         animate().cancel()
+        if (effectsFull) setLayerType(LAYER_TYPE_HARDWARE, null)
         animate()
             .scaleX(s).scaleY(s)
             .translationZ(if (focused) z - dp(TileSpec.REST_ELEVATION_DP) else 0f)
             .alpha(if (focused) TileSpec.FOCUS_ALPHA else TileSpec.REST_ALPHA)
             .setDuration(TileSpec.FOCUS_MS)
-            .withEndAction { setLayerType(LAYER_TYPE_NONE, null) }
+            .withEndAction { if (effectsFull) setLayerType(LAYER_TYPE_NONE, null) }
             .start()
         if (parallax) {
+            bgView.animate().cancel()
+            fgView.animate().cancel()
             val bg = if (focused) dp(TileSpec.PARALLAX_BG_DP) else 0f
             val fg = if (focused) -dp(TileSpec.PARALLAX_FG_DP) else 0f
             bgView.animate().translationX(bg).translationY(bg).setDuration(TileSpec.FOCUS_MS).start()

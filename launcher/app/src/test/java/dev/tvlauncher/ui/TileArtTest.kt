@@ -44,4 +44,17 @@ class TileArtTest {
         assertEquals(1, TileSpec.LABEL_MAX_LINES)
         assertEquals(TileSpec.Ellipsize.END, TileSpec.LABEL_ELLIPSIZE)
     }
+
+    @Test fun letterTile_emptyLabel_usesQuestionMark() {
+        val t = TileArtResolver.letterTile(AppEntry("com.x", "  ", "c"))
+        assertEquals('?', t.letter)
+    }
+
+    @Test fun letterTile_colorStable_forSamePackage_differsAcrossPackages() {
+        val a1 = TileArtResolver.letterTile(AppEntry("a", "A", "c"))
+        val a2 = TileArtResolver.letterTile(AppEntry("a", "Z", "c"))
+        val b = TileArtResolver.letterTile(AppEntry("b", "A", "c"))
+        assertEquals(a1.color, a2.color)
+        assertTrue(a1.color != b.color)
+    }
 }
