@@ -28,10 +28,12 @@ class AppFilterTest {
         assertEquals(listOf("com.tcl.copydatatotv", "x"), pkgs(AppFilter.arrange(apps, fav)))
     }
 
-    @Test fun defaultHidden_shownWhenInUserOrder() {
+    @Test fun tclApps_staysHiddenEvenWhenInUserOrder_butFavoritesWin() {
         val apps = listOf(app("com.tcl.initsetup", "Initial Setup"), app("x", "X"))
-        val s = LauncherSettings(order = listOf("x", "com.tcl.initsetup"))
-        assertEquals(listOf("x", "com.tcl.initsetup"), pkgs(AppFilter.arrange(apps, s)))
+        val inOrder = LauncherSettings(order = listOf("x", "com.tcl.initsetup"))
+        assertEquals(listOf("x"), pkgs(AppFilter.arrange(apps, inOrder)))
+        val favorite = LauncherSettings(favorites = listOf("com.tcl.initsetup"))
+        assertEquals(setOf("x", "com.tcl.initsetup"), pkgs(AppFilter.arrange(apps, favorite)).toSet())
     }
 
     @Test fun userHidden_stillHidden() {
@@ -71,9 +73,9 @@ class AppFilterTest {
         val out = AppFilter.unhideAll(s, visible, installed)
         assertEquals(emptySet<String>(), out.hidden)
         assertEquals(listOf("a"), out.favorites)
-        assertEquals(listOf("a", "com.tcl.initsetup", "com.tcl.autopair"), out.order)
+        // TCL's own apps are not restored by "Unhide all": H02 replaces that layer.
         val shown = pkgs(AppFilter.arrange(installed, out))
-        assertEquals(setOf("a", "b", "com.tcl.initsetup", "com.tcl.autopair"), shown.toSet())
+        assertEquals(setOf("a", "b"), shown.toSet())
     }
 
     @Test fun unhideAll_nothingDefaultHiddenInstalled_keepsOrderUntouched() {

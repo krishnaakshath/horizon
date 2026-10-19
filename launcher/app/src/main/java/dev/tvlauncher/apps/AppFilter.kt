@@ -39,7 +39,7 @@ object AppFilter {
     fun isTclApp(pkg: String) = pkg.startsWith("com.tcl.")
 
     fun isDefaultHidden(pkg: String, s: LauncherSettings) =
-        (pkg in DEFAULT_HIDDEN || isTclApp(pkg)) && pkg !in s.favorites && pkg !in s.order
+        (isTclApp(pkg) && pkg !in s.favorites) || (pkg in DEFAULT_HIDDEN && pkg !in s.favorites && pkg !in s.order)
 
     fun arrange(apps: List<AppEntry>, s: LauncherSettings): List<AppEntry> =
         AppOrdering.arrange(apps.filterNot { isDefaultHidden(it.packageName, s) }, s, PREFERRED)
