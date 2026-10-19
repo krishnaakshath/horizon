@@ -29,14 +29,28 @@ object ModeClassifier {
 
 object ModeDetector {
     /** Mode of the most recently resumed package that has not been paused since. */
-    fun currentMode(events: List<UsageEvent>, classify: (String) -> AppMode): AppMode {
+    const val DEFAULT_MAX_STALE_MS = 6L * 60 * 60 * 1000
+
+    /**
+     * Packages in [ignore] (SystemUI overlays, the launcher itself) are dropped first so they cannot
+     * mask the real app. A RESUMED older than [maxStaleMs] before [nowMs] with no later PAUSED is stale.
+     */
+    fun currentMode(
+        events: List<UsageEvent>,
+        classify: (String) -> AppMode,
+        ignore: Set<String> = DEFAULT_IGNORE,
+        nowMs: Long,
+        maxStaleMs: Long = DEFAULT_MAX_STALE_MS
+    ): AppMode {
         var current: String? = null
-        for (e in events.sortedBy { it.timeMs }) {
+        var since = 0L
+        for (e in events.filter { it.pkg !in ignore }.sortedBy { it.timeMs }) {
             when (e.type) {
-                UsageEvent.Type.RESUMED -> current = e.pkg
+                UsageEvent.Type.RESUMED -> { current = e.pkg; since = e.timeMs }
                 UsageEvent.Type.PAUSED -> if (current == e.pkg) current = null
             }
         }
-        return current?.let(classify) ?: AppMode.OTHER
+        if (current == null || nowMs - since > maxStaleMs) return AppMode.OTHER
+        return classify(current)
     }
 }

@@ -43,9 +43,14 @@ class WeekChartView(context: Context) : View(context) {
     private val rect = RectF()
     private var totals: List<Long> = emptyList()
     private var labels: List<String> = emptyList()
+    private var valueText: List<String> = emptyList()
 
     fun setData(totalsMs: List<Long>, dayLabels: List<String>) {
-        totals = totalsMs; labels = dayLabels; invalidate()
+        totals = totalsMs; labels = dayLabels
+        valueText = totalsMs.map { if (it > 0) SummaryText.formatDuration(it) else "" }
+        contentDescription = "Viewing time, last ${totalsMs.size} days: " +
+            totalsMs.indices.joinToString(", ") { "${dayLabels.getOrElse(it) { "" }} ${SummaryText.formatDuration(totalsMs[it])}" }
+        invalidate()
     }
 
     override fun onDraw(c: Canvas) {
@@ -67,9 +72,9 @@ class WeekChartView(context: Context) : View(context) {
             c.drawRoundRect(rect, radius, radius, if (today) hi else col)
             label.color = if (today) Theme.TEXT else Theme.TEXT_2
             c.drawText(labels.getOrElse(i) { "" }, cx, height - label.textSize * 0.35f, label)
-            if (totals[i] > 0) {
+            if (valueText[i].isNotEmpty()) {
                 value.color = if (today) Theme.TEXT else Theme.TEXT_2
-                c.drawText(SummaryText.formatDuration(totals[i]), cx, bottom - h - value.textSize * 0.4f, value)
+                c.drawText(valueText[i], cx, bottom - h - value.textSize * 0.4f, value)
             }
         }
     }

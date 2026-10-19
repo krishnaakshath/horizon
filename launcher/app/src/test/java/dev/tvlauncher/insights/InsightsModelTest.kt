@@ -40,7 +40,7 @@ class InsightsModelTest {
         assertEquals("<1m", SummaryText.formatDuration(59_000))
         assertEquals("1m", SummaryText.formatDuration(60_000))
         assertEquals("45m", SummaryText.formatDuration(45 * m))
-        assertEquals("1h 1m", SummaryText.formatDuration(61 * m))
+        assertEquals("1h 01m", SummaryText.formatDuration(61 * m))
         assertEquals("2h", SummaryText.formatDuration(2 * h))
         assertEquals("25h", SummaryText.formatDuration(25 * h))
     }
@@ -61,7 +61,7 @@ class InsightsModelTest {
 
     @Test fun dominantApp() {
         val t = day(0, "yt" to 72 * m, "nf" to 53 * m)
-        assertEquals("Most of today went to YT — 1h 12m of 2h 5m.", SummaryText.build(t, null, label, now))
+        assertEquals("Most of today went to YT — 1h 12m of 2h 05m.", SummaryText.build(t, null, label, now))
     }
 
     @Test fun singleAppIsDominant() {
@@ -95,5 +95,48 @@ class InsightsModelTest {
         val t = day(1_000_000, "a" to 30 * m)
         assertEquals("Most of today went to A — 30m of 30m.",
             SummaryText.build(t, day(0, "a" to 100 * m), label, 1_000_000 + 2 * h))
+    }
+
+    @Test fun deltaVsYesterday_comparesSameTimeOfDay() {
+        val ys = 0L
+        val ev = listOf(UsageEvent("a", UsageEvent.Type.RESUMED, 8 * h), UsageEvent("a", UsageEvent.Type.PAUSED, 9 * h),
+            UsageEvent("a", UsageEvent.Type.RESUMED, 20 * h), UsageEvent("a", UsageEvent.Type.PAUSED, 23 * h))
+        val y = InsightsModel.sameTimeYesterday(ev, ys, 10 * h, emptySet())
+        assertEquals(1 * h, y.totalMs)
+        val today = DayUsage(24 * h, mapOf("a" to 90 * m))
+        assertEquals("Most of today went to A \u2014 1h 30m of 1h 30m.\nUp 50% vs yesterday.",
+            SummaryText.build(today, y, label, 24 * h + 10 * h))
+    }
+
+    @Test fun delta_omitted_whenYesterdayBaselineTooSmall() {
+        val today = day(0, "a" to 60 * m)
+        assertEquals("Most of today went to A \u2014 1h of 1h.",
+            SummaryText.build(today, day(0, "a" to 9 * m), label, now))
+    }
+
+    @Test fun delta_omitted_before3hElapsed() {
+        val today = day(0, "a" to 60 * m)
+        assertEquals("Most of today went to A \u2014 1h of 1h.",
+            SummaryText.build(today, day(0, "a" to 90 * m), label, 2 * h))
+    }
+
+    @Test fun lateNightLine() {
+        val t = day(0, "a" to 60 * m)
+        assertEquals("Most of today went to A \u2014 1h of 1h.\nMostly late-night viewing today.",
+            SummaryText.build(t, null, label, now, lateNightShare = 0.4f))
+        assertEquals("Most of today went to A \u2014 1h of 1h.", SummaryText.build(t, null, label, now, lateNightShare = 0.39f))
+        assertEquals("Most of today went to A \u2014 20m of 20m.",
+            SummaryText.build(day(0, "a" to 20 * m), null, label, now, lateNightShare = 1f))
+    }
+
+    @Test fun dayBounds_dstSpringForward_london() {
+        val tz = java.util.TimeZone.getTimeZone("Europe/London")
+        val utc = java.util.TimeZone.getTimeZone("UTC")
+        val cal = java.util.Calendar.getInstance(utc).apply { clear(); set(2026, 2, 30, 12, 0, 0) } // 30 Mar noon UTC (BST)
+        val now = cal.timeInMillis
+        val s = DayBounds.starts(now, 3, tz)
+        fun utcMs(y: Int, mo: Int, d: Int, hh: Int) = java.util.Calendar.getInstance(utc).apply { clear(); set(y, mo, d, hh, 0, 0) }.timeInMillis
+        assertEquals(listOf(utcMs(2026, 2, 28, 0), utcMs(2026, 2, 29, 0), utcMs(2026, 2, 29, 23)), s)
+        assertEquals(23 * h, s[2] - s[1]) // the short day
     }
 }

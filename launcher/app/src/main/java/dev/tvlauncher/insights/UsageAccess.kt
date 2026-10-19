@@ -22,7 +22,13 @@ object UsageAccess {
             @Suppress("DEPRECATION")
             ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, uid, context.packageName)
         }
-        mode == AppOpsManager.MODE_ALLOWED
+        when (mode) {
+            AppOpsManager.MODE_ALLOWED -> true
+            AppOpsManager.MODE_DEFAULT ->
+                context.checkCallingOrSelfPermission(android.Manifest.permission.PACKAGE_USAGE_STATS) ==
+                    android.content.pm.PackageManager.PERMISSION_GRANTED
+            else -> false
+        }
     } catch (_: Throwable) {
         false
     }
@@ -48,11 +54,6 @@ object UsageAccess {
 fun interface UsageSource {
     fun events(fromMs: Long, toMs: Long): List<UsageEvent>
 }
-
-/** Packages that are chrome around the content, not viewing. */
-val DEFAULT_IGNORE: Set<String> = setOf(
-    "dev.tvlauncher", "com.android.systemui", "com.google.android.tvlauncher", "com.tcl.tv"
-)
 
 class UsageStatsSource(private val context: Context) : UsageSource {
     override fun events(fromMs: Long, toMs: Long): List<UsageEvent> {

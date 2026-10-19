@@ -72,4 +72,34 @@ class UsageAggregatorTest {
         assertEquals(0.5f, share, 0.001f)
         assertEquals(0f, InsightsModel.lateNightShare(emptyList(), 0, 24 * h, emptySet(), java.util.TimeZone.getTimeZone("UTC")), 0f)
     }
+
+    @Test fun strayPaused_midStream_ignored() {
+        val m = agg(r("a", 10 * min), p("a", 40 * min), p("c", 60 * min))
+        assertEquals(mapOf("a" to 30 * min), m)
+    }
+
+    @Test fun strayPaused_atStreamStart_creditedFromWindowStart() {
+        assertEquals(mapOf("c" to 4 * min, "a" to 5 * min), agg(p("c", 4 * min), r("a", 10 * min), p("a", 15 * min)))
+    }
+
+    @Test fun zeroAndNegativeWindows_empty() {
+        val ev = listOf(r("a", 0), p("a", 10 * min))
+        assertTrue(UsageAggregator.aggregate(ev, 5 * min, 5 * min, emptySet()).isEmpty())
+        assertTrue(UsageAggregator.aggregate(ev, 10 * min, 5 * min, emptySet()).isEmpty())
+    }
+
+    @Test fun aggregate_totalNeverExceedsWindow() {
+        val pk = listOf("a", "b", "c", "d")
+        val rnd = java.util.Random(42)
+        repeat(500) {
+            val ev = (0 until rnd.nextInt(30)).map {
+                UsageEvent(pk[rnd.nextInt(4)], if (rnd.nextBoolean()) RESUMED else PAUSED, rnd.nextInt(140 * 60) * 1000L - 20 * min)
+            }
+            val total = UsageAggregator.aggregate(ev, from, to, emptySet()).values.sum()
+            assertTrue("total $total for $ev", total <= to - from)
+        }
+        // hand-built: overlapping, duplicate and stray events
+        val ev = listOf(p("x", 50 * min), r("a", 0), r("a", 1 * min), r("b", 5 * min), r("c", 6 * min), p("z", 70 * min), p("b", 80 * min))
+        assertTrue(UsageAggregator.aggregate(ev, from, to, emptySet()).values.sum() <= to - from)
+    }
 }

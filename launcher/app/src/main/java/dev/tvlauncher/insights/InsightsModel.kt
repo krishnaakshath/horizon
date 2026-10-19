@@ -8,7 +8,27 @@ data class DayUsage(val dayStartMs: Long, val perApp: Map<String, Long>) {
     val totalMs: Long get() = perApp.values.sum()
 }
 
+/** Local-midnight day boundaries, DST safe (each start is set from calendar fields, not offset by 24h). */
+object DayBounds {
+    /** Start of the local day containing [nowMs] minus [daysAgo] days. */
+    fun dayStart(nowMs: Long, daysAgo: Int, tz: TimeZone): Long {
+        val c = Calendar.getInstance(tz)
+        c.timeInMillis = nowMs
+        c.add(Calendar.DAY_OF_YEAR, -daysAgo)
+        c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0); c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
+        return c.timeInMillis
+    }
+
+    /** [count] day starts, oldest first, ending with today. */
+    fun starts(nowMs: Long, count: Int, tz: TimeZone): List<Long> =
+        (count - 1 downTo 0).map { dayStart(nowMs, it, tz) }
+}
+
 object InsightsModel {
+    /** Yesterday's usage up to the same time of day as [elapsedTodayMs] into today. */
+    fun sameTimeYesterday(events: List<UsageEvent>, yesterdayStartMs: Long, elapsedTodayMs: Long, ignore: Set<String>): DayUsage =
+        DayUsage(yesterdayStartMs, UsageAggregator.aggregate(events, yesterdayStartMs, yesterdayStartMs + elapsedTodayMs, ignore))
+
     const val LATE_START_HOUR = 23
     const val LATE_END_HOUR = 5
 
@@ -56,6 +76,9 @@ object SummaryText {
     private const val QUIET_MS = 5 * 60_000L
     private const val SAME_PCT = 10
     private const val MIN_ELAPSED_FOR_COMPARE_MS = 3 * 3_600_000L
+    private const val MIN_BASELINE_MS = 10 * 60_000L
+    private const val LATE_SHARE = 0.4f
+    private const val LATE_MIN_TOTAL_MS = 30 * 60_000L
 
     /** "<1m", "45m", "1h 1m", "2h", "25h". */
     fun formatDuration(ms: Long): String {
@@ -67,7 +90,7 @@ object SummaryText {
         return when {
             h == 0L -> "${m}m"
             m == 0L -> "${h}h"
-            else -> "${h}h ${m}m"
+            else -> "${h}h %02dm".format(m)
         }
     }
 
@@ -77,7 +100,14 @@ object SummaryText {
         return "${totalMin / 60}h %02dm".format(totalMin % 60)
     }
 
-    fun build(today: DayUsage, yesterday: DayUsage?, labelOf: (String) -> String, nowMs: Long): String {
+    /**
+     * [yesterday] must already be clipped to the same time of day (see [InsightsModel.sameTimeYesterday]).
+     * [lateNightShare] is the 0..1 share of today's viewing between 23:00 and 05:00.
+     */
+    fun build(
+        today: DayUsage, yesterday: DayUsage?, labelOf: (String) -> String, nowMs: Long,
+        lateNightShare: Float = 0f
+    ): String {
         val total = today.totalMs
         if (total < QUIET_MS) return "Quiet day so far."
         val (topPkg, topMs) = InsightsModel.topApps(today, 1).first()
@@ -86,7 +116,7 @@ object SummaryText {
         val first = if (topMs * 2 > total) "Most of today went to $name — $amounts."
         else "$name led today — $amounts."
 
-        val canCompare = yesterday != null && yesterday.totalMs >= QUIET_MS &&
+        val canCompare = yesterday != null && yesterday.totalMs >= MIN_BASELINE_MS &&
             nowMs - today.dayStartMs >= MIN_ELAPSED_FOR_COMPARE_MS
         val second = if (!canCompare) null else {
             val d = InsightsModel.deltaVsYesterdayPercent(today, yesterday)
@@ -97,6 +127,7 @@ object SummaryText {
                 else -> "About the same as yesterday."
             }
         }
-        return if (second == null) first else "$first\n$second"
+        val late = if (lateNightShare >= LATE_SHARE && total >= LATE_MIN_TOTAL_MS) "Mostly late-night viewing today." else null
+        return listOfNotNull(first, late, second).joinToString("\n")
     }
 }

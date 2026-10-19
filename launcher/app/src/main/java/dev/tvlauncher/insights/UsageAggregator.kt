@@ -8,6 +8,11 @@ data class UsageEvent(val pkg: String, val type: Type, val timeMs: Long) {
 /** A continuous foreground stretch of one package, already clipped to the query window. */
 data class UsageSession(val pkg: String, val startMs: Long, val endMs: Long)
 
+/** Packages that are chrome around the content, not viewing. */
+val DEFAULT_IGNORE: Set<String> = setOf(
+    "dev.tvlauncher", "com.android.systemui", "com.google.android.tvlauncher", "com.tcl.tv"
+)
+
 object UsageAggregator {
     const val MIN_SESSION_MS = 1_000L
 
@@ -34,7 +39,10 @@ object UsageAggregator {
             openPkg = null
         }
 
+        var first = true
         for (e in sorted) {
+            val isFirst = first
+            first = false
             when (e.type) {
                 UsageEvent.Type.RESUMED -> {
                     if (openPkg == e.pkg) { seen += e.pkg; continue } // duplicate: keep original start
@@ -44,8 +52,9 @@ object UsageAggregator {
                 }
                 UsageEvent.Type.PAUSED -> {
                     if (openPkg == e.pkg) close(e.timeMs)
-                    else if (openPkg == null && e.pkg !in seen) {
-                        // Already in the foreground when the window opened.
+                    else if (isFirst) {
+                        // Only the very first event of the stream can mean "was already in the foreground
+                        // when the window opened"; a stray PAUSED later on is ignored (no double counting).
                         openPkg = e.pkg; openAt = fromMs
                         close(e.timeMs)
                     }

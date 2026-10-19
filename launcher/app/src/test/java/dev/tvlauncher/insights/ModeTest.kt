@@ -39,23 +39,46 @@ class ModeTest {
 
     @Test fun currentModeFollowsLatestOpenResume() {
         val ev = listOf(UsageEvent("com.spotify.tv.android", RESUMED, 1), UsageEvent("com.netflix.ninja", RESUMED, 5))
-        assertEquals(AppMode.VIDEO, ModeDetector.currentMode(ev, cls))
+        assertEquals(AppMode.VIDEO, ModeDetector.currentMode(ev, cls, nowMs = 10))
     }
 
     @Test fun pausedMeansOther() {
         val ev = listOf(UsageEvent("com.netflix.ninja", RESUMED, 1), UsageEvent("com.netflix.ninja", PAUSED, 5))
-        assertEquals(AppMode.OTHER, ModeDetector.currentMode(ev, cls))
+        assertEquals(AppMode.OTHER, ModeDetector.currentMode(ev, cls, nowMs = 10))
     }
 
     @Test fun unsortedAndEmpty() {
-        assertEquals(AppMode.OTHER, ModeDetector.currentMode(emptyList(), cls))
+        assertEquals(AppMode.OTHER, ModeDetector.currentMode(emptyList(), cls, nowMs = 10))
         val ev = listOf(UsageEvent("com.netflix.ninja", RESUMED, 9), UsageEvent("com.spotify.tv.android", RESUMED, 2),
             UsageEvent("com.spotify.tv.android", PAUSED, 3))
-        assertEquals(AppMode.VIDEO, ModeDetector.currentMode(ev, cls))
+        assertEquals(AppMode.VIDEO, ModeDetector.currentMode(ev, cls, nowMs = 10))
     }
 
     @Test fun stalePausedOfOtherPackageDoesNotClear() {
         val ev = listOf(UsageEvent("com.netflix.ninja", RESUMED, 5), UsageEvent("com.spotify.tv.android", PAUSED, 6))
-        assertEquals(AppMode.VIDEO, ModeDetector.currentMode(ev, cls))
+        assertEquals(AppMode.VIDEO, ModeDetector.currentMode(ev, cls, nowMs = 10))
+    }
+
+    private val hr = 3_600_000L
+
+    @Test fun overlay_doesNotMaskNetflix() {
+        val ev = listOf(UsageEvent("com.netflix.ninja", RESUMED, 100), UsageEvent("com.android.systemui", RESUMED, 200))
+        assertEquals(AppMode.VIDEO, ModeDetector.currentMode(ev, cls, nowMs = 300))
+    }
+
+    @Test fun launcherResume_doesNotMaskLastApp() {
+        val ev = listOf(UsageEvent("com.netflix.ninja", RESUMED, 100), UsageEvent("dev.tvlauncher", RESUMED, 200),
+            UsageEvent("com.tcl.tv", RESUMED, 250))
+        assertEquals(AppMode.VIDEO, ModeDetector.currentMode(ev, cls, nowMs = 300))
+    }
+
+    @Test fun staleResume_returnsOther() {
+        val ev = listOf(UsageEvent("com.netflix.ninja", RESUMED, 0))
+        assertEquals(AppMode.OTHER, ModeDetector.currentMode(ev, cls, nowMs = 7 * hr))
+    }
+
+    @Test fun recentResume_returnsVideo() {
+        val ev = listOf(UsageEvent("com.netflix.ninja", RESUMED, 2 * hr))
+        assertEquals(AppMode.VIDEO, ModeDetector.currentMode(ev, cls, nowMs = 7 * hr))
     }
 }

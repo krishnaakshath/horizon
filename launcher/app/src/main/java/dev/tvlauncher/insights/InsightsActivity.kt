@@ -30,10 +30,12 @@ class InsightsActivity : Activity() {
     private lateinit var content: LinearLayout
     private var worker: Thread? = null
     @Volatile private var destroyed = false
+    private var generation = 0 // main thread only; the latest load wins
 
     private data class Loaded(
         val today: DayUsage, val yesterday: DayUsage?, val week: List<DayUsage>,
-        val labels: Map<String, String>, val icons: Map<String, Bitmap?>
+        val labels: Map<String, String>, val icons: Map<String, Bitmap?>,
+        val lateNightShare: Float
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,10 +67,12 @@ class InsightsActivity : Activity() {
         if (!UsageAccess.hasAccess(this)) { showNoAccess(); return }
         showMessage("Loading…")
         val app = applicationContext
+        val gen = ++generation
         worker = Thread {
             val loaded = try { load(app) } catch (_: Throwable) { null }
             runOnUiThread {
-                if (destroyed || isFinishing) return@runOnUiThread
+                if (destroyed || isFinishing || gen != generation) return@runOnUiThread
+                if (!UsageAccess.hasAccess(this)) { showNoAccess(); return@runOnUiThread }
                 if (loaded == null) showMessage("Couldn't read viewing data.") else showData(loaded)
             }
         }.also { it.isDaemon = true; it.start() }
@@ -77,19 +81,18 @@ class InsightsActivity : Activity() {
     private fun load(ctx: android.content.Context): Loaded {
         val src = UsageStatsSource(ctx)
         val now = System.currentTimeMillis()
-        val cal = Calendar.getInstance()
-        cal.timeInMillis = now
-        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-        val days = ArrayList<DayUsage>()
-        var end = now
-        var start = cal.timeInMillis
-        for (i in 0 until 7) { // newest first
-            days += DayUsage(start, UsageAggregator.aggregate(src.events(start, end), start, end, DEFAULT_IGNORE))
-            end = start
-            cal.add(Calendar.DAY_OF_YEAR, -1)
-            start = cal.timeInMillis
+        val tz = java.util.TimeZone.getDefault()
+        val starts = DayBounds.starts(now, 7, tz) // oldest first
+        fun endOf(i: Int) = if (i == starts.lastIndex) now else starts[i + 1]
+        val eventsPerDay = starts.mapIndexed { i, start -> src.events(start, endOf(i)) }
+        val week = starts.mapIndexed { i, start ->
+            DayUsage(start, UsageAggregator.aggregate(eventsPerDay[i], start, endOf(i), DEFAULT_IGNORE))
         }
-        val week = days.reversed()
+        // Yesterday only up to the same time of day, so the comparison is like for like.
+        val yesterday = InsightsModel.sameTimeYesterday(
+            eventsPerDay[starts.size - 2], starts[starts.size - 2], now - starts.last(), DEFAULT_IGNORE
+        )
+        val late = InsightsModel.lateNightShare(eventsPerDay.last(), starts.last(), now, DEFAULT_IGNORE, tz)
         val pm = ctx.packageManager
         val labels = HashMap<String, String>()
         val icons = HashMap<String, Bitmap?>()
@@ -102,7 +105,7 @@ class InsightsActivity : Activity() {
                 labels[pkg] = pkg.substringAfterLast('.')
             }
         }
-        return Loaded(week.last(), week.getOrNull(5), week, labels, icons)
+        return Loaded(week.last(), yesterday, week, labels, icons, late)
     }
 
     private fun iconBitmap(d: android.graphics.drawable.Drawable, size: Int): Bitmap {
@@ -195,12 +198,19 @@ class InsightsActivity : Activity() {
             setPadding(0, dp(Theme.S4), 0, 0)
         })
         content.addView(TextView(this).apply {
-            text = SummaryText.build(d.today, d.yesterday, { d.labels[it] ?: it.substringAfterLast('.') }, now)
+            text = SummaryText.build(d.today, d.yesterday, { d.labels[it] ?: it.substringAfterLast('.') }, now, d.lateNightShare)
             style(Theme.SP_SUB + 2, Theme.regular, Theme.TEXT_2)
             setLineSpacing(0f, 1.25f)
             setPadding(0, dp(Theme.S2), 0, dp(Theme.S5))
         })
 
+        if (d.week.all { it.totalMs == 0L }) {
+            content.addView(TextView(this).apply {
+                text = "Nothing recorded yet \u2014 usage appears after you watch something."
+                style(Theme.SP_SUB, Theme.regular, Theme.TEXT_2)
+                setPadding(0, 0, 0, dp(Theme.S4))
+            })
+        }
         val top = InsightsModel.topApps(d.today, 5)
         val max = top.firstOrNull()?.second ?: 1L
         for ((pkg, ms) in top) content.addView(appRow(pkg, ms, max, d))
