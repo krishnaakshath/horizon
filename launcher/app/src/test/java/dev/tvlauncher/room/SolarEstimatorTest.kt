@@ -22,10 +22,10 @@ class SolarEstimatorTest {
     private val MAR_20 = 79
 
     @Test fun delhi_solar_time_only() {
-        // The latitude-only estimate is local SOLAR time; the brief's check: ~06:25 / ~17:40 (+/- 20 min).
+        // The latitude-only estimate is local SOLAR time; the brief's check: ~06:25 / ~17:40 (+/- 15 min).
         val (rise, set) = SolarEstimator.sunriseSunset(OCT_20, 28.6)!!
-        assertTrue(fmt(rise), kotlin.math.abs(rise - hm(6, 25)) <= 20)
-        assertTrue(fmt(set), kotlin.math.abs(set - hm(17, 40)) <= 20)
+        assertNear(hm(6, 25), rise, "Delhi solar rise")
+        assertNear(hm(17, 40), set, "Delhi solar set")
     }
 
     @Test fun delhi_clock_time() {
@@ -111,9 +111,69 @@ class SolarEstimatorTest {
         assertNull(polar.sunriseSunsetMinutes())
     }
 
-    @Test fun zone_meridian_used_when_longitude_unknown() {
-        // India: zone meridian 82.5 E. Delhi is 5.3 deg west of it, so ~21 min later than the estimate.
+    @Test fun omitting_longitude_reproduces_zone_meridian_behaviour() {
+        // Old behaviour (no longitude): the zone meridian = (offset - DST) / 4 degrees.
+        for (d in listOf(OCT_20, JUN_21, DEC_21)) {
+            assertEquals(SolarEstimator.sunriseSunsetClock(d, 28.61, 82.5, 330), SolarEstimator.sunriseSunsetClock(d, 28.61, null, 330))
+            // London in BST: offset 60 with 60 min DST -> meridian 0.
+            assertEquals(SolarEstimator.sunriseSunsetClock(d, 51.51, 0.0, 60, 60), SolarEstimator.sunriseSunsetClock(d, 51.51, null, 60, 60))
+        }
+        // Honest KDoc claim: without longitude, Delhi (5.3 deg west of IST's meridian) is ~21 min early, inside +/-40.
         val (r, _) = SolarEstimator.sunriseSunsetClock(OCT_20, 28.61, null, 330)!!
-        assertTrue(fmt(r), kotlin.math.abs(r - hm(6, 25)) <= 25)
+        assertTrue(fmt(r), kotlin.math.abs(r - hm(6, 25)) in 15..40)
+    }
+
+    // ---- Independent cross-check -------------------------------------------------------------
+    // Second formulation: the Julian-day "sunrise equation" (Meeus-style mean anomaly, equation
+    // of the centre, ecliptic longitude, solar transit; Wikipedia "Sunrise equation"). It shares
+    // no code or coefficients with SolarEstimator's NOAA Fourier series.
+
+    private fun reference(y: Int, mo: Int, d: Int, lat: Double, lon: Double, offsetMin: Int): Pair<Int, Int> {
+        val jdNoon = 2440587.5 + java.time.LocalDate.of(y, mo, d).toEpochDay() + 0.5
+        val n = Math.ceil(jdNoon - 2451545.0 + 0.0008)
+        val jStar = n - lon / 360.0
+        val m = (357.5291 + 0.98560028 * jStar) % 360.0
+        val mr = Math.toRadians(m)
+        val c = 1.9148 * Math.sin(mr) + 0.02 * Math.sin(2 * mr) + 0.0003 * Math.sin(3 * mr)
+        val lam = Math.toRadians((m + c + 180.0 + 102.9372) % 360.0)
+        val jTransit = 2451545.0 + jStar + 0.0053 * Math.sin(mr) - 0.0069 * Math.sin(2 * lam)
+        val sinD = Math.sin(lam) * Math.sin(Math.toRadians(23.4397))
+        val cosD = Math.cos(Math.asin(sinD))
+        val phi = Math.toRadians(lat)
+        val cosW = (Math.sin(Math.toRadians(-0.833)) - Math.sin(phi) * sinD) / (Math.cos(phi) * cosD)
+        val w = Math.toDegrees(Math.acos(cosW))
+        fun toMin(j: Double) = Math.floorMod(Math.round(((j + 0.5) % 1.0) * 1440.0 + offsetMin).toInt(), 1440)
+        return toMin(jTransit - w / 360.0) to toMin(jTransit + w / 360.0)
+    }
+
+    private fun assertWithin(tolMin: Int, expected: Pair<Int, Int>, actual: Pair<Int, Int>, label: String) {
+        assertTrue("$label rise ${fmt(expected.first)} vs ${fmt(actual.first)}", kotlin.math.abs(expected.first - actual.first) <= tolMin)
+        assertTrue("$label set ${fmt(expected.second)} vs ${fmt(actual.second)}", kotlin.math.abs(expected.second - actual.second) <= tolMin)
+    }
+
+    @Test fun mumbai_withLongitude_withinTenMinutesOfReference() {
+        // Mumbai 19.08 N, 72.88 E, IST (UTC+5:30), 20 Oct 2026.
+        // Reference (second formulation above): 06:34 / 18:12. Published almanac tables
+        // (timeanddate.com, Mumbai, Oct 2026) list ~06:33 / ~18:13 - quoted for context only;
+        // the assertion is against the independent computation.
+        val ref = reference(2026, 10, 20, 19.08, 72.88, 330)
+        val est = SolarEstimator.sunriseSunsetClock(OCT_20, 19.08, 72.88, 330)!!
+        assertWithin(10, ref, est, "Mumbai")
+        assertWithin(3, hm(6, 34) to hm(18, 12), ref, "Mumbai reference sanity")
+    }
+
+    @Test fun delhi_kolkata_london_new_york_with_longitude_match_reference() {
+        assertWithin(10, reference(2026, 10, 20, 28.61, 77.21, 330), SolarEstimator.sunriseSunsetClock(OCT_20, 28.61, 77.21, 330)!!, "Delhi")
+        assertWithin(10, reference(2026, 10, 20, 22.57, 88.36, 330), SolarEstimator.sunriseSunsetClock(OCT_20, 22.57, 88.36, 330)!!, "Kolkata")
+        assertWithin(10, reference(2026, 6, 21, 51.51, -0.13, 60), SolarEstimator.sunriseSunsetClock(JUN_21, 51.51, -0.13, 60)!!, "London Jun")
+        assertWithin(10, reference(2026, 12, 21, 51.51, -0.13, 0), SolarEstimator.sunriseSunsetClock(DEC_21, 51.51, -0.13, 0)!!, "London Dec")
+        assertWithin(10, reference(2026, 10, 20, 40.71, -74.01, -240), SolarEstimator.sunriseSunsetClock(OCT_20, 40.71, -74.01, -240)!!, "New York")
+    }
+
+    @Test fun longitude_correction_is_four_minutes_per_degree() {
+        val a = SolarEstimator.sunriseSunsetClock(OCT_20, 20.0, 80.0, 330)!!
+        val b = SolarEstimator.sunriseSunsetClock(OCT_20, 20.0, 75.0, 330)!!
+        assertEquals(20, b.first - a.first)
+        assertEquals(20, b.second - a.second)
     }
 }

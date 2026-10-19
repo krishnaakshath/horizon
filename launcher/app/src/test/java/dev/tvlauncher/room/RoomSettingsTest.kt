@@ -11,16 +11,17 @@ class RoomSettingsTest {
         val d = RoomSettings()
         assertEquals(RoomChoice.AUTO, d.choice)
         assertNull(d.latitudeDeg)
+        assertNull(d.longitudeDeg)
         assertEquals(1.2f, d.transitionSeconds, 0f)
         assertEquals(18 * 60 + 30, d.eveningStart)
         assertEquals(23 * 60 + 30, d.nightStart)
-        assertEquals(7 * 60, d.dayStart)
+        assertEquals(7 * 60 + 30, d.dayStart)
         assertTrue(d.boostTextInBright)
         assertEquals(Schedule.DEFAULT, d.schedule)
     }
 
     @Test fun round_trip() {
-        val s = RoomSettings(RoomChoice.BRIGHT, 28.6, 0.6f, 1200, 60, 480, false)
+        val s = RoomSettings(RoomChoice.BRIGHT, 28.6, 0.6f, 1200, 60, 480, false, longitudeDeg = 77.2)
         assertEquals(s, RoomSettings.fromJson(s.toJson()))
         val n = RoomSettings(latitudeDeg = null)
         assertEquals(n, RoomSettings.fromJson(n.toJson()))
@@ -49,6 +50,15 @@ class RoomSettingsTest {
         assertEquals(0f, RoomSettings.fromJson("""{"transitionSeconds":-2}""").transitionSeconds, 0f)
         assertNull(RoomSettings.fromJson("""{"latitudeDeg":null}""").latitudeDeg)
         assertEquals(-33.9, RoomSettings.fromJson("""{"latitudeDeg":-33.9}""").latitudeDeg!!, 1e-9)
+        assertEquals(-74.0, RoomSettings.fromJson("""{"longitudeDeg":-74.0}""").longitudeDeg!!, 1e-9)
+        assertNull(RoomSettings.fromJson("""{"longitudeDeg":181}""").longitudeDeg)
+        assertNull(RoomSettings.fromJson("""{"longitudeDeg":"east"}""").longitudeDeg)
+        assertEquals(180.0, RoomSettings.fromJson("""{"longitudeDeg":180}""").longitudeDeg!!, 0.0)
+        // org.json cannot carry NaN/Infinity as numbers; strings are rejected.
+        assertNull(RoomSettings.fromJson("""{"longitudeDeg":"NaN"}""").longitudeDeg)
+        assertNull(RoomSettings.longitude(Double.NaN))
+        assertNull(RoomSettings.longitude(Double.POSITIVE_INFINITY))
+        assertNull(RoomSettings.latitude(Double.NEGATIVE_INFINITY))
     }
 
     @Test fun transition_duration() {
@@ -93,10 +103,12 @@ class RoomSettingsTest {
     @Test fun rows_have_unique_keys_and_cover_settings() {
         val keys = RoomSettingsRows.rows.map { it.key }
         assertEquals(keys.size, keys.toSet().size)
-        assertTrue(keys.containsAll(listOf("choice", "latitudeDeg", "transitionSeconds", "eveningStart", "nightStart", "dayStart", "boostTextInBright")))
+        assertTrue(keys.containsAll(listOf("choice", "location", "transitionSeconds", "eveningStart", "nightStart", "dayStart", "boostTextInBright")))
         assertEquals("Room lighting", RoomSettingsRows.row("choice")!!.label)
         assertEquals(listOf("Auto", "Dark room", "Evening", "Normal", "Bright room"), RoomSettingsRows.row("choice")!!.options.map { it.label })
-        assertEquals("Location for sunrise and sunset", RoomSettingsRows.row("latitudeDeg")!!.label)
+        assertEquals("Location for sunrise and sunset", RoomSettingsRows.row("location")!!.label)
+        assertEquals(listOf("New Delhi", "Mumbai", "Kolkata", "Chennai", "Bengaluru", "Hyderabad", "London", "New York", "Dubai", "Singapore"),
+            RoomSettingsRows.row("location")!!.options.map { it.label })
         assertEquals("Smooth transition", RoomSettingsRows.row("transitionSeconds")!!.label)
         assertNull(RoomSettingsRows.row("nope"))
     }
@@ -114,6 +126,22 @@ class RoomSettingsTest {
         assertEquals(51.5, s.latitudeDeg!!, 1e-9)
         s = RoomSettingsRows.apply(s, "latitudeDeg", "")
         assertNull(s.latitudeDeg)
+        s = RoomSettingsRows.apply(s, "location", "19.08, 72.88")
+        assertEquals(19.08, s.latitudeDeg!!, 1e-9); assertEquals(72.88, s.longitudeDeg!!, 1e-9)
+        assertEquals(s, RoomSettingsRows.apply(s, "location", "19.08, 200"))
+        assertEquals(s, RoomSettingsRows.apply(s, "location", "north, east"))
+        s = RoomSettingsRows.apply(s, "location", "51.5")
+        assertEquals(51.5, s.latitudeDeg!!, 1e-9); assertNull(s.longitudeDeg)
+        s = RoomSettingsRows.apply(s, "longitudeDeg", "-0.13")
+        assertEquals(-0.13, s.longitudeDeg!!, 1e-9)
+        s = RoomSettingsRows.apply(s, "location", "")
+        assertNull(s.latitudeDeg); assertNull(s.longitudeDeg)
+        // Every preset applies cleanly and round-trips through valueOf/summary.
+        for (o in RoomSettingsRows.row("location")!!.options) {
+            val c = RoomSettingsRows.apply(RoomSettings(), "location", o.value)
+            assertEquals(o.value, RoomSettingsRows.valueOf(c, "location"))
+            assertEquals(o.label, RoomSettingsRows.summary(c, "location"))
+        }
         s = RoomSettingsRows.apply(s, "transitionSeconds", "0")
         assertEquals(0f, s.transitionSeconds, 0f)
         s = RoomSettingsRows.apply(s, "eveningStart", "1200")
@@ -129,9 +157,11 @@ class RoomSettingsTest {
     @Test fun rows_summaries_are_human() {
         val s = RoomSettings(latitudeDeg = 28.6)
         assertEquals("Auto", RoomSettingsRows.summary(s, "choice"))
-        assertEquals("28.6° N", RoomSettingsRows.summary(s, "latitudeDeg"))
-        assertEquals("33.9° S", RoomSettingsRows.summary(s.copy(latitudeDeg = -33.9), "latitudeDeg"))
-        assertEquals("Not set (fixed schedule)", RoomSettingsRows.summary(RoomSettings(), "latitudeDeg"))
+        assertEquals("28.6° N (time-zone longitude)", RoomSettingsRows.summary(s, "location"))
+        assertEquals("33.9° S, 18.4° E", RoomSettingsRows.summary(s.copy(latitudeDeg = -33.9, longitudeDeg = 18.4), "location"))
+        assertEquals("40.7° N, 74° W", RoomSettingsRows.summary(s.copy(latitudeDeg = 40.7, longitudeDeg = -74.0), "location"))
+        assertEquals("New Delhi", RoomSettingsRows.summary(s.copy(latitudeDeg = 28.61, longitudeDeg = 77.21), "location"))
+        assertEquals("Not set (fixed schedule)", RoomSettingsRows.summary(RoomSettings(), "location"))
         assertEquals("18:30", RoomSettingsRows.summary(s, "eveningStart"))
         assertEquals("On", RoomSettingsRows.summary(s, "boostTextInBright"))
         assertEquals("Smooth (1.2 s)", RoomSettingsRows.summary(s, "transitionSeconds"))

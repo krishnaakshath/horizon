@@ -4,12 +4,13 @@ import java.util.Locale
 
 /**
  * Declarative rows for the Settings page's "Room lighting" section. The Settings UI renders each
- * [Row] with its existing row widgets (CHOICE = picker, TOGGLE = switch, LATITUDE = picker of
- * [Row.options] plus "Not set", TIME = time picker in 15-min steps) and writes back through [apply].
+ * [Row] with its existing row widgets (CHOICE = picker, TOGGLE = switch, LOCATION = picker of the
+ * preset cities in [Row.options] plus "Not set" and an optional free "lat, lon" entry, TIME = time
+ * picker in 15-min steps) and writes back through [apply].
  * Values travel as strings so the UI needs no knowledge of [RoomSettings].
  */
 object RoomSettingsRows {
-    enum class Type { CHOICE, TOGGLE, LATITUDE, TIME }
+    enum class Type { CHOICE, TOGGLE, LOCATION, TIME }
 
     data class Option(val value: String, val label: String)
 
@@ -31,16 +32,27 @@ object RoomSettingsRows {
         Option("0", "Off"), Option("0.6", "Quick"), Option("1.2", "Smooth"), Option("2", "Slow")
     )
 
-    /** A short ladder of latitudes the remote can step through (the UI also accepts free entry). */
-    private val latitudeOptions = (-60..70 step 5).map { Option(it.toString(), latText(it.toDouble())) }
+    /** Quick presets: value "lat,lon" (east positive). The UI also accepts free "lat, lon" entry. */
+    val CITIES: List<Option> = listOf(
+        Option("28.61,77.21", "New Delhi"),
+        Option("19.08,72.88", "Mumbai"),
+        Option("22.57,88.36", "Kolkata"),
+        Option("13.08,80.27", "Chennai"),
+        Option("12.97,77.59", "Bengaluru"),
+        Option("17.39,78.49", "Hyderabad"),
+        Option("51.51,-0.13", "London"),
+        Option("40.71,-74.01", "New York"),
+        Option("25.2,55.27", "Dubai"),
+        Option("1.35,103.82", "Singapore")
+    )
 
     val rows: List<Row> = listOf(
         Row("choice", Type.CHOICE, "Room lighting",
             "Adapts brightness, contrast and glass to your room. Auto uses a light sensor if the TV has one, else the time of day.",
             RoomChoice.AUTO.name, choiceOptions, "ic_room_auto"),
-        Row("latitudeDeg", Type.LATITUDE, "Location for sunrise and sunset",
-            "Optional. Your latitude lets Auto follow the real sunset; nothing leaves the TV.",
-            null, latitudeOptions),
+        Row("location", Type.LOCATION, "Location for sunrise and sunset",
+            "Optional: latitude and longitude let Auto follow the real sunrise and sunset. Nothing leaves the TV.",
+            null, CITIES),
         Row("transitionSeconds", Type.CHOICE, "Smooth transition",
             "How gently the screen changes between room modes.", "1.2", transitionOptions),
         Row("dayStart", Type.TIME, "Day starts", "Used by Auto when sunrise is unknown.", Schedule.DEFAULT.dayStart.toString()),
@@ -55,7 +67,9 @@ object RoomSettingsRows {
     /** The serialized current value of [key], comparable with [Row.default]. */
     fun valueOf(s: RoomSettings, key: String): String? = when (key) {
         "choice" -> s.choice.name
+        "location" -> s.latitudeDeg?.let { lat -> s.longitudeDeg?.let { "${coord(lat)},${coord(it)}" } ?: coord(lat) }
         "latitudeDeg" -> s.latitudeDeg?.let { num(it) }
+        "longitudeDeg" -> s.longitudeDeg?.let { num(it) }
         "transitionSeconds" -> num(s.transitionSeconds.toDouble())
         "dayStart" -> s.dayStart.toString()
         "eveningStart" -> s.eveningStart.toString()
@@ -69,9 +83,13 @@ object RoomSettingsRows {
         val v = value?.trim()
         return when (key) {
             "choice" -> RoomChoice.parse(v)?.let { s.copy(choice = it) } ?: s
+            "location" -> location(s, v)
             "latitudeDeg" ->
                 if (v.isNullOrEmpty()) s.copy(latitudeDeg = null)
                 else RoomSettings.latitude(v.toDoubleOrNull())?.let { s.copy(latitudeDeg = it) } ?: s
+            "longitudeDeg" ->
+                if (v.isNullOrEmpty()) s.copy(longitudeDeg = null)
+                else RoomSettings.longitude(v.toDoubleOrNull())?.let { s.copy(longitudeDeg = it) } ?: s
             "transitionSeconds" -> v?.toFloatOrNull()?.takeIf { it.isFinite() }
                 ?.let { s.copy(transitionSeconds = it.coerceIn(0f, RoomSettings.MAX_TRANSITION_SECONDS)) } ?: s
             "dayStart" -> RoomSettings.minute(v?.toIntOrNull())?.let { s.copy(dayStart = it) } ?: s
@@ -89,7 +107,7 @@ object RoomSettingsRows {
     /** Human summary for the row's value line. */
     fun summary(s: RoomSettings, key: String): String = when (key) {
         "choice" -> RoomChoiceCycler.label(s.choice)
-        "latitudeDeg" -> s.latitudeDeg?.let { latText(it) } ?: "Not set (fixed schedule)"
+        "location" -> locationSummary(s)
         "transitionSeconds" -> {
             val t = s.transitionSeconds
             val name = when {
@@ -109,9 +127,34 @@ object RoomSettingsRows {
 
     fun hhmm(m: Int): String = String.format(Locale.ROOT, "%02d:%02d", m / 60, m % 60)
 
-    private fun latText(lat: Double): String {
-        val hemi = if (lat < 0) "S" else "N"
-        return "${num(kotlin.math.abs(lat))}° $hemi"
+    /** "lat" or "lat, lon"; empty clears both. Invalid input leaves [s] unchanged. */
+    private fun location(s: RoomSettings, v: String?): RoomSettings {
+        if (v.isNullOrEmpty()) return s.copy(latitudeDeg = null, longitudeDeg = null)
+        val parts = v.split(',').map { it.trim() }
+        if (parts.size > 2) return s
+        val lat = RoomSettings.latitude(parts[0].toDoubleOrNull()) ?: return s
+        if (parts.size == 1) return s.copy(latitudeDeg = lat, longitudeDeg = null)
+        val lon = RoomSettings.longitude(parts[1].toDoubleOrNull()) ?: return s
+        return s.copy(latitudeDeg = lat, longitudeDeg = lon)
+    }
+
+    private fun locationSummary(s: RoomSettings): String {
+        val lat = s.latitudeDeg ?: return "Not set (fixed schedule)"
+        val lon = s.longitudeDeg ?: return "${latText(lat)} (time-zone longitude)"
+        CITIES.firstOrNull { o ->
+            val p = o.value.split(',')
+            kotlin.math.abs(p[0].toDouble() - lat) < 0.01 && kotlin.math.abs(p[1].toDouble() - lon) < 0.01
+        }?.let { return it.label }
+        return "${latText(lat)}, ${lonText(lon)}"
+    }
+
+    private fun latText(lat: Double): String = "${num(kotlin.math.abs(lat))}\u00B0 ${if (lat < 0) "S" else "N"}"
+    private fun lonText(lon: Double): String = "${num(kotlin.math.abs(lon))}\u00B0 ${if (lon < 0) "W" else "E"}"
+
+    /** Up to two decimals, shortest form ("25.2", "-0.13"). */
+    private fun coord(d: Double): String {
+        val r = Math.round(d * 100.0) / 100.0
+        return if (r == Math.floor(r)) r.toLong().toString() else r.toString()
     }
 
     /** "1.2", "2", "28.6": shortest plain form, one decimal at most. */

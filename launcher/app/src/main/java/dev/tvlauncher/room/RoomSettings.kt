@@ -12,6 +12,9 @@ import org.json.JSONObject
  * @param transitionSeconds crossfade length; 0 = instant. LITE devices cap it ([RoomTransitions]).
  * @param eveningStart/nightStart/dayStart fixed-schedule overrides, minutes of the local day.
  * @param boostTextInBright BRIGHT may use heavier faces and a larger minimum text size.
+ * @param longitudeDeg optional, east positive (-180..180). With it the sunrise/sunset estimate is
+ *   about +/-10 min; without it the time zone's meridian is assumed (error 4 min per degree from
+ *   that meridian: ~20 min for Delhi, up to ~40 min in far-west-of-zone places).
  */
 data class RoomSettings(
     val choice: RoomChoice = RoomChoice.AUTO,
@@ -20,7 +23,8 @@ data class RoomSettings(
     val eveningStart: Int = Schedule.DEFAULT.eveningStart,
     val nightStart: Int = Schedule.DEFAULT.nightStart,
     val dayStart: Int = Schedule.DEFAULT.dayStart,
-    val boostTextInBright: Boolean = true
+    val boostTextInBright: Boolean = true,
+    val longitudeDeg: Double? = null
 ) {
     val schedule: Schedule get() = Schedule(dayStart = dayStart, eveningStart = eveningStart, nightStart = nightStart)
 
@@ -28,6 +32,7 @@ data class RoomSettings(
         .put("version", 1)
         .put("choice", choice.name)
         .put("latitudeDeg", latitudeDeg ?: JSONObject.NULL)
+        .put("longitudeDeg", longitudeDeg ?: JSONObject.NULL)
         .put("transitionSeconds", transitionSeconds.toDouble())
         .put("eveningStart", eveningStart)
         .put("nightStart", nightStart)
@@ -51,15 +56,20 @@ data class RoomSettings(
                     eveningStart = minute(j.opt("eveningStart")) ?: d.eveningStart,
                     nightStart = minute(j.opt("nightStart")) ?: d.nightStart,
                     dayStart = minute(j.opt("dayStart")) ?: d.dayStart,
-                    boostTextInBright = (j.opt("boostTextInBright") as? Boolean) ?: d.boostTextInBright
+                    boostTextInBright = (j.opt("boostTextInBright") as? Boolean) ?: d.boostTextInBright,
+                    longitudeDeg = longitude(j.opt("longitudeDeg"))
                 )
             } catch (e: Exception) {
                 d
             }
         }
 
-        internal fun latitude(v: Any?): Double? =
+        fun latitude(v: Any?): Double? =
             (v as? Number)?.toDouble()?.takeIf { it.isFinite() && it >= -90.0 && it <= 90.0 }
+
+        /** -180..180, finite, else null. */
+        fun longitude(v: Any?): Double? =
+            (v as? Number)?.toDouble()?.takeIf { it.isFinite() && it >= -180.0 && it <= 180.0 }
 
         internal fun minute(v: Any?): Int? {
             val n = v as? Number ?: return null

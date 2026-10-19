@@ -44,9 +44,15 @@ class EstimatedDaylight(
 
 /**
  * Low-precision sunrise/sunset (NOAA "General Solar Position" approximations: Fourier series for
- * declination and the equation of time, zenith 90.833 deg for refraction + solar disc). Typical
- * error 1-3 min below the polar circles; good to the +/-15 min this feature needs. Pure, no
- * libraries. Returns null for polar day/night or invalid input.
+ * declination and the equation of time, zenith 90.833 deg for refraction + solar disc). Pure.
+ *
+ * Accuracy (approximate): the astronomy itself is within ~3 min below the polar circles
+ * (cross-checked in tests against an independent Julian-day formulation). The clock-time error is
+ * dominated by longitude: about +/-10 min with the real longitude; without it the zone meridian is
+ * assumed, i.e. 4 min per degree between the place and its zone meridian (~20 min for Delhi,
+ * up to ~40 min for places far west/east inside a wide zone). Solar-time correction:
+ * clock = solar + (zoneMeridian - longitude) / 15 h - equationOfTime, with the zone offset (incl.
+ * DST) taken at the instant. Returns null for polar day/night or invalid input.
  */
 object SolarEstimator {
     private const val ZENITH_DEG = 90.833
