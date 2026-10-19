@@ -31,7 +31,8 @@ data class Candidate(
 
 /**
  * Decides whether a device deserves a card, so the TV's own remote and flapping companions do not
- * spam the user. Rules are scoped by kind:
+ * spam the user. The TV's built-in devices ([BuiltInDevices.isTvInternal]) are silent whatever
+ * their kind. Other rules are scoped by kind:
  *
  * - NON-HID kinds (USB storage, unknown USB, consoles, streamers, soundbars, phones, network,
  *   HDMI/AV inputs) are ALWAYS announced, connect and disconnect, whatever their name says.
@@ -84,6 +85,7 @@ class RemoteFilter(private val clock: () -> Long = { 0L }) {
     fun reset() { seeded.clear(); seededVidPid.clear(); lastEvent.clear() }
 
     fun shouldAnnounce(c: Candidate, connected: Boolean = true): Boolean {
+        if (BuiltInDevices.isTvInternal(c.name)) return false // the TV's own receivers, any kind
         val now = clock()
         val hid = isHid(c.kind)
         val pad = isPad(c.kind)

@@ -13,6 +13,7 @@ import dev.tvlauncher.apps.AppFilter
 import dev.tvlauncher.apps.AppRepository
 import dev.tvlauncher.device.DeviceProfileReader
 import dev.tvlauncher.home.HomeAppearance
+import dev.tvlauncher.home.HomeDevices
 import dev.tvlauncher.home.HomeLook
 import dev.tvlauncher.home.HomeNetwork
 import dev.tvlauncher.home.HomeSounds
@@ -64,6 +65,7 @@ class HomeActivity : Activity() {
     private lateinit var modes: ModeTracker
     private lateinit var root: FrameLayout
     private lateinit var net: HomeNetwork
+    private lateinit var devices: HomeDevices
     private val loader = Executors.newSingleThreadExecutor()
     private val generation = AtomicInteger()
     private var firstLoad = true
@@ -143,6 +145,7 @@ class HomeActivity : Activity() {
         launchOverlay = LaunchOverlay(this)
         root.addView(launchOverlay, FrameLayout.LayoutParams(-1, -1))
         net = HomeNetwork(this, root, lite = !full, fallbackFocus = ::focusHome, onOpenChanged = {})
+        devices = HomeDevices(this, root, look.profile.effectsMode, sounds, { splash != null }, ::focusHome, onOpenChanged = {})
         root.viewTreeObserver.addOnGlobalFocusChangeListener { _, now -> strip.onGlobalFocus(now); sounds.onFocusChanged() }
         setContentView(root)
     }
@@ -170,13 +173,17 @@ class HomeActivity : Activity() {
         val opened = when (QuickActions.route(item, net.hasBluetooth)) {
             QuickActions.Route.WIFI_PANEL -> openPanel { net.showWifi(null) }
             QuickActions.Route.BLUETOOTH_PANEL -> openPanel { net.showBluetooth(null) }
-            QuickActions.Route.DEVICES_PANEL, QuickActions.Route.AMBIENT, QuickActions.Route.SYSTEM -> false
+            QuickActions.Route.DEVICES_PANEL -> openPanel { devices.showPanel() }
+            QuickActions.Route.AMBIENT, QuickActions.Route.SYSTEM -> false
         }
         if (!opened) sounds.action(SystemActions.quickAction(this, item)) // also the fallback to system settings
     }
 
     /** Panels and Spotlight are mutually exclusive: Spotlight closes first, without animation. */
+    private val overlayOpen: Boolean get() = net.isShowing || devices.isShowing
+
     private inline fun openPanel(open: () -> Boolean): Boolean {
+        if (overlayOpen) return false // one panel at a time
         if (spotlight.isOpen) spotlight.close(animate = false)
         return open().also { if (it) sounds.panel(opened = true) }
     }
@@ -190,7 +197,7 @@ class HomeActivity : Activity() {
             pendingSpotlight = true
             return
         }
-        if (spotlight.isOpen || splash != null || isDestroyed || net.isShowing) return // not under the splash or a panel
+        if (spotlight.isOpen || splash != null || isDestroyed || overlayOpen) return // not under the splash or a panel
         val f = currentFocus
         restoreFocus = f?.takeIf { it.parent !== shelf && !strip.hasFocus() }
         restoreIndex = adapter.lastFocused
@@ -283,6 +290,7 @@ class HomeActivity : Activity() {
         } else {
             spotlight.close(animate = false) // HOME press: back to a clean shelf
             net.release()
+            devices.onBack()
             focusTile(0)
         }
     }
@@ -307,6 +315,7 @@ class HomeActivity : Activity() {
         adapter.getItems().getOrNull(adapter.lastFocused)?.let(::onAppFocused)
         topBar.startStatus()
         net.start()
+        devices.start()
     }
 
     override fun onStop() {
@@ -316,6 +325,7 @@ class HomeActivity : Activity() {
         }
         topBar.stopStatus() // always paired with startStatus (TopBar tracks it)
         net.stop() // releases an open panel, stops the Wi-Fi and Bluetooth controllers
+        devices.stop()
         super.onStop()
     }
 
@@ -323,7 +333,7 @@ class HomeActivity : Activity() {
     @Deprecated("Home screen never exits on Back")
     override fun onBackPressed() {
         val closed = when {
-            net.onBack() -> true
+            net.onBack() || devices.onBack() -> true
             spotlight.isOpen -> { spotlight.close(); true }
             else -> strip.hasFocus() && strip.returnToTile()
         }

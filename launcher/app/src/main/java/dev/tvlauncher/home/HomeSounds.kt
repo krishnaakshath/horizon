@@ -3,6 +3,7 @@ package dev.tvlauncher.home
 import android.content.Context
 import android.os.SystemClock
 import android.view.KeyEvent
+import dev.tvlauncher.devices.DeviceAnnouncePolicy
 import dev.tvlauncher.sound.SoundEvent
 import dev.tvlauncher.sound.SoundEventMapper
 import dev.tvlauncher.sound.SoundPlayer
@@ -54,6 +55,13 @@ class HomeSounds(context: Context) {
     fun back(closedSomething: Boolean) = play(SoundEventMapper.back(closedSomething))
     fun stripAction(opensMenu: Boolean) = play(SoundEventMapper.stripAction(opensMenu))
     fun menuOpen() = play(SoundEvent.MENU_OPEN)
+
+    /** Device toast cards: connect plays LAUNCH, disconnect plays BACK, a coalesced card nothing. */
+    fun device(sound: DeviceAnnouncePolicy.Sound) = play(when (sound) {
+        DeviceAnnouncePolicy.Sound.CONNECT -> SoundEvent.LAUNCH
+        DeviceAnnouncePolicy.Sound.DISCONNECT -> SoundEvent.BACK
+        DeviceAnnouncePolicy.Sound.NONE -> null
+    })
 
     /** TileMenu dialogs: SELECT for a picked entry, BACK when dismissed with Back. */
     fun bind(menu: TileMenu) {

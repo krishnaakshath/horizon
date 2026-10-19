@@ -23,6 +23,10 @@ class ToastQueue(private val max: Int = 3) {
         return Offer.QUEUED
     }
 
+    /** The card shown or queued for [deviceId], or null. */
+    fun eventFor(deviceId: String): DeviceEvent? =
+        current?.takeIf { it.device.id == deviceId } ?: pending.firstOrNull { it.device.id == deviceId }
+
     /** Moves to the next pending event (null when empty) and makes it current. */
     fun advance(): DeviceEvent? {
         current = if (pending.isEmpty()) null else pending.removeAt(0)
