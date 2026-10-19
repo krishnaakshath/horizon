@@ -27,29 +27,66 @@ object InputIdParser {
     }
 }
 
+/** True for names that carry no identity: blank, "HDMI device", "HDMI 2", "Device" or the port label itself. */
+internal fun isGenericDevice(d: ConnectedDevice): Boolean {
+    val n = d.name.trim()
+    if (n.isEmpty() || n.equals("Device", true) || n.equals(HdmiPortTracker.GENERIC_NAME, true)) return true
+    if (Regex("""hdmi\s*-?\s*\d*""", RegexOption.IGNORE_CASE).matches(n)) return true
+    return d.port != null && n.equals(d.port.trim(), true)
+}
+
 /**
- * Holds back Disconnected events for [quietMs]. Connected -> Disconnected -> Connected inside the
- * window is swallowed entirely; a disconnect that outlasts the window is released once by [tick].
+ * Holds back Disconnected events for [quietMs]. A device that returns inside the window is swallowed
+ * entirely, EXCEPT a genuine swap: Updated is emitted only when both the held and the returning
+ * identities are named (non-generic) and differ, or a generic port comes back as a named device.
+ * A generic returning device (port back before its CEC child) is swallowed and the last named
+ * identity is remembered for [memoryMs]; a child that later reappears with the same name emits
+ * nothing, a different name emits one Updated. A disconnect that outlasts the window is released
+ * once by [tick] and clears the memory (the port is then a fresh device).
  */
-class FlapGuard(private val quietMs: Long = DEFAULT_QUIET_MS, private val clock: () -> Long) {
+class FlapGuard(
+    private val quietMs: Long = DEFAULT_QUIET_MS,
+    private val clock: () -> Long
+) {
+    private val memoryMs = MEMORY_MS
     private class Held(val event: DeviceEvent, val due: Long)
+    private class Mem(val device: ConnectedDevice, val until: Long)
     private val held = LinkedHashMap<String, Held>()
+    private val memory = HashMap<String, Mem>()
+
+    private fun remembered(id: String): ConnectedDevice? {
+        val m = memory[id] ?: return null
+        if (clock() >= m.until) { memory.remove(id); return null }
+        return m.device
+    }
 
     fun submit(e: DeviceEvent): List<DeviceEvent> {
         val id = e.device.id
         return when (e) {
             is DeviceEvent.Disconnected -> { held[id] = Held(e, clock() + quietMs); emptyList() }
             is DeviceEvent.Connected -> {
-                val h = held.remove(id)
+                val h = held.remove(id) ?: return listOf(e)
+                val prevDev = h.event.device
+                val cur = e.device
                 when {
-                    h == null -> listOf(e)
-                    h.event.device.name == e.device.name && h.event.device.kind == e.device.kind -> emptyList()
-                    else -> listOf(DeviceEvent.Updated(e.device, h.event.device)) // different device swapped in
+                    isGenericDevice(cur) -> {
+                        if (!isGenericDevice(prevDev)) memory[id] = Mem(prevDev, clock() + memoryMs)
+                        emptyList()
+                    }
+                    !isGenericDevice(prevDev) && prevDev.name == cur.name && prevDev.kind == cur.kind -> emptyList()
+                    remembered(id)?.name == cur.name -> emptyList()
+                    else -> { memory[id] = Mem(cur, clock() + memoryMs); listOf(DeviceEvent.Updated(cur, prevDev)) }
                 }
             }
             is DeviceEvent.Updated -> {
                 val h = held.remove(id)
-                if (h != null && h.event.device.name == e.device.name) emptyList() else listOf(e)
+                val prevDev = h?.event?.device
+                val mem = remembered(id)
+                when {
+                    prevDev != null && !isGenericDevice(prevDev) && prevDev.name == e.device.name -> emptyList()
+                    mem != null && mem.name == e.device.name -> emptyList()
+                    else -> { memory[id] = Mem(e.device, clock() + memoryMs); listOf(e) }
+                }
             }
         }
     }
@@ -57,14 +94,17 @@ class FlapGuard(private val quietMs: Long = DEFAULT_QUIET_MS, private val clock:
     fun tick(): List<DeviceEvent> {
         val now = clock()
         val due = held.values.filter { it.due <= now }
-        for (h in due) held.remove(h.event.device.id)
+        for (h in due) { held.remove(h.event.device.id); memory.remove(h.event.device.id) }
         return due.map { it.event }
     }
 
     fun nextDueDelayMs(): Long? = held.values.minOfOrNull { it.due }?.let { (it - clock()).coerceAtLeast(0L) }
-    fun clear() = held.clear()
+    fun clear() { held.clear(); memory.clear() }
 
-    companion object { const val DEFAULT_QUIET_MS = 8000L }
+    companion object {
+        const val DEFAULT_QUIET_MS = 8000L
+        const val MEMORY_MS = 60_000L
+    }
 }
 
 /**
@@ -91,7 +131,7 @@ class HdmiPortTracker(clock: () -> Long, quietMs: Long = FlapGuard.DEFAULT_QUIET
     fun nextDueDelayMs(): Long? = guard.nextDueDelayMs()
     fun reset() { prev = emptyList(); guard.clear() }
 
-    private fun isGeneric(d: ConnectedDevice) = d.kind == DeviceKind.HDMI_OTHER && d.name == GENERIC_NAME
+    private fun isGeneric(d: ConnectedDevice) = isGenericDevice(d)
 
     private fun diff(old: List<ConnectedDevice>, new: List<ConnectedDevice>): List<DeviceEvent> {
         val out = ArrayList<DeviceEvent>()

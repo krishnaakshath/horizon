@@ -39,7 +39,9 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
     private var debouncer = Debouncer(DEBOUNCE_MS, clock)
     private var dedupe = CrossSourceDedupe(6000L, clock)
     private val remoteFilter = RemoteFilter(clock)
-    private val vidPidById = HashMap<String, String>()
+    private val vidPidById = object : LinkedHashMap<String, String>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > RemoteFilter.MAX_TRACKED
+    }
     private val tracker = HdmiPortTracker(clock)
     private var netPolicy = NetworkEventPolicy(3000L, clock)
     private val anonymousBt = HashSet<String>()
@@ -216,7 +218,7 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
                     kind = DeviceClassifier.fromUsb(itf.interfaceClass, itf.interfaceSubclass, name)
                 }
                 // Anything else stays UNKNOWN (non-HID): it is announced and never hit by the remote filter.
-                vidPidById["usb:$key"] = "%04x:%04x".format(dev.vendorId, dev.productId)
+                RemoteFilter.vidPidOf(dev.vendorId, dev.productId)?.let { vidPidById["usb:$key"] = it }
                 out.add(ConnectedDevice("usb:$key", name.ifEmpty { "USB device" }, kind, "USB", null))
             }
         }
@@ -246,7 +248,7 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
                 val external = d.keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC
                 val kind = DeviceClassifier.fromInputDevice(d.sources, d.name, external, d.isVirtual)
                 if (kind == DeviceKind.UNKNOWN) continue
-                if (d.vendorId != 0 || d.productId != 0) vidPidById["input:" + d.descriptor] = "%04x:%04x".format(d.vendorId, d.productId)
+                RemoteFilter.vidPidOf(d.vendorId, d.productId)?.let { vidPidById["input:" + d.descriptor] = it }
                 out.add(ConnectedDevice("input:" + d.descriptor, d.name.orEmpty().ifBlank { DeviceCopy.label(kind) }, kind, null, null))
             }
         }
@@ -259,6 +261,11 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
         val r = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, i: Intent?) {
                 i ?: return
+                if (i.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
+                    // Adapter switched on after start: re-seed bonded/connected devices silently.
+                    if (i.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1) == BluetoothAdapter.STATE_ON) seedBluetooth()
+                    return
+                }
                 val dev = bluetoothDevice(i) ?: return
                 when (i.action) {
                     BluetoothDevice.ACTION_ACL_CONNECTED -> btDevices[dev.address] = toDevice(dev)
@@ -276,6 +283,7 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
             addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
             addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
             addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
+            addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
         }
         ctx.registerReceiver(r, f, null, main)
         btReceiver = r
@@ -310,8 +318,9 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
     @Suppress("DEPRECATION", "MissingPermission")
     private fun seedBluetooth() = guard {
         val adapter = BluetoothAdapter.getDefaultAdapter() ?: return
-        if (!adapter.isEnabled) return
+        // Bonded devices are readable on most stacks even while the adapter is off.
         guard { adapter.bondedDevices?.forEach { remoteFilter.seed("bt:" + it.address) } }
+        if (!adapter.isEnabled) return
         val listener = object : BluetoothProfile.ServiceListener {
             override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
                 if (!started) { guard { adapter.closeProfileProxy(profile, proxy) }; return }

@@ -70,6 +70,12 @@ class CrossSourceDedupeTest {
         assertFalse(d.accept("input", c("Bar", DeviceKind.KEYBOARD), "1234:5678"))
     }
 
+    @Test fun zeroIds_neverMerge() {
+        val d = dd()
+        assertTrue(d.accept("usb", c("Foo", DeviceKind.USB_HID_OTHER), "0000:1234"))
+        assertTrue(d.accept("input", c("Bar", DeviceKind.KEYBOARD), "0000:1234"))
+    }
+
     @Test fun disconnectNotMergedWithConnect() {
         val d = dd()
         assertTrue(d.accept("bt", c("Pad X", DeviceKind.BT_GAMEPAD)))

@@ -47,16 +47,37 @@ data class Candidate(
  * - FLAPPY kinds (pads and Bluetooth headphones/speakers) sleep and wake constantly: their
  *   disconnect is always silent (status dot only), and a connect is announced only when the key
  *   was not seen in the last [QUIET_MS] (30 min). Seeded devices count as seen at start.
+ *
+ * Intended behaviours that can look like bugs:
+ * - Already-paired headphones/speakers or pads switched on within 30 minutes of the launcher
+ *   starting are SILENT (status dot only); after 30 minutes unseen they announce again.
+ * - A second unit of a seeded keyboard/mouse MODEL (same vendor:product) is silent too.
+ * - Two different devices with tokenless generic names (e.g. "Wireless Controller") and no
+ *   vendor:product id are not merged by the dedupe, so they produce two cards.
+ * - A zero vendor or product id never matches anything.
+ * The memory maps are capped at [MAX_TRACKED] entries (oldest stamp evicted).
  */
 class RemoteFilter(private val clock: () -> Long = { 0L }) {
     private val seeded = HashSet<String>()
     private val seededVidPid = HashSet<String>()
     private val lastEvent = HashMap<String, Long>()
 
+    /** Number of stamped keys (tests / diagnostics). */
+    internal val trackedCount: Int get() = lastEvent.size
+
+    private fun stamp(key: String, at: Long) {
+        lastEvent[key] = at
+        while (lastEvent.size > MAX_TRACKED) {
+            val oldest = lastEvent.entries.minByOrNull { it.value }?.key ?: break
+            lastEvent.remove(oldest)
+        }
+    }
+
     fun seed(key: String, vidPid: String? = null, kind: DeviceKind? = null) {
         seeded.add(key)
-        lastEvent[key] = clock()
-        if (vidPid != null && kind != null && isHid(kind) && !isPad(kind)) seededVidPid.add(vidPid)
+        if (kind == null || isFlappy(kind)) stamp(key, clock())
+        val vp = validVidPid(vidPid)
+        if (vp != null && kind != null && isHid(kind) && !isPad(kind) && seededVidPid.size < MAX_TRACKED) seededVidPid.add(vp)
     }
 
     fun isSeeded(key: String) = key in seeded
@@ -64,11 +85,11 @@ class RemoteFilter(private val clock: () -> Long = { 0L }) {
 
     fun shouldAnnounce(c: Candidate, connected: Boolean = true): Boolean {
         val now = clock()
-        val prev = lastEvent[c.key]
-        lastEvent[c.key] = now
         val hid = isHid(c.kind)
         val pad = isPad(c.kind)
-        val flappy = pad || c.kind == DeviceKind.BT_HEADPHONES || c.kind == DeviceKind.BT_SPEAKER
+        val flappy = isFlappy(c.kind)
+        val prev = if (flappy) lastEvent[c.key] else null
+        if (flappy) stamp(c.key, now)
         if (!hid && !flappy) return true
         if (hid) {
             if (isExplicitRemoteName(c.name)) return false
@@ -76,7 +97,8 @@ class RemoteFilter(private val clock: () -> Long = { 0L }) {
             if (c.anonymous) return false
             if (!pad) {
                 if (c.key in seeded) return false
-                if (c.vidPid != null && c.vidPid in seededVidPid) return false
+                val vp = validVidPid(c.vidPid)
+                if (vp != null && vp in seededVidPid) return false
             }
         }
         if (flappy) {
@@ -88,6 +110,21 @@ class RemoteFilter(private val clock: () -> Long = { 0L }) {
 
     companion object {
         const val QUIET_MS = 30L * 60_000L
+        const val MAX_TRACKED = 256
+
+        /** "vvvv:pppp" hex, or null when absent, malformed or either half is zero. */
+        fun validVidPid(s: String?): String? {
+            val parts = (s ?: return null).split(':')
+            if (parts.size != 2) return null
+            val v = parts[0].toIntOrNull(16) ?: return null
+            val p = parts[1].toIntOrNull(16) ?: return null
+            return if (v == 0 || p == 0) null else s
+        }
+
+        fun vidPidOf(vendorId: Int, productId: Int): String? =
+            if (vendorId == 0 || productId == 0) null else "%04x:%04x".format(vendorId, productId)
+
+        private fun isFlappy(k: DeviceKind) = isPad(k) || k == DeviceKind.BT_HEADPHONES || k == DeviceKind.BT_SPEAKER
         private val HID = setOf(DeviceKind.KEYBOARD, DeviceKind.MOUSE, DeviceKind.GAMEPAD, DeviceKind.BT_KEYBOARD_MOUSE,
             DeviceKind.BT_GAMEPAD, DeviceKind.BT_OTHER, DeviceKind.USB_HID_OTHER)
         private val explicitWord = Regex("""\b(remote|rcu|voice|assistant|rc(\d\w*)?|ir|mi ?bt)\b""")

@@ -15,7 +15,8 @@ class CrossSourceDedupe(private val windowMs: Long = 6000L, private val clock: (
                        val full: String, val vidPid: String?, val at: Long) { var consumed = false }
     private val seen = ArrayList<Seen>()
 
-    fun accept(source: String, event: DeviceEvent, vidPid: String? = null): Boolean {
+    fun accept(source: String, event: DeviceEvent, rawVidPid: String? = null): Boolean {
+        val vidPid = RemoteFilter.validVidPid(rawVidPid)
         val now = clock()
         seen.removeAll { now - it.at >= windowMs }
         val connected = event !is DeviceEvent.Disconnected
@@ -47,7 +48,7 @@ class CrossSourceDedupe(private val windowMs: Long = 6000L, private val clock: (
     }
 
     private fun similar(r: Seen, tokens: Set<String>, full: String, vidPid: String?): Boolean {
-        if (vidPid != null && vidPid == r.vidPid) return true
+        if (vidPid != null && vidPid == r.vidPid) return true // callers pass only validated ids
         if (full.isNotEmpty() && full == r.full) return true
         val inter = r.tokens.intersect(tokens).size
         if (inter == 0) return false

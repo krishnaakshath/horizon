@@ -109,6 +109,80 @@ class HdmiPortTrackerTest {
     }
 }
 
+class PortBlipTest {
+    private var now = 0L
+    private fun port(state: Int = 0) = InputSnapshot("hw1", null, "HDMI 1", 1007, state)
+    private fun child(label: String) = InputSnapshot("cec1", "hw1", label, 1007, 0)
+    private fun seededConsole(): HdmiPortTracker {
+        val t = HdmiPortTracker({ now }); t.update(listOf(port(), child("PlayStation 5")), emit = false); now = 0; return t
+    }
+
+    @Test fun consolePortBlip_portReturnsBeforeChild_noCard() {
+        val t = seededConsole()
+        assertTrue(t.update(emptyList()).isEmpty())
+        now = 3000
+        assertEquals(emptyList<DeviceEvent>(), t.update(listOf(port())))
+        now = 40000
+        assertTrue(t.tick().isEmpty())
+    }
+
+    @Test fun consolePortBlip_childReturnsLater_sameName_noEvent() {
+        val t = seededConsole()
+        t.update(emptyList()); now = 3000; t.update(listOf(port()))
+        now = 20000
+        assertEquals(emptyList<DeviceEvent>(), t.update(listOf(port(), child("PlayStation 5"))))
+    }
+
+    @Test fun consolePortBlip_childReturnsLater_differentName_oneUpdated() {
+        val t = seededConsole()
+        t.update(emptyList()); now = 3000; t.update(listOf(port()))
+        now = 20000
+        val ev = t.update(listOf(port(), child("Xbox Series X")))
+        assertEquals(1, ev.size)
+        assertEquals("Xbox Series X", (ev.single() as DeviceEvent.Updated).device.name)
+    }
+
+    @Test fun consoleSwap_twoNamedConsoles_withinWindow_oneUpdated() {
+        val t = seededConsole()
+        t.update(emptyList()); now = 2000
+        val ev = t.update(listOf(port(), child("Xbox Series X")))
+        assertEquals(1, ev.size); assertTrue(ev.single() is DeviceEvent.Updated)
+    }
+
+    @Test fun genericToGeneric_noEvent() {
+        val t = HdmiPortTracker({ now }); t.update(listOf(port()), emit = false)
+        t.update(emptyList()); now = 2000
+        assertEquals(emptyList<DeviceEvent>(), t.update(listOf(port())))
+    }
+
+    @Test fun sustainedDisconnect_thenGenericReturn_announcedAsConnected() {
+        val t = seededConsole()
+        t.update(emptyList())
+        now = 8000
+        assertEquals(1, t.tick().size)
+        now = 9000
+        val back = t.update(listOf(port()))
+        assertEquals(1, back.size); assertTrue(back.single() is DeviceEvent.Connected)
+        now = 10000
+        val named = t.update(listOf(port(), child("PlayStation 5")))
+        assertEquals(1, named.size); assertTrue(named.single() is DeviceEvent.Updated)
+    }
+
+    @Test fun portMemory_expiresAfter60s() {
+        val t = seededConsole()
+        t.update(emptyList()); now = 1000; t.update(listOf(port()))
+        now = 30000
+        assertTrue(t.update(listOf(port(), child("PlayStation 5"))).isEmpty())
+        // fresh flap + generic return, then wait past the memory
+        now = 31000; t.update(listOf(port()))   // child gone silently
+        now = 32000; t.update(emptyList())
+        now = 33000; t.update(listOf(port()))
+        now = 33000 + 61000
+        val ev = t.update(listOf(port(), child("PlayStation 5")))
+        assertEquals(1, ev.size)
+    }
+}
+
 class InputIdParserTest {
     @Test fun cecChildIds() {
         assertEquals(1, InputIdParser.parentPortOf("com.vendor.tv/.hdmi.Svc/HDMI100000"))

@@ -113,4 +113,34 @@ class RemoteFilterTest {
         val s = f(); s.seed("usb:d", "0781:5581", DeviceKind.USB_STORAGE)
         assertEquals(true, s.shouldAnnounce(c(DeviceSource.USB, "usb:e", "Same Model Drive", DeviceKind.USB_STORAGE, false, "0781:5581")))
     }
+
+    // ---- zero ids never match
+    @Test fun zeroVid_neverMatches() {
+        val s = f(); s.seed("input:a", "0000:1234", DeviceKind.KEYBOARD)
+        assertEquals(true, s.shouldAnnounce(input("input:b", "Generic Device", DeviceKind.KEYBOARD, "0000:1234")))
+    }
+    @Test fun zeroPid_neverMatches() {
+        val s = f(); s.seed("input:a", "1234:0000", DeviceKind.KEYBOARD)
+        assertEquals(true, s.shouldAnnounce(input("input:b", "Generic Device", DeviceKind.KEYBOARD, "1234:0000")))
+    }
+    @Test fun bothZero_neverMatches() {
+        val s = f(); s.seed("input:a", "0000:0000", DeviceKind.KEYBOARD)
+        assertEquals(true, s.shouldAnnounce(input("input:b", "Generic Device", DeviceKind.KEYBOARD, "0000:0000")))
+    }
+    @Test fun vidPidHelpers() {
+        assertEquals(null, RemoteFilter.vidPidOf(0, 5)); assertEquals(null, RemoteFilter.vidPidOf(5, 0))
+        assertEquals("046d:c52b", RemoteFilter.vidPidOf(0x46d, 0xc52b))
+        assertEquals(null, RemoteFilter.validVidPid("zz")); assertEquals(null, RemoteFilter.validVidPid(null))
+    }
+
+    // ---- pruning
+    @Test fun lastEventMemory_isCapped_andSkipsNonFlappy() {
+        val s = f()
+        for (i in 0 until 400) { now = i.toLong(); s.shouldAnnounce(bt("bt:$i", "Pad $i", DeviceKind.BT_GAMEPAD)) }
+        assertEquals(RemoteFilter.MAX_TRACKED, s.trackedCount)
+        val before = s.trackedCount
+        s.shouldAnnounce(input("input:kb", "Logitech K400", DeviceKind.KEYBOARD))
+        s.shouldAnnounce(usb("Drive", DeviceKind.USB_STORAGE))
+        assertEquals(before, s.trackedCount)
+    }
 }
