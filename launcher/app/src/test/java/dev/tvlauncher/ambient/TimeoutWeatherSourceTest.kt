@@ -164,8 +164,8 @@ class TimeoutWeatherSourceTest {
         assertEquals(row, s.queryCurrent())
         stuck = true
         assertEquals("fresh cache served while the breaker is open", row, s.queryCurrent())
-        now += 3 * 3_600_000L + 1
-        // Cache is now older than 3 h: never served, whether busy, broken or degraded.
+        now += 12 * 3_600_000L + 1
+        // Cache is now older than 12 h: never served, whether busy, broken or degraded.
         repeat(4) { assertNull(s.queryCurrent()); now += 60_000 }
         assertTrue(s.isDegraded)
         assertNull(s.queryCurrent())

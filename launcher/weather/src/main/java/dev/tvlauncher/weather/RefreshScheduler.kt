@@ -9,6 +9,8 @@ import android.content.Context
 object RefreshScheduler {
     private const val PERIODIC_JOB_ID = 1001
     private const val ONESHOT_JOB_ID = 1002
+    /** Gated one-off: waits for any network, then re-checks [RefreshPolicy] before fetching. */
+    const val STALE_JOB_ID = 1003
     private const val PERIOD_MS = 30 * 60 * 1000L
     private const val FLEX_MS = 10 * 60 * 1000L
 
@@ -41,6 +43,18 @@ object RefreshScheduler {
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 .setOverrideDeadline(60_000L)
                 .setBackoffCriteria(30_000L, JobInfo.BACKOFF_POLICY_EXPONENTIAL)
+                .build()
+            scheduler(context).schedule(job)
+        } catch (e: RuntimeException) {
+        }
+    }
+
+    /** Network-available trigger: the job runs once a network exists, however long that takes (max 2 h). */
+    fun refreshWhenOnline(context: Context) {
+        try {
+            val job = JobInfo.Builder(STALE_JOB_ID, component(context))
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                .setOverrideDeadline(2 * 60 * 60_000L)
                 .build()
             scheduler(context).schedule(job)
         } catch (e: RuntimeException) {

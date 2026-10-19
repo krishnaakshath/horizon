@@ -28,13 +28,13 @@ class WeatherFreshnessTest {
     @Test fun hours_untilThreeHours() {
         assertEquals("Updated 1 h ago", WeatherFreshness.label(now - 60 * min, now))
         assertEquals("Updated 2 h ago", WeatherFreshness.label(now - 150 * min, now))
-        assertEquals("Updated 3 h ago", WeatherFreshness.label(now - 180 * min, now))
+        assertEquals("Updated 12 h ago", WeatherFreshness.label(now - 720 * min, now))
     }
 
     @Test fun olderThanThreeHours_isUnavailable() {
-        assertEquals("Weather unavailable", WeatherFreshness.label(now - 180 * min - 1, now))
-        assertFalse(WeatherFreshness.isUsable(now - 180 * min - 1, now))
-        assertTrue(WeatherFreshness.isUsable(now - 180 * min, now))
+        assertEquals("Weather unavailable", WeatherFreshness.label(now - 720 * min - 1, now))
+        assertFalse(WeatherFreshness.isUsable(now - 720 * min - 1, now))
+        assertTrue(WeatherFreshness.isUsable(now - 720 * min, now))
     }
 
     @Test fun futureTimestamp_clockSkew_isJustNow() {

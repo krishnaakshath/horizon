@@ -10,9 +10,15 @@ class RefreshJobService : JobService() {
     override fun onStartJob(params: JobParameters): Boolean {
         stopped = false
         val t = Thread {
-            val ok = try { Refresher.refresh(applicationContext) } catch (e: Exception) { false }
+            val gated = params.jobId == RefreshScheduler.STALE_JOB_ID
+            val ok = try {
+                // Gated jobs re-check the rules at run time: another refresh may have won meanwhile.
+                if (gated && Refresher.decide(WeatherStore(applicationContext), System.currentTimeMillis()) != RefreshPolicy.Decision.REFRESH) true
+                else Refresher.refresh(applicationContext)
+            } catch (e: Exception) { false }
             // After onStopJob the system already owns rescheduling; calling jobFinished would be wrong.
-            if (!stopped) jobFinished(params, !ok) // reschedule with backoff on failure
+            // Gated jobs follow RefreshPolicy's own backoff instead of the system's.
+            if (!stopped) jobFinished(params, !ok && !gated)
         }
         worker = t
         t.start()

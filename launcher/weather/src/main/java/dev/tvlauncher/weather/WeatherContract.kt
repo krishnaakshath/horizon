@@ -16,6 +16,14 @@ object WeatherContract {
     const val ACTION_REFRESH = "dev.tvlauncher.weather.action.REFRESH"
     const val ACTION_SETTINGS = "dev.tvlauncher.weather.action.SETTINGS"
 
+    /**
+     * Sent by the launcher (same signer only, guarded by [PERMISSION_REFRESH]) when its copy of
+     * the data is older than 20 min. The companion refreshes only if its own data is stale and
+     * its rate limits allow it.
+     */
+    const val ACTION_REFRESH_IF_STALE = "dev.tvlauncher.weather.action.REFRESH_IF_STALE"
+    const val PERMISSION_REFRESH = "dev.tvlauncher.permission.WEATHER_REFRESH"
+
     /** Minimum gap between broadcast-triggered refreshes. */
     const val REFRESH_MIN_INTERVAL_MS = 2 * 60 * 1000L
 

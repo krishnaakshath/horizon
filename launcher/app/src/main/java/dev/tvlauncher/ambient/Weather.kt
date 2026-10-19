@@ -10,6 +10,9 @@ object WeatherContract {
     const val DAILY_URI = "content://$AUTHORITY/daily"
     const val ACTION_SETTINGS = "dev.tvlauncher.weather.action.SETTINGS"
     const val ACTION_REFRESH = "dev.tvlauncher.weather.action.REFRESH"
+    /** Same-signer request: refresh only if the companion's data is stale. Guarded by [PERMISSION_REFRESH]. */
+    const val ACTION_REFRESH_IF_STALE = "dev.tvlauncher.weather.action.REFRESH_IF_STALE"
+    const val PERMISSION_REFRESH = "dev.tvlauncher.permission.WEATHER_REFRESH"
     const val MAX_DAYS = 5
     val CURRENT_COLUMNS = listOf("location", "temp_c", "feels_c", "code", "condition", "is_day", "high_c", "low_c",
         "humidity", "wind_kmh", "updated_ms", "unit")
@@ -131,7 +134,10 @@ object WeatherFormat {
 }
 
 object WeatherFreshness {
-    const val STALE_MS = 3 * 60 * 60_000L
+    /** Beyond this the last values are no longer shown. Until then the label says honestly how old they are. */
+    const val STALE_MS = 12 * 60 * 60_000L
+    /** Older than this the launcher asks the companion for a refresh. */
+    const val REFRESH_AFTER_MS = 20 * 60_000L
     const val UNAVAILABLE = "Weather unavailable"
     const val SET_LOCATION = "Set a location in Weather"
 
@@ -423,5 +429,16 @@ class RefreshThrottle(private val intervalMs: Long) {
         if (last != Long.MIN_VALUE && nowMs - last < intervalMs) return false
         last = nowMs
         return true
+    }
+}
+
+/** When the launcher asks the companion to refresh: no data yet, or data older than 20 min. */
+object WeatherRefreshRequest {
+    fun needed(read: WeatherRead, nowMs: Long): Boolean = when (read.status) {
+        WeatherStatus.MISSING, WeatherStatus.NEEDS_LOCATION -> false
+        WeatherStatus.OK, WeatherStatus.UNAVAILABLE -> {
+            val u = read.snapshot?.current?.updatedMs
+            u == null || u <= 0L || nowMs - u > WeatherFreshness.REFRESH_AFTER_MS || nowMs < u - WeatherFreshness.REFRESH_AFTER_MS
+        }
     }
 }

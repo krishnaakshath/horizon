@@ -19,3 +19,16 @@ class RefreshReceiver : BroadcastReceiver() {
         }
     }
 }
+
+/**
+ * Automatic triggers: the launcher's REFRESH_IF_STALE (signature permission, declared in the
+ * manifest), the TV's wake-from-standby broadcast and screen-on / unlock. All of them only ask
+ * [Refresher.requestIfStale], which applies the staleness and rate rules. Unknown actions and
+ * extras are ignored.
+ */
+class TriggerReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent?) {
+        if (!TriggerActions.triggersRefresh(intent?.action)) return
+        Refresher.requestIfStale(context)
+    }
+}

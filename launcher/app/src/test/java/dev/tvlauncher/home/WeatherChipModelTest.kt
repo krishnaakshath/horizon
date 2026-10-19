@@ -37,8 +37,8 @@ class WeatherChipModelTest {
     }
 
     @Test fun stale_over3h_hidden_exactly3h_shown() {
-        assertFalse(WeatherChipModel.from(snap(updated = now - 3 * hour - 1), now, true).visible)
-        assertTrue(WeatherChipModel.from(snap(updated = now - 3 * hour), now, true).visible)
+        assertFalse(WeatherChipModel.from(snap(updated = now - 12 * hour - 1), now, true).visible)
+        assertTrue(WeatherChipModel.from(snap(updated = now - 12 * hour), now, true).visible)
         assertFalse(WeatherChipModel.from(snap(updated = 0L), now, true).visible)
     }
 

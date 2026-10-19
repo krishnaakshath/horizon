@@ -12,8 +12,9 @@ import java.util.concurrent.Executors
 /**
  * Feeds the top bar's weather chip from the weather companion's content provider. Reads run on
  * one background thread through the shared bounded source (WeatherCompanion.source, 3 s timeout
- * and breaker), never on the main thread. Each read also asks the companion to refresh; that
- * broadcast is throttled to once per 15 min by WeatherCompanion.
+ * and breaker), never on the main thread. When a read finds data older than 20 min it asks
+ * the companion to refresh (same-signer broadcast, throttled to once per 5 min), and a content
+ * observer re-reads as soon as the companion stores new data.
  *
  * Lifecycle: [resume] in onResume reads at once and then every 10 min; [pause] in onPause stops
  * the schedule and drops in-flight results; [release] in onDestroy ends the thread.
@@ -26,12 +27,16 @@ class HomeWeather(context: Context, private val topBar: TopBar) {
     private var resumed = false
     private var generation = 0
     private val tick = Runnable { read() }
+    private var stopObserving: (() -> Unit)? = null
 
     fun resume() {
         resumed = true
         generation++
         main.removeCallbacks(tick)
         if (!prefs.weatherInTopBar) return topBar.showWeather(WeatherChipModel.HIDDEN)
+        stopObserving?.invoke()
+        // New data from the companion shows at once, without waiting for the next 10 min read.
+        stopObserving = WeatherCompanion.observe(app) { if (resumed) { main.removeCallbacks(tick); read() } }
         read()
     }
 
@@ -39,6 +44,8 @@ class HomeWeather(context: Context, private val topBar: TopBar) {
         resumed = false
         generation++
         main.removeCallbacks(tick)
+        stopObserving?.invoke()
+        stopObserving = null
     }
 
     fun release() {
@@ -53,8 +60,8 @@ class HomeWeather(context: Context, private val topBar: TopBar) {
         val e = exec ?: Executors.newSingleThreadExecutor { r -> Thread(r, "home-weather").apply { isDaemon = true } }.also { exec = it }
         try {
             e.execute {
-                WeatherCompanion.requestRefresh(app)
                 val read = WeatherReader(WeatherCompanion.source(app)).readState()
+                WeatherCompanion.requestRefreshIfStale(app, read)
                 val chip = WeatherChipModel.from(read, System.currentTimeMillis(), enabled = true)
                 main.post { if (gen == generation && resumed) topBar.showWeather(chip) }
             }

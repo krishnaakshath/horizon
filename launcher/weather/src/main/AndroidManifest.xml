@@ -8,6 +8,13 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- The launcher asks for a refresh when its copy is stale (same signer only). Declared in
+         both apps so install order does not matter. -->
+    <permission
+        android:name="dev.tvlauncher.permission.WEATHER_REFRESH"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="dev.tvlauncher.permission.WEATHER_REFRESH" />
+
     <!-- The launcher's controller settings (A/B swap, stick sensitivity), read-only. -->
     <queries>
         <provider android:authorities="dev.tvlauncher.gamepad" />
@@ -18,6 +25,7 @@
         android:banner="@drawable/banner_weather"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:name=".WeatherApp"
         android:theme="@style/WeatherTheme"
         android:usesCleartextTraffic="false">
 
@@ -52,6 +60,29 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="dev.tvlauncher.weather.action.REFRESH" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Launcher only: the sender must hold the signature permission. Does nothing unless the data is stale. -->
+        <receiver
+            android:name=".TriggerReceiver"
+            android:exported="true"
+            android:permission="dev.tvlauncher.permission.WEATHER_REFRESH">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.weather.action.REFRESH_IF_STALE" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+            The TV's wake-from-standby broadcast. Exported because the sender is a TV system app
+            that is not necessarily the system user; it carries no data, takes no input, and the
+            receiver only runs the staleness and rate rules.
+        -->
+        <receiver
+            android:name=".WakeReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="tcl.sys.intent.action.STR_RESUME_COMPLETED" />
             </intent-filter>
         </receiver>
 

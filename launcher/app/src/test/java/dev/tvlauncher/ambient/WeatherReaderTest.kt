@@ -95,6 +95,33 @@ class WeatherReaderTest {
         assertFalse(t.tryAcquire(1_000L + 15 * 60_000L + 1))
     }
 
+    @Test fun refreshIfStale_namesAndPermission() {
+        assertEquals("dev.tvlauncher.weather.action.REFRESH_IF_STALE", WeatherContract.ACTION_REFRESH_IF_STALE)
+        assertEquals("dev.tvlauncher.permission.WEATHER_REFRESH", WeatherContract.PERMISSION_REFRESH)
+    }
+
+    private fun readAt(updatedMs: Long?, status: WeatherStatus = WeatherStatus.OK): WeatherRead {
+        val cur = updatedMs?.let { WeatherCurrent("X", 1.0, 1.0, 0, "", true, null, null, 1, 1.0, it, "C") }
+        return WeatherRead(status, cur?.let { WeatherSnapshot(it, emptyList()) })
+    }
+
+    @Test fun refreshRequest_onlyWhenOlderThan20Min() {
+        val now = 100_000_000L
+        val min = 60_000L
+        assertFalse(WeatherRefreshRequest.needed(readAt(now - 20 * min), now))
+        assertTrue(WeatherRefreshRequest.needed(readAt(now - 20 * min - 1), now))
+        assertTrue("old data is kept but refreshed", WeatherRefreshRequest.needed(readAt(now - 5 * 60 * min, WeatherStatus.UNAVAILABLE), now))
+        assertTrue(WeatherRefreshRequest.needed(WeatherRead(WeatherStatus.UNAVAILABLE, null), now))
+        assertFalse(WeatherRefreshRequest.needed(WeatherRead.MISSING, now))
+        assertFalse(WeatherRefreshRequest.needed(WeatherRead(WeatherStatus.NEEDS_LOCATION, null), now))
+    }
+
+    @Test fun staleDataStaysVisibleWithHonestAge() {
+        val now = 100_000_000L
+        assertEquals("Updated 5 h ago", WeatherFreshness.label(now - 5 * 3_600_000L, now))
+        assertTrue(WeatherFreshness.isUsable(now - 11 * 3_600_000L, now))
+    }
+
     /** Expected values are copied from the binding contract text, not from WeatherContract. */
     @Test fun contract_matchesBindingSpec() {
         assertEquals("content://dev.tvlauncher.weather/current", WeatherContract.CURRENT_URI)
