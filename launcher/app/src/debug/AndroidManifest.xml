@@ -12,5 +12,20 @@
                 <action android:name="dev.tvlauncher.debug.CRASH_HOME" />
             </intent-filter>
         </receiver>
+        <!-- Debug builds only: layout auditor (see dev.tvlauncher.audit.AuditReceiver). -->
+        <receiver
+            android:name="dev.tvlauncher.audit.AuditReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.debug.AUDIT" />
+                <action android:name="dev.tvlauncher.debug.AUDIT_DUMP_TREE" />
+            </intent-filter>
+        </receiver>
+        <provider
+            android:name="dev.tvlauncher.audit.AuditInitProvider"
+            android:authorities="${applicationId}.auditinit"
+            android:exported="false"
+            android:initOrder="1000" />
     </application>
 </manifest>

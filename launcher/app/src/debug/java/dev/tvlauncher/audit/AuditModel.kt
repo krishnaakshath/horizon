@@ -87,13 +87,13 @@ data class AuditConfig(
     val maxFindings: Int = 200,
 )
 
-/** Tag tokens understood by the engine (mirrors dev.tvlauncher.audit.AuditTags in src/main). */
+/** Tag tokens understood by the engine (the constants live in src/main: [AuditTags]). */
 object AuditTokens {
-    const val LAYER = "audit:layer"
-    const val IGNORE = "audit:ignore"
-    const val FULLBLEED = "audit:fullbleed"
-    const val DENSE = "audit:dense"
-    const val CONTENT = "audit:content"
+    const val LAYER = AuditTags.LAYER
+    const val IGNORE = AuditTags.IGNORE
+    const val FULLBLEED = AuditTags.FULLBLEED
+    const val DENSE = AuditTags.DENSE
+    const val CONTENT = AuditTags.CONTENT
 
     fun parse(tag: String?): Set<String> =
         if (tag.isNullOrBlank()) emptySet()
