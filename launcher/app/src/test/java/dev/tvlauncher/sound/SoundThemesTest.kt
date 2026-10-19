@@ -1,6 +1,7 @@
 package dev.tvlauncher.sound
 
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 
 class SoundThemesTest {
@@ -70,14 +71,16 @@ class SoundThemesTest {
         }
     }
 
-    @Test fun all_and_byId_never_render() {
+    @Before fun resetShared() { SoundThemes.resetCalibrationForTest() }
+
+    @Test fun all_and_byId_never_render() = synchronized(ToneSynth.renderCount) {
         val before = ToneSynth.renderCount.get()
         SoundThemes.all.forEach { SoundThemes.byId(it.id).events.size }
         SoundThemes.byId("nope")
         assertEquals(before, ToneSynth.renderCount.get())
     }
 
-    @Test fun calibratedGain_computedOnce_andCached() {
+    @Test fun calibratedGain_computedOnce_andCached() = synchronized(ToneSynth.renderCount) {
         SoundThemes.resetCalibrationForTest()
         val c0 = ToneSynth.renderCount.get()
         val g1 = SoundThemes.spec("glass", SoundEvent.SELECT).gain
@@ -99,27 +102,42 @@ class SoundThemesTest {
         }
     }
 
-    private fun goertzel(x: ShortArray, rate: Int, f: Double): Double {
-        val n = x.size
-        val c = 2 * Math.cos(2 * Math.PI * f / rate)
-        var s1 = 0.0; var s2 = 0.0
-        for (i in 0 until n) {
-            val hann = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (n - 1))
-            val s0 = x[i] * hann + c * s1 - s2
-            s2 = s1; s1 = s0
+    private fun tone(ms: Int, vararg partials: Pair<Double, Double>): ShortArray {
+        val n = 22050 * ms / 1000
+        return ShortArray(n) { i ->
+            val t = i / 22050.0
+            val fade = minOf(1.0, i / 44.0, (n - 1 - i) / 44.0)
+            (partials.sumOf { (f, a) -> a * Math.sin(2 * Math.PI * f * t) } * fade * 8000).toInt().toShort()
         }
-        return Math.sqrt(s1 * s1 + s2 * s2 - c * s1 * s2)
+    }
+
+    @Test fun highBandCheck_failsFor_6150Hzspur_at_minus10dB() {
+        val r = SpectrumCheck.check(tone(50, 1568.0 to 1.0, 6150.0 to 0.3), 22050)
+        assertFalse(r.toString(), r.ok)
+    }
+
+    @Test fun highBandCheck_failsFor_7050Hzspur() {
+        val r = SpectrumCheck.check(tone(50, 1568.0 to 1.0, 7050.0 to 0.3), 22050)
+        assertFalse(r.toString(), r.ok)
+    }
+
+    @Test fun highBandCheck_failsFor_8kHzTone() {
+        val r = SpectrumCheck.check(tone(50, 8000.0 to 1.0), 22050)
+        assertFalse(r.toString(), r.ok)
+    }
+
+    @Test fun highBandCheck_passesFor_pureLowTone() {
+        val r = SpectrumCheck.check(tone(50, 1568.0 to 1.0), 22050)
+        assertTrue(r.toString(), r.ok)
     }
 
     @Test fun move_has_no_energy_above_6k() {
         for (t in SoundThemes.all) {
             val sp = SoundThemes.spec(t.id, SoundEvent.MOVE)
             if (sp.gain <= 0f) continue
-            val pcm = ToneSynth.render(sp, 22050)
-            val peak = (100..5900 step 50).maxOf { goertzel(pcm, 22050, it.toDouble()) }
-            val high = (6000..10000 step 100).maxOf { goertzel(pcm, 22050, it.toDouble()) }
-            val db = 20 * Math.log10(high / peak)
-            assertTrue("${t.id} high band ${"%.1f".format(db)} dB", db <= -20.0)
+            val r = SpectrumCheck.check(ToneSynth.render(sp, 22050), 22050)
+            println("MOVEDB ${t.id} $r")
+            assertTrue("${t.id} $r", r.ok)
         }
     }
 }
