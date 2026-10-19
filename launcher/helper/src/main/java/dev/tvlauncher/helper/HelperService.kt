@@ -19,6 +19,13 @@ class HelperService : AccessibilityService() {
             goHome = { performGlobalAction(GLOBAL_ACTION_HOME) },
             openSpotlight = { openSpotlight() },
         )
+        // Ask the launcher for its Spotlight key (it pushes only when ours is stale).
+        SpotlightSync.sendState(this, hello = true, serviceOn = true)
+    }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        SpotlightSync.sendState(this, hello = false, serviceOn = false)
+        return super.onUnbind(intent)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

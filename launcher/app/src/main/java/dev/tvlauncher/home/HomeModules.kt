@@ -130,6 +130,13 @@ class HomeModules(
             try { Toast.makeText(activity, text, Toast.LENGTH_SHORT).show() } catch (e: RuntimeException) { }
             return
         }
+        if (item == QuickActions.Item.DISCOVER) { openDiscover(); return }
+        if (item == QuickActions.Item.RESTART) {
+            sounds.action(true)
+            spotlight.close(animate = false)
+            HomeLook.rebuild(activity) // the home screen starts over, without the splash
+            return
+        }
         if (!panels.quickAction(item, ambient::startNow)) sounds.action(SystemActions.quickAction(activity, item))
     }
 

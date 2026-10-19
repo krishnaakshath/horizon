@@ -8,6 +8,18 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
+    <!-- Shared with the launcher (same certificate only): carries Spotlight's extra key.
+         See SpotlightSync.kt. Declared in both apps so install order does not matter. -->
+    <permission
+        android:name="dev.tvlauncher.permission.SPOTLIGHT_SYNC"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="dev.tvlauncher.permission.SPOTLIGHT_SYNC" />
+
+    <!-- Package visibility (API 30+): the Spotlight intent and the state broadcast go to the launcher. -->
+    <queries>
+        <package android:name="dev.tvlauncher" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:banner="@drawable/banner"
@@ -37,5 +49,14 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <receiver
+            android:name=".SpotlightSyncReceiver"
+            android:exported="true"
+            android:permission="dev.tvlauncher.permission.SPOTLIGHT_SYNC">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.helper.action.SPOTLIGHT_SYNC" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

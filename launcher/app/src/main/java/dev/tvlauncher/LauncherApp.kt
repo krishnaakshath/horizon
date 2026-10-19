@@ -2,8 +2,10 @@ package dev.tvlauncher
 
 import android.app.Application
 import dev.tvlauncher.appsettings.ModuleSections
+import dev.tvlauncher.appsettings.SettingsRegistry
 import dev.tvlauncher.home.WaveTwoSections
 import dev.tvlauncher.safemode.SafeMode
+import dev.tvlauncher.spotlight.SpotlightSection
 import dev.tvlauncher.ui.Theme
 
 /**
@@ -32,6 +34,11 @@ class LauncherApp : Application() {
             WaveTwoSections.registerAll()
         } catch (e: Throwable) {
             // Same: the wave-2 pages stay placeholders or absent.
+        }
+        try {
+            SettingsRegistry.register(SpotlightSection) // Settings > Home > Spotlight
+        } catch (e: Throwable) {
+            // Spotlight keeps its defaults; only the page is missing.
         }
     }
 }

@@ -24,6 +24,9 @@ import dev.tvlauncher.launch.AndroidLaunchBackend
 import dev.tvlauncher.launch.AppLauncher
 import dev.tvlauncher.safemode.SafeMode
 import dev.tvlauncher.settings.Prefs
+import dev.tvlauncher.spotlight.SpotlightConfig
+import dev.tvlauncher.spotlight.SpotlightPrefs
+import dev.tvlauncher.spotlight.TriggerDetector
 import dev.tvlauncher.ui.BackdropView
 import dev.tvlauncher.ui.FocusRules
 import dev.tvlauncher.ui.HeroBox
@@ -76,6 +79,10 @@ class HomeActivity : Activity() {
     private var restoreIndex = 0
     /** Spotlight was requested before the first app load; opened once it completes. */
     private var pendingSpotlight = false
+    /** Settings > Spotlight keys, re-read in onStart (they are edited in the Settings screen). */
+    private val spotlightPrefs by lazy { SpotlightPrefs(applicationContext) }
+    private var spotlightConfig = SpotlightConfig.DEFAULT
+    private val spotlightKeys = TriggerDetector(now = { android.os.SystemClock.uptimeMillis() })
 
     /** True when onCreate returned early (redirected to safe mode): nothing is built, so lifecycle callbacks must not touch it. */
     private val redirected get() = !::modes.isInitialized
@@ -160,7 +167,13 @@ class HomeActivity : Activity() {
         setContentView(root)
     }
 
-    private fun launch(app: AppEntry, v: View) = launcher.launch(app, v).let { sounds.launch(it); if (it) launchOverlay.show() }
+    private fun launch(app: AppEntry, v: View) = launcher.launch(app, v).let {
+        sounds.launch(it)
+        if (it) {
+            launchOverlay.show()
+            try { spotlightPrefs.recordLaunch(app.packageName) } catch (e: RuntimeException) { } // Spotlight's "recent"
+        }
+    }
 
     private fun visiblePackages() = adapter.getItems().map { it.packageName }
 
@@ -277,16 +290,25 @@ class HomeActivity : Activity() {
         return true
     }
 
-    /** MENU / SEARCH toggle Spotlight from anywhere on the home screen (including its search field), not over the tile menu. */
+    /**
+     * The Spotlight keys (Settings > Spotlight: Menu and Search by default, an extra key, a
+     * double-press key) toggle it from anywhere on the home screen (including its search
+     * field), not over the tile menu.
+     */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (redirected) return super.dispatchKeyEvent(event)
         modules.onUserActivity() // any key, repeats included, resets the ambient idle timer
         sounds.onKey(event)
-        if (!SpotlightKeys.togglesSpotlight(event.keyCode, tileMenu.isVisible)) return super.dispatchKeyEvent(event)
-        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-            if (spotlight.isOpen) { spotlight.close(); sounds.panel(opened = false) } else openSpotlight()
+        val down = event.action == KeyEvent.ACTION_DOWN
+        if (!down && event.action != KeyEvent.ACTION_UP) return super.dispatchKeyEvent(event)
+        return when (spotlightKeys.onKey(event.keyCode, down, event.repeatCount, spotlightConfig, tileMenu.isVisible)) {
+            TriggerDetector.Decision.PASS -> super.dispatchKeyEvent(event)
+            TriggerDetector.Decision.CONSUME -> true
+            TriggerDetector.Decision.TOGGLE -> {
+                if (spotlight.isOpen) { spotlight.close(); sounds.panel(opened = false) } else openSpotlight()
+                true
+            }
         }
-        return true
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -326,6 +348,8 @@ class HomeActivity : Activity() {
         super.onStart()
         if (redirected) return
         if (look.reload() == HomeAppearance.Change.REBUILD) return HomeLook.rebuild(this)
+        spotlightConfig = try { spotlightPrefs.load() } catch (e: RuntimeException) { SpotlightConfig.DEFAULT }
+        spotlightKeys.reset()
         topBar.applyAppearance(look.settings)
         // Settings > Home screen may have turned the "Get more apps" tile on or off.
         val footer = DiscoverTileSpec.shouldAppend(discoverStore.load(), editing = false)
@@ -339,7 +363,8 @@ class HomeActivity : Activity() {
         if (redirected) return super.onStop()
         if (!isChangingConfigurations && !isFinishing) {
             launchOverlay.hide()
-            spotlight.close(animate = false)
+            // "Close after an action" off: Spotlight is still there when the owner comes back.
+            if (!spotlight.keepOpenOnStop) spotlight.close(animate = false)
         }
         topBar.stopStatus() // always paired with startStatus (TopBar tracks it)
         modules.stop() // panels closed; controllers, device monitor and idle timer stopped

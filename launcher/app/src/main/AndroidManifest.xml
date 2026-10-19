@@ -27,6 +27,13 @@
 
     <!-- Optional: the owner's wallpaper collections in Pictures/TVLauncher and on USB sticks. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <!-- Spotlight's extra key is shared with the Launcher Helper over explicit broadcasts that
+         only apps signed with our certificate can send or receive (spotlight/HelperLink.kt).
+         The helper declares the same permission, so install order does not matter. -->
+    <permission
+        android:name="dev.tvlauncher.permission.SPOTLIGHT_SYNC"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="dev.tvlauncher.permission.SPOTLIGHT_SYNC" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
@@ -78,6 +85,12 @@
             <data android:scheme="https" />
         </intent>
         <package android:name="com.android.vending" />
+        <!-- Spotlight quick actions: Accessibility settings, and the TV's own sleep-timer
+             screen when it has one (SystemActions.SLEEP_TIMER_ACTIONS, each resolve-checked). -->
+        <intent>
+            <action android:name="android.settings.ACCESSIBILITY_SETTINGS" />
+        </intent>
+        <package android:name="com.tcl.settings" />
     </queries>
 
     <application
@@ -155,6 +168,17 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </service>
+
+        <!-- The Launcher Helper's state (service on, which Spotlight key it holds). Signature
+             permission: only our own helper can send it. -->
+        <receiver
+            android:name=".spotlight.HelperStateReceiver"
+            android:exported="true"
+            android:permission="dev.tvlauncher.permission.SPOTLIGHT_SYNC">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.action.HELPER_STATE" />
+            </intent-filter>
+        </receiver>
 
         <!-- Opt-in notification chips; bound only by the system after the user grants access. -->
         <service
