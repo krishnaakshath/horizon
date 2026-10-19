@@ -34,14 +34,6 @@ object ModuleProbe {
         false
     }
 
-    /** True when a class from [pkg] has already been defined by this app's class loader. */
-    @Suppress("DEPRECATION")
-    fun isPackageLoaded(pkg: String): Boolean = try {
-        Package.getPackage(pkg) != null
-    } catch (e: RuntimeException) {
-        false
-    }
-
     /** True when an app with package name [pkg] is installed (declared in the manifest's queries). */
     fun isAppInstalled(context: android.content.Context, pkg: String): Boolean = try {
         @Suppress("DEPRECATION")

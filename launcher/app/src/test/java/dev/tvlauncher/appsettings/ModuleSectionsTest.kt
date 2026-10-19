@@ -38,12 +38,6 @@ class ModuleSectionsTest {
     }
 
     @Test
-    fun installedStatus() {
-        assertEquals("Not installed", ModuleSections.installedValue(false))
-        assertEquals("Installed", ModuleSections.installedValue(true))
-    }
-
-    @Test
     fun helperSection_isRegistered_andTargetsHelperSettings() {
         assertTrue(SectionIds.HELPER in ModuleSections.IDS)
         val r = SettingsRegistry.newDefault()

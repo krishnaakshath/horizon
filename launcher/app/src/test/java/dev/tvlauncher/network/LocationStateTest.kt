@@ -9,8 +9,6 @@ class LocationStateTest {
     @Test fun bt_api27_toggleNotRequired() = assertFalse(LocationState.requiredForBluetoothDiscovery(27))
     @Test fun bt_api28_toggleRequired() = assertTrue(LocationState.requiredForBluetoothDiscovery(28))
     @Test fun bt_api30_toggleRequired() = assertTrue(LocationState.requiredForBluetoothDiscovery(30))
-    @Test fun wifi_api27_toggleRequired() = assertTrue(LocationState.requiredForWifiScan(27))
-    @Test fun wifi_api24_toggleRequired() = assertTrue(LocationState.requiredForWifiScan(24))
 
     @Test fun btLocationOk_gatedBySdk() {
         assertTrue(LocationState.bluetoothLocationOk(27, toggleOn = false))

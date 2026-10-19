@@ -31,8 +31,6 @@ object ModuleSections {
     fun usageAccessStatus(granted: Boolean): Pair<String, String?> =
         if (granted) "Granted" to null
         else "Not granted" to dev.tvlauncher.setup.SetupCopy.HELPER_LINE
-
-    fun installedValue(installed: Boolean): String = if (installed) "Installed" else "Not installed"
 }
 
 /** Hosts [SoundsPage]: SettingsRow-based, with choosers and an Advanced block. */

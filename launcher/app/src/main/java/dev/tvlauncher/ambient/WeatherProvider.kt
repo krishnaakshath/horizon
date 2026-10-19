@@ -61,9 +61,6 @@ object WeatherCompanion {
             shared ?: TimeoutWeatherSource(ContentProviderWeatherSource(context.applicationContext)).also { shared = it }
         }
 
-    /** Shared across ambient instances so re-showing ambient never spams the companion. */
-    val refreshThrottle = RefreshThrottle(15 * 60_000L)
-
     /** At most one stale-data request per 5 min, shared by Home and Ambient. */
     val staleThrottle = RefreshThrottle(5 * 60_000L)
 

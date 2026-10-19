@@ -40,14 +40,6 @@ object HomeAppearance {
     inline fun accent(a: AppearanceSettings, brand: () -> Int): Int =
         if (a.accentMode == AccentMode.FIXED) a.fixedAccent else brand()
 
-    /**
-     * Tile card tint and shadow color: always the app's brand color, also with [AccentMode.FIXED],
-     * so apps stay recognisable. The fixed accent covers the backdrop and hero only (Settings calls
-     * it "Backdrop and highlights").
-     */
-    @Suppress("UNUSED_PARAMETER")
-    fun tileAccent(a: AppearanceSettings, brand: Int): Int = brand
-
     fun backdropMs(motion: EffectsMode?): Long = when (motion) {
         null -> 0L
         EffectsMode.FULL -> DeviceProfile.FULL_APP_OPEN_MS
