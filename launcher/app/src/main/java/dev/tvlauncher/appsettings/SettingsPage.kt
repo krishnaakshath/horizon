@@ -106,8 +106,8 @@ class SettingsPage(context: Context, val style: SettingsStyle, spec: PageSpec? =
         addView(column, LayoutParams(-1, -2))
     }
 
-    /** A one-line introduction (ellipsized). Prefer [SettingsSection.description], shown in the header. */
-    fun lead(text: String): TextView = text(column, text, LEAD_SP, top = 2, bottom = 10, lines = 1)
+    /** A short introduction (wraps to 2 lines). Prefer [SettingsSection.description], shown in the header. */
+    fun lead(text: String): TextView = text(column, text, LEAD_SP, top = 2, bottom = 10, lines = 2)
 
     fun group(label: String): TextView = body.group(label)
 
