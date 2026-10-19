@@ -95,7 +95,20 @@ object AuditEngine {
         /** Text or focusable: the "strong" content whose collisions are HIGH. */
         fun strong(n: Node) = hasText(n) || n.focusable
         /** An `audit:opaque` card: an occluder, never content itself (unless it shows text). */
-        fun opaqueCard(n: Node) = AuditTokens.OPAQUE in own.getValue(n.id)
+        fun opaqueCard(n: Node) = AuditTokens.OPAQUE in own.getValue(n.id) || glassCard(n)
+        fun glassCard(n: Node) = AuditTokens.GLASS in own.getValue(n.id)
+        /**
+         * A glass card hides what is beneath when (1 - coverage) x the scrims in its chain below
+         * [stop] leaves less than glassLeakMax showing. Unknown coverage counts as opaque.
+         */
+        fun glassHides(a: Node, upper: Node, stop: Node?): Boolean {
+            var leak = if (a.bgKnown) (1f - a.bgAlpha / maxOf(a.alpha, 0.001f)).coerceIn(0f, 1f) else 0f
+            for (s in anc.getValue(a.id)) {
+                if (s.id == stop?.id) break
+                if (AuditTokens.SCRIM in own.getValue(s.id) && s.bgKnown) leak *= (1f - s.bgAlpha).coerceIn(0f, 1f)
+            }
+            return leak < c.glassLeakMax
+        }
         fun content(n: Node) = !(opaqueCard(n) && !hasText(n)) && (strong(n) || AuditTokens.CONTENT in own.getValue(n.id) ||
             c.contentClassHints.any { n.cls.contains(it) })
         fun shown(n: Node) = n.visible && n.width > 0 && n.height > 0
@@ -254,7 +267,8 @@ object AuditEngine {
             val x = lca(upper, lower)
             for (a in anc.getValue(upper.id)) {
                 if (a.id == x?.id) break
-                val hides = if (opaqueCard(a)) a.visible && a.alpha >= c.opaqueAlpha else !content(a) && opaque(a)
+                val hides = if (opaqueCard(a)) a.visible && a.alpha >= c.opaqueAlpha && (!glassCard(a) || glassHides(a, upper, x))
+                    else !content(a) && opaque(a)
                 if (hides && rect(a).contains(area)) return true
             }
             return false

@@ -111,6 +111,7 @@ class SpotlightPanel(
         setBackgroundColor(SpotlightKeys.scrimColor(full))
         auditTag(AuditTags.SCRIM)
     }
+    private var cardGlass: GlassDrawable? = null
     private val card = object : LinearLayout(context) {
         override fun hasOverlappingRendering() = false
     }.apply {
@@ -119,7 +120,7 @@ class SpotlightPanel(
         setPadding(p, p, p, p)
         clipChildren = false
         clipToPadding = false
-        Glass.frost(this, full, CARD_RADIUS_DP)
+        cardGlass = Glass.frost(this, full, CARD_RADIUS_DP, overContentScrim = ((SpotlightKeys.scrimColor(full) ushr 24) and 0xFF) / 255f)
     }
     val search: EditText = object : EditText(context) {
         override fun onKeyPreIme(keyCode: Int, event: KeyEvent): Boolean {
@@ -278,6 +279,7 @@ class SpotlightPanel(
         val decel = DecelerateInterpolator(2f)
         scrim.animate().alpha(1f).setDuration(openMs).setInterpolator(decel).start()
         card.animate().alpha(1f).translationY(0f).setDuration(openMs).setInterpolator(decel).start()
+        Glass.springIn(card, cardGlass, full)
         search.requestFocus()
     }
 

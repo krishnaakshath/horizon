@@ -105,6 +105,8 @@ data class AuditConfig(
     val scrollClassHints: List<String> = listOf("ScrollView", "RecyclerView", "ListView", "GridView", "ViewPager"),
     /** Class-name fragments that mark an image/button as "content" even without text or focus. */
     val contentClassHints: List<String> = listOf("ImageView", "ImageButton", "Button"),
+    /** GLASS cards: what still shows through (1 - coverage) x the scrims between must stay below this. */
+    val glassLeakMax: Float = 0.15f,
     /** Maximum findings returned (the rest are only counted). */
     val maxFindings: Int = 200,
 )
@@ -119,6 +121,7 @@ object AuditTokens {
     const val SCRIM = AuditTags.SCRIM
     const val OPAQUE = AuditTags.OPAQUE
     const val PEEK = AuditTags.PEEK
+    const val GLASS = AuditTags.GLASS
 
     fun parse(tag: String?): Set<String> =
         if (tag.isNullOrBlank()) emptySet()

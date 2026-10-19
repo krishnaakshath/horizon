@@ -52,6 +52,7 @@ class PanelShell(
     private val list = PanelList(context)
     val scroll = MaxHeightScrollView(context)
     val lifecycle = PanelLifecycle()
+    private var cardGlass: dev.tvlauncher.ui.GlassDrawable? = null
 
     /** OK on an enabled row. */
     var onRowClick: ((PanelEntry.Row) -> Unit)?
@@ -75,7 +76,8 @@ class PanelShell(
         root.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         // The shared glass style (ui/Glass): an opaque frosted card (backdrop sample, tint, sheen,
         // 1 px edge; FULL: blur + shadow). Opaque by construction, like PanelStyle.surface.
-        Glass.frost(card, full = !lite, radiusDp = PanelStyle.CARD_RADIUS)
+        cardGlass = Glass.frost(card, full = !lite, radiusDp = PanelStyle.CARD_RADIUS,
+            overContentScrim = ((PanelStyle.SCRIM ushr 24) and 0xFF) / 255f)
         val pad = context.dp(PanelStyle.G1)
         card.setPadding(pad, context.dp(PanelStyle.G2), pad, pad)
         card.isClickable = true // touches on the card never reach the scrim
@@ -111,6 +113,7 @@ class PanelShell(
             root.alpha = 1f
             card.translationY = 0f
         }
+        Glass.springIn(card, cardGlass, !lite) // Liquid Glass: a little spring and a capsule-to-card morph
         focusFirstOrHold()
     }
 

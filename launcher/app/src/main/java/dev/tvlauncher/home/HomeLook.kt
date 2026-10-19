@@ -25,6 +25,13 @@ class HomeLook(context: Context, private val device: DeviceProfile) {
 
     init {
         Motion.enabled = profile.animate
+        applyGlass()
+    }
+
+    /** Settings > Appearance > Glass style for this TV, applied to every glass surface. */
+    private fun applyGlass() {
+        dev.tvlauncher.ui.GlassBackdrop.setStyle(
+            dev.tvlauncher.settings.GlassStyle.resolve(settings.glassStyle, device.effectsMode == dev.tvlauncher.device.EffectsMode.FULL))
     }
 
     val backdropMs: Long get() = HomeAppearance.backdropMs(profile.motion)
@@ -38,6 +45,7 @@ class HomeLook(context: Context, private val device: DeviceProfile) {
         val p = HomeAppearance.profile(device, s, systemScale())
         val change = HomeAppearance.change(settings, profile.motion, s, p.motion)
         settings = s
+        applyGlass()
         if (change != HomeAppearance.Change.REBUILD) profile = p
         return change
     }

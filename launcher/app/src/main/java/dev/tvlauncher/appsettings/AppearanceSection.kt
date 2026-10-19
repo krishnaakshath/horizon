@@ -9,6 +9,7 @@ import dev.tvlauncher.settings.AppearanceFormat
 import dev.tvlauncher.settings.AppearancePrefs
 import dev.tvlauncher.settings.AppearanceSettings
 import dev.tvlauncher.settings.ClockFormat
+import dev.tvlauncher.settings.GlassStyle
 import dev.tvlauncher.settings.TileSize
 import java.util.Locale
 
@@ -23,10 +24,14 @@ object AppearanceSection : SettingsSection, SpecifiedPage {
     override val spec = PageSpec(
         ID,
         listOf(
-            "appearance.accentMode", "appearance.swatch", "appearance.animation", "appearance.clockFormat",
-            "appearance.showDate", "appearance.showStatus", "appearance.tileSize"
-        )
+            "appearance.accentMode", "appearance.swatch", "appearance.glass", "appearance.animation",
+            "appearance.clockFormat", "appearance.tileSize"
+        ),
+        listOf("appearance.showDate", "appearance.showStatus")
     )
+
+    /** Glass style choices in the order shown (Liquid Glass first). */
+    val GLASS_CHOICES = GlassStyle.values().toList()
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val prefs = AppearancePrefs(context)
@@ -50,6 +55,18 @@ object AppearanceSection : SettingsSection, SpecifiedPage {
         }
 
         val device = nav.profile.effectsMode
+        val full = device == dev.tvlauncher.device.EffectsMode.FULL
+        val glass = GlassStyle.resolve(a.glassStyle, full)
+        page.row(
+            "appearance.glass", "Glass style",
+            RowKind.Choice(GLASS_CHOICES.map { it.label }, GLASS_CHOICES.indexOf(glass)) { i ->
+                val g = GLASS_CHOICES[i]
+                prefs.update { it.copy(glassStyle = g) }
+                dev.tvlauncher.ui.GlassBackdrop.setStyle(g)
+            },
+            subtitle = "Panels, Spotlight and Settings. Solid is easiest to read.",
+            iconRes = R.drawable.ic_set_appearance
+        )
         page.row(
             "appearance.animation", "Animations",
             RowKind.Choice(listOf("Auto", "Full", "Lite", "Off"), a.animationLevel.ordinal) { i ->
@@ -72,25 +89,26 @@ object AppearanceSection : SettingsSection, SpecifiedPage {
             iconRes = R.drawable.ic_set_clock
         )
         page.row(
-            "appearance.showDate", "Show date",
-            RowKind.Toggle(a.showDate) { on -> prefs.update { it.copy(showDate = on) } },
-            subtitle = AppearanceFormat.dateText(System.currentTimeMillis(), Locale.getDefault()),
-            iconRes = R.drawable.ic_set_calendar
-        )
-        page.row(
-            "appearance.showStatus", "Show status icons",
-            RowKind.Toggle(a.showStatusIcons) { on -> prefs.update { it.copy(showStatusIcons = on) } },
-            subtitle = "Wi-Fi, Ethernet and Bluetooth in the top bar",
-            iconRes = R.drawable.ic_set_status
-        )
-
-        page.row(
             "appearance.tileSize", "Tile size",
             RowKind.Choice(listOf("Small", "Medium", "Large"), a.rowTileSize.ordinal) { i ->
                 prefs.update { it.copy(rowTileSize = TileSize.values()[i]) }
             },
             iconRes = R.drawable.ic_set_tiles
         )
+        page.advanced(nav, "appearance.advanced", "Date and status icons in the top bar") { adv ->
+        adv.row(
+            "appearance.showDate", "Show date",
+            RowKind.Toggle(a.showDate) { on -> prefs.update { it.copy(showDate = on) } },
+            subtitle = AppearanceFormat.dateText(System.currentTimeMillis(), Locale.getDefault()),
+            iconRes = R.drawable.ic_set_calendar
+        )
+        adv.row(
+            "appearance.showStatus", "Show status icons",
+            RowKind.Toggle(a.showStatusIcons) { on -> prefs.update { it.copy(showStatusIcons = on) } },
+            subtitle = "Wi-Fi, Ethernet and Bluetooth in the top bar",
+            iconRes = R.drawable.ic_set_status
+        )
+        }
         return page
     }
 

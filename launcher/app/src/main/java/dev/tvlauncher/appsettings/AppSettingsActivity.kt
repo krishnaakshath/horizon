@@ -173,7 +173,10 @@ class AppSettingsActivity : Activity(), SettingsNav {
         } catch (e: RuntimeException) {
             1f
         }
-        return SettingsStyle.from(AppearancePrefs(this).load(), device, scale)
+        val appearance = AppearancePrefs(this).load()
+        dev.tvlauncher.ui.GlassBackdrop.setStyle(
+            dev.tvlauncher.settings.GlassStyle.resolve(appearance.glassStyle, device == EffectsMode.FULL))
+        return SettingsStyle.from(appearance, device, scale)
     }
 
     // ---- Layout ----
