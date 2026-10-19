@@ -65,6 +65,14 @@ class ScenarioTest(unittest.TestCase):
             scen([{'key': '$(reboot)'}]),
             scen([{'key': 'dpad_right'}]),
             scen([{'key': 'A' * 41}]),
+            scen([{'key': 'POWER'}]),
+            scen([{'key': 'KEYCODE_SLEEP'}]),
+            scen([{'key': 'WAKEUP'}]),
+            scen([{'key': 'TV_POWER'}]),
+            scen([{'key': 'SETTINGS'}]),
+            scen([{'key': 'VOLUME_UP'}]),
+            scen([], package='com.android.tv.settings'),
+            scen([], package='dev.tvlauncher.evil'),
             scen([{'key': 5}]),
             scen([{'audit': 'x; rm -rf /'}]),
             scen([{'audit': '../../etc'}]),
@@ -164,7 +172,7 @@ class ReportTest(unittest.TestCase):
         bad = ra.summarize_audit('b', audit_json(high=1))
         none = ra.summarize_audit('c', None, 'timeout')
         self.assertEqual(0, ra.exit_code([clean]))
-        self.assertEqual(0, ra.exit_code([clean, none]))
+        self.assertEqual(3, ra.exit_code([clean, none]))  # partial run is never clean
         self.assertEqual(1, ra.exit_code([clean, bad]))
         self.assertEqual(1, ra.exit_code([none, bad]))
         self.assertEqual(3, ra.exit_code([none]))
@@ -172,27 +180,39 @@ class ReportTest(unittest.TestCase):
 
 
 class FakeDevice:
-    """Simulates adb: records argv lists, answers logcat with the nonce of the last broadcast."""
+    """Simulates adb (bytes in, bytes out): records argv lists, answers logcat with the last broadcast's nonce."""
 
-    def __init__(self, data=None, respond=True):
+    def __init__(self, data=None, respond=True, pull_ok=True, run_as_ok=True, reachable=True, line_extra=''):
         self.calls = []
         self.data = data or audit_json(high=1, msgs=['#3 TextView overlaps #4 TextView'])
-        self.respond = respond
-        self.log = ''
+        self.respond, self.pull_ok, self.run_as_ok, self.reachable = respond, pull_ok, run_as_ok, reachable
+        self.line_extra = line_extra
+        self.log = 'garbage \xff\xfe bytes: \u00e9\n'.encode('latin-1', errors='replace')
 
-    def __call__(self, argv, capture_output=True, timeout=None, text=True):
+    def __call__(self, argv, capture_output=True, timeout=None):
         assert isinstance(argv, list) and all(isinstance(a, str) for a in argv), argv
         assert timeout is not None
         self.calls.append(argv)
         args = argv[3:] if argv[1] == '-s' else argv[1:]
-        out = '' if text else b''
-        if args[:2] == ['shell', 'am'] and args[2] == 'broadcast' and self.respond:
+        out, rc = b'', 0
+        if args == ['shell', 'true']:
+            rc = 0 if self.reachable else 1
+        elif args[:2] == ['shell', 'am'] and args[2] == 'broadcast' and self.respond:
             label = args[args.index('label') + 1]
             nonce = args[args.index('nonce') + 1]
-            self.log += f'I LayoutAudit: LAYOUT_AUDIT label={label} findings=1 high=1 ' \
-                        f'file=/storage/emulated/0/Android/data/dev.tvlauncher/files/audit/{label}-1.json nonce={nonce}\n'
+            line = self.line_extra.format(label=label, nonce=nonce) or (
+                f'file=/storage/emulated/0/Android/data/dev.tvlauncher/files/audit/{label}-1.json '
+                f'internal=/data/user/0/dev.tvlauncher/files/audit/{label}-1.json nonce={nonce}')
+            self.log += f'I LayoutAudit: LAYOUT_AUDIT label={label} findings=1 high=1 {line}\n'.encode()
         elif args[:1] == ['logcat']:
             out = self.log
+        elif args[:2] == ['exec-out', 'run-as']:
+            if self.run_as_ok and args[3] == 'cat' and args[4].startswith('files/audit/'):
+                out = json.dumps(self.data).encode()
+            else:
+                rc = 1
+        elif args[:1] == ['pull'] and args[1].endswith('.json') and not self.pull_ok:
+            rc = 1
         elif args[:1] == ['pull']:
             remote, local = args[1], args[2]
             with open(local, 'w' if remote.endswith('.json') else 'wb') as f:
@@ -200,7 +220,7 @@ class FakeDevice:
                     json.dump(self.data, f)
                 else:
                     f.write(b'\x89PNG')
-        return subprocess.CompletedProcess(argv, 0, out, '')
+        return subprocess.CompletedProcess(argv, rc, out, b'')
 
 
 class DriverTest(unittest.TestCase):
@@ -248,8 +268,9 @@ class DriverTest(unittest.TestCase):
                           '--es', 'label', 'home-1', '--es', 'nonce'], bc[2:11])
         # Only these shell verbs are ever used: no settings, no pm, no reboot.
         verbs = {tuple(c[:2]) for c in shell}
-        self.assertTrue(verbs <= {('am', 'force-stop'), ('am', 'start'), ('am', 'broadcast'), ('input', 'keyevent'),
-                                  ('screencap', '-p'), ('rm', '-f')}, verbs)
+        self.assertTrue(verbs <= {('true',), ('am', 'force-stop'), ('am', 'start'), ('am', 'broadcast'),
+                                  ('input', 'keyevent'), ('screencap', '-p'), ('rm', '-f')}, verbs)
+        self.assertFalse(any(c[1:2] == ['exec-out'] for c in dev.calls))  # pull worked: no run-as
         self.assertTrue(any('home-1' in l for l in logs))
 
     def test_missing_ui_or_receiver_never_fails(self):
@@ -277,6 +298,100 @@ class DriverTest(unittest.TestCase):
         rc, files, report, logs, *_ = self.run_main(scen([{'key': 'BACK; reboot'}]), dev)
         self.assertEqual(2, rc)
         self.assertEqual([], dev.calls)
+
+
+class Round1Test(unittest.TestCase):
+    def driver(self, dev, **kw):
+        return ra.Driver(ra.Adb('tv', runner=dev, log=lambda s: None), tempfile.mkdtemp(), log=lambda s: None,
+                         sleep=lambda s: None, **kw)
+
+    def test_pull_fails_runAs_succeeds(self):
+        dev = FakeDevice(pull_ok=False)
+        d = self.driver(dev)
+        row = d.audit('dev.tvlauncher', 'home-1')
+        self.assertEqual((1, 1, None), (row['findings'], row['high'], row['error']))
+        ra_call = [c for c in dev.calls if c[3:5] == ['exec-out', 'run-as']]
+        self.assertEqual([['exec-out', 'run-as', 'dev.tvlauncher', 'cat', 'files/audit/home-1-1.json']],
+                         [c[3:] for c in ra_call])
+        self.assertTrue(os.path.exists(os.path.join(d.out, 'audits', 'home-1.json')))
+
+    def test_pull_and_runAs_fail(self):
+        row = self.driver(FakeDevice(pull_ok=False, run_as_ok=False)).audit('dev.tvlauncher', 'h')
+        self.assertEqual('pull_failed', row['error'])
+
+    def test_fileDash_prefersAppError(self):
+        dev = FakeDevice(line_extra='file=- nonce={nonce} error=no_resumed_activity')
+        row = self.driver(dev).audit('dev.tvlauncher', 'h')
+        self.assertEqual('no_resumed_activity', row['error'])
+        self.assertIsNone(row['findings'])
+        self.assertFalse(any(c[3:4] == ['pull'] for c in dev.calls))
+
+    def test_logcat_bytes_decoded_with_replacement(self):
+        adb = ra.Adb('tv', runner=lambda argv, **k: subprocess.CompletedProcess(argv, 0, b'\xff\xfeok \xe9', b''))
+        rc, out = adb.cmd('logcat', '-d')
+        self.assertEqual(0, rc)
+        self.assertIn('ok', out)
+        self.assertIn('\ufffd', out)
+
+    def test_unreachable_exits_3_before_any_step(self):
+        dev = FakeDevice(reachable=False)
+        with tempfile.TemporaryDirectory() as tmp:
+            sp = os.path.join(tmp, 's.json')
+            with open(sp, 'w') as f:
+                json.dump(scen([{'key': 'BACK'}, {'audit': 'a'}]), f)
+            rc = ra.main(['--host', 'tv', '--scenario', sp, '--out', os.path.join(tmp, 'o')], runner=dev,
+                         log=lambda s: None, sleep=lambda s: None)
+        self.assertEqual(3, rc)
+        self.assertFalse(any('keyevent' in c for c in dev.calls))
+
+    def test_scenario_size_cap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sp = os.path.join(tmp, 'big.json')
+            with open(sp, 'w') as f:
+                f.write(json.dumps(scen([{'key': 'BACK', 'note': 'x' * 300_000}])))
+            with self.assertRaises(ra.ScenarioError):
+                ra.load_scenario(sp)
+
+    def test_time_budget_skips_rest_and_exits_3(self):
+        t = [0.0]
+
+        def clock():
+            t[0] += 10
+            return t[0]
+        d = self.driver(FakeDevice(data=audit_json(medium=1)), clock=clock, max_seconds=35)
+        d.run(ra.parse_scenario(scen([{'audit': 'a'}, {'key': 'BACK'}, {'key': 'BACK'}, {'audit': 'b'}, {'audit': 'c'}])))
+        d.run(ra.parse_scenario(scen([{'audit': 'd'}])))
+        self.assertEqual(['a', 'b', 'c', 'd'], [r['label'] for r in d.rows])
+        self.assertIsNotNone(d.rows[0]['findings'])
+        self.assertEqual(['time_budget'] * 3, [r['error'] for r in d.rows[1:]])
+        self.assertEqual(3, ra.exit_code(d.rows))
+
+    def test_max_seconds_validated(self):
+        rc = ra.main(['--host', 'tv', '--scenario', 'x', '--out', 'o', '--max-seconds', '0'], runner=FakeDevice(),
+                     log=lambda s: None)
+        self.assertEqual(2, rc)
+
+    def test_overwrite_protection_covers_audit_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sp = os.path.join(tmp, 's.json')
+            with open(sp, 'w') as f:
+                json.dump(scen([{'audit': 'a'}]), f)
+            out = os.path.join(tmp, 'o')
+            os.makedirs(os.path.join(out, 'audits'))
+            with open(os.path.join(out, 'audits', 'old.json'), 'w') as f:
+                f.write('{}')
+            args = ['--host', 'tv', '--scenario', sp, '--out', out]
+            self.assertEqual(2, ra.main(args, runner=FakeDevice(), log=lambda s: None, sleep=lambda s: None))
+            self.assertEqual(1, ra.main(args + ['--allow-overwrite'], runner=FakeDevice(), log=lambda s: None,
+                                        sleep=lambda s: None))
+
+    def test_allowlists(self):
+        for k in sorted(ra.KEYS):
+            self.assertEqual(k, ra.normalize_key('KEYCODE_' + k))
+        for bad in ('POWER', 'SLEEP', 'WAKEUP', 'TV_POWER', 'SETTINGS'):
+            self.assertNotIn(bad, ra.KEYS)
+        for p in ra.PACKAGES:
+            ra.parse_scenario(scen([], package=p))
 
 
 if __name__ == '__main__':

@@ -10,8 +10,9 @@ is validated against a strict allow-list first, because `adb shell` joins its ar
 remote command line. The driver only presses keys, starts the scenario's package and (with
 "restart": true) force-stops that same package. It never changes TV settings.
 
-Exit codes: 0 = no HIGH findings, 1 = at least one HIGH finding, 2 = usage/scenario error,
-3 = nothing was measured (no audit returned data: debug build not installed, TV unreachable...).
+Exit codes: 1 = at least one HIGH finding; otherwise 3 = at least one audit returned no data (or the
+TV is unreachable, or the time budget ran out); otherwise 0 = every audit measured, no HIGH finding.
+2 = usage/scenario error (nothing is sent to the TV).
 """
 from __future__ import annotations
 
@@ -29,7 +30,13 @@ from typing import Callable
 # Same rule as tools/tvtool/cli.py: hostname or IPv4 only; no port, no leading '-', no metacharacters.
 # All validators use fullmatch: with re.match a '$' anchor would also accept a trailing newline.
 HOST_RE = re.compile(r'^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$')
-KEY_RE = re.compile(r'^[A-Z0-9_]{1,40}$')
+# Navigation keys only: never POWER, SLEEP, WAKEUP, TV_POWER, SETTINGS or anything that changes the TV.
+KEYS = frozenset({'DPAD_UP', 'DPAD_DOWN', 'DPAD_LEFT', 'DPAD_RIGHT', 'DPAD_CENTER', 'ENTER', 'BACK', 'HOME', 'MENU',
+                  'SEARCH', 'PAGE_UP', 'PAGE_DOWN', 'MOVE_HOME', 'MOVE_END', 'MEDIA_PLAY_PAUSE', 'TAB'})
+# The launcher and its companion packages; the only packages the driver may start or force-stop.
+PACKAGES = frozenset({'dev.tvlauncher', 'dev.tvlauncher.browser', 'dev.tvlauncher.store', 'dev.tvlauncher.weather',
+                      'dev.tvlauncher.helper'})
+BASENAME_RE = re.compile(r'^[A-Za-z0-9_.-]{1,80}\.json$')
 LABEL_RE = re.compile(r'^[A-Za-z0-9_.-]{1,40}$')
 PKG_RE = re.compile(r'^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$')
 INTENT_RE = re.compile(r'^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$')
@@ -38,7 +45,7 @@ NONCE_RE = re.compile(r'^[A-Za-z0-9]{1,16}$')
 LOG_RE = re.compile(
     r'LAYOUT_AUDIT(?P<tree>_TREE)? label=(?P<label>\S+)'
     r'(?: findings=(?P<findings>\d+) high=(?P<high>\d+))?(?: nodes=(?P<nodes>\d+))?'
-    r' file=(?P<file>\S+)(?: nonce=(?P<nonce>\S+))?(?: error=(?P<error>\S+))?')
+    r' file=(?P<file>\S+)(?: internal=(?P<internal>\S+))?(?: nonce=(?P<nonce>\S+))?(?: error=(?P<error>\S+))?')
 
 RECEIVER = 'dev.tvlauncher.audit.AuditReceiver'
 ACTION_AUDIT = 'dev.tvlauncher.debug.AUDIT'
@@ -53,6 +60,8 @@ AUDIT_TIMEOUT_S = 10.0
 START_WAIT_S = 3.0
 KEY_GAP_S = 0.4
 ADB_TIMEOUT_S = 20
+MAX_SCENARIO_BYTES = 256 * 1024
+DEFAULT_MAX_SECONDS = 900
 
 STEP_KINDS = ('key', 'audit', 'screenshot', 'dump_tree')
 STEP_EXTRAS = {'wait', 'repeat', 'note'}
@@ -75,8 +84,8 @@ def normalize_key(key: object) -> str:
     if not isinstance(key, str):
         raise ScenarioError(f'key must be a string, got {key!r}')
     k = key[len('KEYCODE_'):] if key.startswith('KEYCODE_') else key
-    if not KEY_RE.fullmatch(k):
-        raise ScenarioError(f'invalid key {key!r}: use names like DPAD_RIGHT, BACK, MENU ([A-Z0-9_] only)')
+    if k not in KEYS:
+        raise ScenarioError(f'key {key!r} not allowed: navigation keys only ({", ".join(sorted(KEYS))})')
     return k
 
 
@@ -112,8 +121,8 @@ def parse_scenario(obj: object, name: str = 'scenario') -> Scenario:
     if unknown:
         raise ScenarioError(f'unknown top-level keys: {sorted(unknown)}')
     pkg = obj.get('package')
-    if not isinstance(pkg, str) or not PKG_RE.fullmatch(pkg):
-        raise ScenarioError(f'invalid package {pkg!r}')
+    if not isinstance(pkg, str) or not PKG_RE.fullmatch(pkg) or pkg not in PACKAGES:
+        raise ScenarioError(f'package {pkg!r} not allowed: one of {", ".join(sorted(PACKAGES))}')
     action = category = None
     start = obj.get('start')
     if start is not None:
@@ -180,8 +189,11 @@ def check_unique_labels(scenarios: list[Scenario]) -> None:
 
 def load_scenario(path: str) -> Scenario:
     try:
-        with open(path, encoding='utf-8') as f:
-            obj = json.load(f)
+        with open(path, 'rb') as f:
+            raw = f.read(MAX_SCENARIO_BYTES + 1)
+        if len(raw) > MAX_SCENARIO_BYTES:
+            raise ScenarioError(f'{path} is larger than {MAX_SCENARIO_BYTES // 1024} KB')
+        obj = json.loads(raw.decode('utf-8'))
     except (OSError, ValueError) as e:
         raise ScenarioError(f'cannot read {path}: {e}') from e
     return parse_scenario(obj, os.path.splitext(os.path.basename(path))[0])
@@ -275,9 +287,10 @@ def report_markdown(rows: list[dict], meta: dict) -> str:
 
 
 def exit_code(rows: list[dict]) -> int:
+    """1 if any HIGH; else 3 if ANY audit has no data (partial runs are never clean); else 0."""
     if any((r.get('high') or 0) > 0 for r in rows):
         return 1
-    if rows and all(r.get('findings') is None for r in rows):
+    if any(r.get('findings') is None for r in rows):
         return 3
     return 0
 
@@ -297,18 +310,26 @@ class Adb:
         self.log = log
 
     def _run(self, argv: list[str], timeout: float, binary: bool = False):
+        """Always captures bytes; text output is decoded as UTF-8 with replacement (logcat may hold anything)."""
         try:
-            r = self.runner(argv, capture_output=True, timeout=timeout, text=not binary)
+            r = self.runner(argv, capture_output=True, timeout=timeout)
         except subprocess.TimeoutExpired:
             self.log(f'  ! timeout after {timeout:g}s: {" ".join(argv[3:])[:120]}')
             return 124, b'' if binary else ''
         except OSError as e:
             self.log(f'  ! cannot run adb: {e}')
             return 127, b'' if binary else ''
-        return r.returncode, r.stdout if r.stdout is not None else (b'' if binary else '')
+        out = r.stdout if r.stdout is not None else b''
+        if isinstance(out, str):
+            out = out.encode('utf-8', errors='replace')
+        return r.returncode, out if binary else out.decode('utf-8', errors='replace')
 
     def connect(self) -> int:
         return self._run([self.adb, 'connect', self.serial], ADB_TIMEOUT_S)[0]
+
+    def reachable(self) -> bool:
+        """`adb connect` exits 0 even when it fails; a real shell round-trip proves the device answers."""
+        return self.shell('true', timeout=15)[0] == 0
 
     def cmd(self, *args: str, timeout: float = ADB_TIMEOUT_S, binary: bool = False):
         return self._run([self.adb, '-s', self.serial, *args], timeout, binary)
@@ -320,12 +341,23 @@ class Adb:
 class Driver:
     def __init__(self, adb: Adb, out_dir: str, log: Callable[[str], None] = print,
                  sleep: Callable[[float], None] = time.sleep, clock: Callable[[], float] = time.monotonic,
-                 nonce: Callable[[], str] = lambda: secrets.token_hex(6)):
+                 nonce: Callable[[], str] = lambda: secrets.token_hex(6), max_seconds: float = DEFAULT_MAX_SECONDS):
         self.adb, self.out, self.log, self.sleep, self.clock, self.nonce = adb, out_dir, log, sleep, clock, nonce
         self.rows: list[dict] = []
         self.screenshots: list[str] = []
+        self.deadline = clock() + max_seconds
+        self.out_of_time = False
+
+    def _skip_rest(self, steps: list[Step]) -> None:
+        for st in steps:
+            if st.kind == 'audit':
+                self.rows.append(summarize_audit(st.value, None, 'time_budget'))
 
     def run(self, sc: Scenario) -> None:
+        if self.out_of_time or self.clock() >= self.deadline:
+            self.out_of_time = True
+            self._skip_rest(sc.steps)
+            return
         self.log(f'== scenario {sc.name} ({sc.package})')
         if sc.restart:
             self.adb.shell('am', 'force-stop', sc.package)
@@ -340,7 +372,12 @@ class Driver:
             if rc != 0:
                 self.log(f'  ! start returned {rc}; continuing')
             self.sleep(START_WAIT_S)
-        for st in sc.steps:
+        for i, st in enumerate(sc.steps):
+            if self.clock() >= self.deadline:
+                self.log('  ! --max-seconds reached; remaining steps skipped')
+                self.out_of_time = True
+                self._skip_rest(sc.steps[i:])
+                return
             if st.kind == 'key':
                 for i in range(st.repeat):
                     if i:
@@ -375,25 +412,40 @@ class Driver:
             return summarize_audit(label, None, 'timeout')
         sub = 'trees' if tree else 'audits'
         local = os.path.join(self.out, sub, f'{label}.json')
-        data, err = self.fetch_json(pkg, hit['file'], local)
-        row = summarize_audit(label, data, err or hit.get('error'))
+        if hit['file'] == '-':  # the app wrote nothing: its own error is the useful one
+            row = summarize_audit(label, None, hit.get('error') or 'no_file')
+        else:
+            data, err = self.fetch_json(pkg, hit['file'], local, hit.get('internal'))
+            row = summarize_audit(label, data, err or hit.get('error'))
         if not tree:
             self.log(f"  {label}: findings={_cell(row['findings'])} high={_cell(row['high'])}"
                      + (f" error={row['error']}" if row['error'] else ''))
         return row
 
-    def fetch_json(self, pkg: str, remote: str, local: str):
-        if remote == '-' or not DEVICE_PATH_RE.fullmatch(remote) or '..' in remote:
+    def fetch_json(self, pkg: str, remote: str, local: str, internal: str | None = None):
+        """adb pull of the external copy; on failure `run-as <pkg> cat files/audit/<name>` (debug builds)."""
+        ok_remote = bool(DEVICE_PATH_RE.fullmatch(remote)) and '..' not in remote
+        ok_internal = internal is not None and bool(DEVICE_PATH_RE.fullmatch(internal)) and '..' not in internal
+        if not ok_remote and not ok_internal:
             return None, 'bad_path'
         os.makedirs(os.path.dirname(local), exist_ok=True)
-        if remote.startswith('/data/'):
-            rc, blob = self.adb.cmd('exec-out', 'run-as', pkg, 'cat', remote, binary=True)
+        if os.path.exists(local):
+            os.remove(local)
+        pulled = False
+        if ok_remote and not remote.startswith('/data/'):
+            rc, _ = self.adb.cmd('pull', remote, local)
+            pulled = rc == 0 and os.path.exists(local)
+        if not pulled:
+            name = os.path.basename(internal if ok_internal else remote)
+            if not BASENAME_RE.fullmatch(name):
+                return None, 'bad_path'
+            rc, blob = self.adb.cmd('exec-out', 'run-as', pkg, 'cat', f'files/audit/{name}', binary=True)
             if rc == 0 and blob:
                 with open(local, 'wb') as f:
                     f.write(blob)
-        else:
-            rc, _ = self.adb.cmd('pull', remote, local)
-        if rc != 0 or not os.path.exists(local):
+                pulled = True
+                self.log(f'  (pull failed; read {name} via run-as)')
+        if not pulled:
             return None, 'pull_failed'
         try:
             with open(local, encoding='utf-8') as f:
@@ -414,6 +466,13 @@ class Driver:
             self.log(f'  ? screenshot {label} failed')
 
 
+def has_previous_output(out: str) -> bool:
+    if os.path.exists(os.path.join(out, 'report.json')):
+        return True
+    d = os.path.join(out, 'audits')
+    return os.path.isdir(d) and any(n.endswith('.json') for n in os.listdir(d))
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description='Run layout-audit scenarios against the debug launcher on a TV.')
     p.add_argument('--host', required=True, help='TV IPv4 address or hostname (adb over TCP, port 5555)')
@@ -421,6 +480,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument('--out', required=True, help='output directory')
     p.add_argument('--allow-overwrite', action='store_true', help='reuse an --out directory that already has a report')
     p.add_argument('--adb', default='adb', help='adb binary (default: adb on PATH)')
+    p.add_argument('--max-seconds', type=float, default=DEFAULT_MAX_SECONDS,
+                   help=f'total time budget; remaining audits are recorded as time_budget (default {DEFAULT_MAX_SECONDS})')
     return p
 
 
@@ -439,16 +500,21 @@ def main(argv: list[str] | None = None, runner: Runner = subprocess.run, log: Ca
     except ScenarioError as e:
         log(f'Scenario error: {e}')
         return 2
+    if not 1 <= a.max_seconds <= 24 * 3600:
+        log('Invalid --max-seconds')
+        return 2
     out = os.path.abspath(a.out)
-    if os.path.exists(os.path.join(out, 'report.json')) and not a.allow_overwrite:
-        log(f'{out} already holds a report; pass --allow-overwrite or choose another --out')
+    if has_previous_output(out) and not a.allow_overwrite:
+        log(f'{out} already holds audit output; pass --allow-overwrite or choose another --out')
         return 2
     os.makedirs(out, exist_ok=True)
     adb = Adb(a.host, a.adb, runner, log)
     started = time.strftime('%Y-%m-%dT%H:%M:%S')
-    if adb.connect() != 0:
-        log('  ! adb connect failed; trying anyway')
-    drv = Driver(adb, out, log, sleep)
+    adb.connect()
+    if not adb.reachable():
+        log(f'TV {a.host}:5555 is not reachable over adb (is it on, and is network debugging allowed?)')
+        return 3
+    drv = Driver(adb, out, log, sleep, max_seconds=a.max_seconds)
     for sc in scenarios:
         drv.run(sc)
     meta = {'host': a.host, 'scenarios': [s.name for s in scenarios], 'started': started, 'screenshots': drv.screenshots}
