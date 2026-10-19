@@ -44,5 +44,10 @@ class LauncherApp : Application() {
         } catch (e: Throwable) {
             // Same: the wave-2 pages stay placeholders or absent.
         }
+        try {
+            dev.tvlauncher.setup.SetupSection.register()
+        } catch (e: Throwable) {
+            // No Setup page in Settings this run.
+        }
     }
 }

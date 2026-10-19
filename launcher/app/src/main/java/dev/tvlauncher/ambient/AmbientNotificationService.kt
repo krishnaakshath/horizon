@@ -90,8 +90,6 @@ class AmbientNotificationService : NotificationListenerService() {
 
 /** One-time user grant for [AmbientNotificationService]. */
 object NotificationAccess {
-    val ADB_ALLOW = NotificationAccessText.adbLine("dev.tvlauncher", "dev.tvlauncher.ambient.AmbientNotificationService")
-
     fun component(context: Context) = ComponentName(context, AmbientNotificationService::class.java)
 
     fun isEnabled(context: Context): Boolean = try {
@@ -111,15 +109,15 @@ object NotificationAccess {
 
     /**
      * Starts the access screen, trying the long action then the short spelling (both are in
-     * <queries>). False when the TV has neither: show [instructions] with the ADB line.
+     * <queries>). False when the TV has neither: show [instructions] (one calm line).
      */
     fun openSettings(context: Context): Boolean =
         tryStart(context, settingsIntent()) ||
             tryStart(context, Intent(SHORT_ACTION).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 
     private fun tryStart(context: Context, i: Intent): Boolean = try {
-        context.startActivity(i)
-        true
+        if (context.packageManager.resolveActivity(i, 0) == null) false
+        else { context.startActivity(i); true }
     } catch (e: ActivityNotFoundException) {
         false
     } catch (e: SecurityException) {

@@ -113,6 +113,7 @@ class BluetoothPanel(
             }
             row.key == BtPanelModel.KEY_SCAN -> if (s.scanning) controller.stopDiscovery() else controller.startDiscovery()
             row.key == BtPanelModel.KEY_LOCATION -> NetworkSettings.openLocation(context)
+            row.key == BtPanelModel.KEY_ALLOW_LOCATION -> NetworkSettings.requestLocation(context)
             row.key == BtPanelModel.KEY_SETTINGS -> NetworkSettings.openBluetooth(context)
             row.key == BtPanelModel.KEY_FORGET -> forget()
             row.key.startsWith("bt:") -> onDevice(s, row.key.removePrefix("bt:"))

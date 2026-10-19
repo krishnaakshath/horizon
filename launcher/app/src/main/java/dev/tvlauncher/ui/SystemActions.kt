@@ -13,9 +13,20 @@ import dev.tvlauncher.appsettings.AppSettingsActivity
 
 /** System shortcuts. Every launch is guarded so a missing handler never crashes. */
 object SystemActions {
+    /**
+     * A system Settings screen (an implicit android.settings.* intent) is started only when this
+     * TV resolves it, so a missing screen is a quiet false, never a system error.
+     */
+    fun canStart(context: Context, intent: Intent): Boolean {
+        val implicitSystemScreen = intent.component == null && intent.`package` == null &&
+            intent.action?.startsWith("android.settings.") == true
+        if (!implicitSystemScreen) return true
+        return try { context.packageManager.resolveActivity(intent, 0) != null } catch (e: Exception) { false }
+    }
+
     fun start(context: Context, intent: Intent): Boolean = try {
-        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        true
+        if (!canStart(context, intent)) false
+        else { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }
     } catch (e: ActivityNotFoundException) {
         false
     } catch (e: SecurityException) {

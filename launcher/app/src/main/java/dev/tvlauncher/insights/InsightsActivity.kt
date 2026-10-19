@@ -159,8 +159,8 @@ class InsightsActivity : Activity() {
             style(Theme.SP_SUB, Theme.regular, Theme.TEXT_2)
             setLineSpacing(0f, 1.2f)
         })
-        content.addView(TextView(this).apply {
-            text = "No settings screen on this TV? " + dev.tvlauncher.ambient.NotificationAccessText.SETUP_LINE
+        if (UsageAccess.settingsIntent(this) == null) content.addView(TextView(this).apply {
+            text = dev.tvlauncher.setup.SetupCopy.HELPER_LINE
             style(Theme.SP_SUB, Theme.regular, Theme.TEXT_2)
             setPadding(0, dp(Theme.S5), 0, dp(Theme.S2))
         })

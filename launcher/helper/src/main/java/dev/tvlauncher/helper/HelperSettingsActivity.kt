@@ -1,7 +1,6 @@
 package dev.tvlauncher.helper
 
 import android.app.Activity
-import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -52,10 +51,8 @@ class HelperSettingsActivity : Activity() {
     private fun isServiceEnabled(): Boolean {
         val flat = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
             ?: return false
-        val me = ComponentName(this, HelperService::class.java)
-        return flat.split(':').any {
-            ComponentName.unflattenFromString(it) == me
-        }
+        return ServiceList.contains(flat) &&
+            Settings.Secure.getString(contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED)?.trim() != "0"
     }
 
     private fun render() {
@@ -63,17 +60,22 @@ class HelperSettingsActivity : Activity() {
         val focusIdx = (0 until content.childCount).firstOrNull { content.getChildAt(it).hasFocus() } ?: 3
         content.removeAllViews()
         content.addView(label("Launcher Helper", 28f, text, true))
-        content.addView(label("Optional companion for the TV launcher. Both features are off by default.", 15f, muted, false))
+        content.addView(label("Remote shortcuts that work in every app.", 15f, muted, false))
         content.addView(spacer())
 
-        content.addView(
-            row(
-                "Accessibility service: " + if (isServiceEnabled()) "Enabled" else "Not enabled",
-                "Select to open accessibility settings, or enable over ADB with the lines below.",
-            ) { openAccessibilitySettings() },
-        )
-        content.addView(mono("adb shell settings put secure enabled_accessibility_services dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService"))
-        content.addView(mono("adb shell settings put secure accessibility_enabled 1"))
+        val route = EnableRoutes.pick(isServiceEnabled(), resolves(accessibilityIntent()), canWriteSecure(), resolves(setupIntent()))
+        when (route) {
+            EnableRoute.ALREADY_ON -> content.addView(row("Remote shortcuts", "On \u2713") { })
+            EnableRoute.SELF_ENABLE -> content.addView(row("Turn on double-Back and power-on help", "Select to turn on") { selfEnable() })
+            EnableRoute.OPEN_SCREEN -> content.addView(row("Remote shortcuts: off", "Select, then turn on Launcher Helper") {
+                start(accessibilityIntent())
+            })
+            EnableRoute.FINISH_SETUP -> content.addView(row("Finish setup to enable", "Opens the launcher's setup") { start(setupIntent()) })
+            EnableRoute.NONE -> content.addView(label("Finish setup to enable.", 15f, muted, false))
+        }
+        learnMessage?.takeIf { route != EnableRoute.ALREADY_ON && !learning && it == ENABLE_FAILED }?.let {
+            content.addView(label(it, 14f, muted, false))
+        }
         content.addView(spacer())
 
         content.addView(
@@ -142,13 +144,38 @@ class HelperSettingsActivity : Activity() {
         return super.onKeyDown(keyCode, event)
     }
 
-    private fun openAccessibilitySettings() {
-        try {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    private fun accessibilityIntent() = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+
+    private fun setupIntent() = Intent(SETUP_ACTION).setPackage("dev.tvlauncher")
+
+    /** Never fires an intent the TV cannot handle. */
+    private fun resolves(i: Intent): Boolean = try { packageManager.resolveActivity(i, 0) != null } catch (e: Exception) { false }
+
+    private fun start(i: Intent) {
+        if (!resolves(i)) { render(); return }
+        try { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) { render() }
+    }
+
+    private fun canWriteSecure(): Boolean =
+        checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    /** Appends the service to the enabled list (other services stay) and turns accessibility on. */
+    private fun selfEnable() {
+        learnMessage = try {
+            val cr = contentResolver
+            val flat = Settings.Secure.getString(cr, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+            Settings.Secure.putString(cr, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, ServiceList.add(flat))
+            Settings.Secure.putString(cr, Settings.Secure.ACCESSIBILITY_ENABLED, "1")
+            if (isServiceEnabled()) null else ENABLE_FAILED
         } catch (e: Exception) {
-            learnMessage = "Accessibility settings are not available on this device. Use the ADB lines."
-            render()
+            ENABLE_FAILED
         }
+        render()
+    }
+
+    private companion object {
+        const val SETUP_ACTION = "dev.tvlauncher.action.SETUP"
+        const val ENABLE_FAILED = "Not switched on yet. Finish setup in the launcher to enable."
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -160,15 +187,6 @@ class HelperSettingsActivity : Activity() {
         textSize = size
         setTextColor(color)
         if (bold) setTypeface(typeface, Typeface.BOLD)
-    }
-
-    private fun mono(t: String) = TextView(this).apply {
-        this.text = t
-        textSize = 13f
-        typeface = Typeface.MONOSPACE
-        setTextColor(muted)
-        setTextIsSelectable(false)
-        setPadding(dp(4), dp(6), 0, 0)
     }
 
     private fun row(title: String, value: String, onClick: () -> Unit): View {

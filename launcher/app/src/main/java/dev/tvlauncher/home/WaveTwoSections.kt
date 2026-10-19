@@ -5,7 +5,6 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.ScrollView
 import dev.tvlauncher.R
-import dev.tvlauncher.ambient.AmbientDream
 import dev.tvlauncher.ambient.AmbientSettingsRows
 import dev.tvlauncher.ambient.NotificationAccess
 import dev.tvlauncher.ambient.NotificationAccessCard
@@ -44,7 +43,8 @@ object WaveTwoSections {
     const val AMBIENT_ID = "ambient"
     const val HOME_EXTRAS_ID = "home_extras"
 
-    val SCREENSAVER_ADB: String = listOf(AmbientDream.ADB_SELECT, AmbientDream.ADB_ENABLE, AmbientDream.ADB_ON_SLEEP).joinToString("\n")
+    /** How to pick Ambient as the TV's screensaver, in plain words. */
+    val SCREENSAVER_NOTE: String = dev.tvlauncher.setup.SetupCopy.SCREENSAVER_NOTE
 
     fun registerAll(registry: SettingsRegistry = SettingsRegistry.shared) {
         registry.register(AmbientSection)
@@ -170,7 +170,7 @@ object AmbientSection : SettingsSection, SpecifiedPage {
         page.advanced(nav, "ambient.advanced", "Clock, notification chips, burn-in and screensaver") { adv ->
             for (r in rows) if (r.key !in WaveTwoSections.AMBIENT_PRIMARY_MODEL_KEYS && r.key !in elsewhere) render(adv, r)
             adv.group("Screensaver")
-            adv.note("Ambient can also be the TV's screensaver. ${dev.tvlauncher.ambient.NotificationAccessText.SETUP_LINE}.", maxLines = 2)
+            adv.note(WaveTwoSections.SCREENSAVER_NOTE, maxLines = 3)
         }
         return page
     }

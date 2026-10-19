@@ -9,12 +9,11 @@ import dev.tvlauncher.ambient.NotificationAccess
 /**
  * Now Playing has no permission of its own: MediaSessionManager.getActiveSessions() is allowed
  * for an enabled notification listener, so it reuses the ambient listener component and the same
- * one-time user grant (NotificationAccessCard in Settings, or
- * `adb shell cmd notification allow_listener dev.tvlauncher/dev.tvlauncher.ambient.AmbientNotificationService`).
+ * one-time user grant (NotificationAccessCard in Settings, the setup checklist, or the one-time
+ * setup helper; see docs/PROVISIONING.md).
  */
 object NowPlayingAccess {
     const val LISTENER_CLASS = "dev.tvlauncher.ambient.AmbientNotificationService"
-    const val ADB_ALLOW = "adb shell cmd notification allow_listener dev.tvlauncher/$LISTENER_CLASS"
 
     fun listenerComponent(context: Context): ComponentName = ComponentName(context, LISTENER_CLASS)
 

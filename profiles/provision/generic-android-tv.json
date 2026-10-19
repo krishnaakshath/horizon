@@ -1,0 +1,13 @@
+{
+  "name": "Generic Android TV / Google TV / Fire TV",
+  "match": { "fallback": true },
+  "stock_launchers": [
+    "com.google.android.tvlauncher",
+    "com.google.android.leanbacklauncher",
+    "com.google.android.apps.tv.launcherx",
+    "com.amazon.tv.launcher"
+  ],
+  "notes": [
+    "Used when no model-specific profile matches. Only the stock launchers listed here can be disabled, and only with --take-over-home."
+  ]
+}

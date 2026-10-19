@@ -76,6 +76,7 @@ class NetworkPanel(
         when (row.key) {
             WifiPanelModel.KEY_SCAN -> controller.scan()
             WifiPanelModel.KEY_LOCATION -> NetworkSettings.openLocation(context)
+            WifiPanelModel.KEY_ALLOW_LOCATION -> NetworkSettings.requestLocation(context)
             // The switch, every network and the last row: the TV's Wi-Fi screen does the work.
             else -> NetworkSettings.openWifi(context)
         }

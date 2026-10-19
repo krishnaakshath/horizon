@@ -53,11 +53,11 @@ class WaveTwoSectionsTest {
         assertEquals(keys, on.map { it.key })
     }
 
-    @Test fun screensaverText_hasTheExactAdbLines() {
-        val t = WaveTwoSections.SCREENSAVER_ADB
-        assertTrue(t.contains("adb shell settings put secure screensaver_components dev.tvlauncher/dev.tvlauncher.ambient.AmbientDream"))
-        assertTrue(t.contains("adb shell settings put secure screensaver_enabled 1"))
-        assertTrue(t.contains("adb shell settings put secure screensaver_activate_on_sleep 1"))
+    @Test fun screensaverText_isPlainWords_noCommandLine() {
+        val t = WaveTwoSections.SCREENSAVER_NOTE
+        assertTrue(t.contains("TV Launcher Ambient"))
+        assertFalse(t.lowercase().contains("adb"))
+        assertFalse(t.contains("settings put"))
     }
 
     @Test fun sections_declareTheirSidebarGroups() {
