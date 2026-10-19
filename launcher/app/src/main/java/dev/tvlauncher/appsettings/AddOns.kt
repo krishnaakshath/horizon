@@ -23,9 +23,8 @@ object AddOns {
     fun primaryAction(installed: Boolean) = if (installed) "Open" else "How to install"
 
     fun howToInstall(a: AddOn): String =
-        "${a.title} is a separate app (${a.packageName}).\n\n" +
-            "1. Copy its APK to a USB drive, or keep it on a computer on the same network.\n" +
-            "2. On the TV, open the APK with a file manager and allow the install when asked,\n" +
-            "   or from the computer run:  adb install <file>.apk\n" +
+        "${a.title} is a separate app.\n\n" +
+            "1. Copy its install file (APK) to a USB drive.\n" +
+            "2. On the TV, open it with a file manager and allow the install when asked.\n" +
             "3. Come back here: the ${a.title} page appears under Apps & tools."
 }

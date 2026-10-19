@@ -235,7 +235,8 @@ class PositionClock {
 
 /** Now Playing preferences; tolerant JSON. Off by default and only effective once access is granted. */
 data class NowPlayingSettings(
-    val nowPlayingEnabled: Boolean = false,
+    /** On for new installs; nothing shows until notification access exists ([effective]). */
+    val nowPlayingEnabled: Boolean = true,
     val showOnHome: Boolean = true,
     val showOnAmbient: Boolean = true
 ) {

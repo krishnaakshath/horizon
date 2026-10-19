@@ -9,9 +9,12 @@ import dev.tvlauncher.ui.Theme.style
 
 /**
  * Ready-to-host card for granting notification access (one line to wire:
- * `container.addView(NotificationAccessCard(this))`). Shows the current state, a focusable
- * "Open notification access settings" button and, when the TV has no such screen, the ADB line.
- * Call [refresh] from the host's onResume to update the state after the user returns.
+ * `container.addView(NotificationAccessCard(this))`). Calm, friendly states only:
+ * - access granted: the card hides itself (GONE);
+ * - not granted and the TV has an access screen: a title, one line and a single "Allow" button;
+ * - no such screen: one line pointing at the one-time setup ([NotificationAccessText.SETUP_LINE]).
+ * No developer commands are ever shown (they live in the docs). Call [refresh] from the host's
+ * onResume to update the state after the user returns.
  */
 class NotificationAccessCard @JvmOverloads constructor(
     context: Context,
@@ -19,8 +22,8 @@ class NotificationAccessCard @JvmOverloads constructor(
     body: String = DEFAULT_BODY
 ) : LinearLayout(context) {
     private val density = resources.displayMetrics.density
-    private val status = TextView(context)
-    private val fallback = TextView(context)
+    private val body = TextView(context)
+    private val setup = TextView(context)
     private val button = TextView(context)
 
     private fun px(dp: Int) = (dp * density + 0.5f).toInt()
@@ -29,32 +32,33 @@ class NotificationAccessCard @JvmOverloads constructor(
         orientation = VERTICAL
         setPadding(px(20), px(16), px(20), px(16))
         background = GradientDrawable().apply {
-            cornerRadius = px(16).toFloat()
-            setColor(0x0FFFFFFF) // fill only: one card style, no border
+            cornerRadius = px(14).toFloat()
+            setColor(0x0AFFFFFF) // the shared resting glass wash (GlassTokens.ROW_REST)
         }
-        addView(TextView(context).apply { style(Theme.SP_BUTTON + 1f, Theme.medium); text = title })
-        addView(TextView(context).apply {
-            style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
+        addView(TextView(context).apply { style(Theme.SP_BUTTON + 2f, Theme.medium); text = title; maxLines = 2 })
+        this.body.apply {
+            style(14f, Theme.regular, Theme.TEXT_2)
             text = body
-        }, params(4))
-        status.style(Theme.SP_LABEL, Theme.medium, Theme.TEXT_2)
-        addView(status, params(10))
+            maxLines = 3
+        }
+        addView(this.body, params(4))
+        setup.style(14f, Theme.regular, Theme.TEXT_2)
+        setup.text = NotificationAccessText.SETUP_LINE
+        addView(setup, params(8))
         button.apply {
             style(Theme.SP_BUTTON, Theme.medium)
-            text = "Open notification access settings"
+            text = "Allow"
             isFocusable = true
             isClickable = true
-            setPadding(px(16), px(10), px(16), px(10))
+            gravity = android.view.Gravity.CENTER
+            minWidth = px(120)
+            minHeight = px(44)
+            setPadding(px(22), px(10), px(22), px(10))
             background = buttonBg(false)
             setOnFocusChangeListener { v, f -> v.background = buttonBg(f) }
             setOnClickListener { open() }
         }
-        addView(button, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { topMargin = px(10) })
-        fallback.style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
-        fallback.setTextIsSelectable(false)
-        fallback.text = NotificationAccess.instructions(settingsOpened = false)
-        fallback.visibility = GONE
-        addView(fallback, params(10))
+        addView(button, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { topMargin = px(12) })
         refresh()
     }
 
@@ -68,8 +72,11 @@ class NotificationAccessCard @JvmOverloads constructor(
     /** Re-reads whether access is granted. Call from the host's onResume (the user returns from Settings). */
     fun refresh() {
         val on = NotificationAccess.isEnabled(context)
-        status.text = if (on) "Access: allowed" else "Access: not allowed yet"
-        if (on) fallback.visibility = GONE
+        visibility = if (on) GONE else VISIBLE
+        if (on) return
+        val screen = NotificationAccess.hasSettingsScreen(context)
+        button.visibility = if (screen) VISIBLE else GONE
+        setup.visibility = if (screen) GONE else VISIBLE
     }
 
     /** Back from the system's access screen: the window regains focus, so the state is re-read here too. */
@@ -80,16 +87,16 @@ class NotificationAccessCard @JvmOverloads constructor(
 
     private fun open() {
         val opened = NotificationAccess.openSettings(context)
-        fallback.text = NotificationAccess.instructions(opened)
-        fallback.visibility = VISIBLE
+        if (!opened) {
+            button.visibility = GONE
+            setup.visibility = VISIBLE
+        }
     }
 
     companion object {
         const val DEFAULT_TITLE = "Notifications on the ambient screen"
-        const val DEFAULT_BODY = "Lets the ambient screen show up to 3 recent notifications. Kept in memory only, never saved."
+        const val DEFAULT_BODY = "Shows up to 3 recent notifications. Kept in memory only, never saved."
         const val NOW_PLAYING_TITLE = "Allow Now Playing"
-        const val NOW_PLAYING_BODY =
-            "Now Playing reads the TV's media sessions through the launcher's notification access (the same " +
-                "one-time grant as ambient notifications). Title and art stay in memory only."
+        const val NOW_PLAYING_BODY = "Shows what's playing, with pause and skip. Nothing is saved."
     }
 }

@@ -113,3 +113,45 @@ class SettingsGlassLayoutTest {
         assertEquals(46 to 14, SwatchFit.fit(0, n, 46, 14, 1.12f))
     }
 }
+
+class PaneStackTest {
+    private val densities = listOf(1f, 213 / 160f, 2f, 4f)
+
+    @Test
+    fun rowsStartBelowTheHeader_andScrolledRowsNeverReachIt() {
+        for (d in densities) {
+            val w = (1280 * d / (213 / 160f)).toInt()
+            val h = (720 * d / (213 / 160f)).toInt()
+            val l = SettingsLayout.compute(w, h, d, hasScrollbar = true)
+            for (crumb in listOf(0, (19 * d).toInt())) for (desc in listOf(0, (40 * d).toInt())) {
+                val r = PaneStack.layout(l.pane, d, crumb, (36 * d).toInt(), desc)
+                assertFalse(r.header.intersects(r.body))
+                assertTrue(r.body.top >= r.header.bottom)
+                assertTrue(r.body.height > 0)
+                val rowH = (SettingsLayout.ROW_MIN_DP * d).toInt()
+                // A row at every scroll offset, including one scrolled half under the header.
+                var top = r.body.top - rowH * 2
+                while (top < r.body.bottom + rowH) {
+                    val row = Box(l.rows(d).left, top, l.rows(d).right, top + rowH)
+                    val drawn = PaneStack.visible(row, r.body)
+                    if (drawn != null) {
+                        assertFalse("row at $top over the header", drawn.intersects(r.header))
+                        assertTrue(r.body.contains(drawn))
+                    }
+                    top += rowH / 3
+                }
+            }
+        }
+    }
+
+    @Test
+    fun scrollThumb_livesInTheCardPadding_rightOfEveryRow() {
+        for (d in densities) {
+            val l = SettingsLayout.compute((960 * d).toInt(), (540 * d).toInt(), d, hasScrollbar = true)
+            val bar = l.scrollbar!!
+            assertTrue(l.pane.contains(bar))
+            assertTrue(bar.left >= l.rows(d).right)
+            assertTrue(bar.right <= l.pane.right)
+        }
+    }
+}

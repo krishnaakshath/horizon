@@ -224,7 +224,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
         val panelColumn = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             clipChildren = false
-            setPadding(0, dp(22), 0, 0)
+            setPadding(0, dp(PaneStack.TOP_DP), 0, 0)
         }
         val inset = layout.paneInset
         crumb = TextView(this).apply {
@@ -247,14 +247,15 @@ class AppSettingsActivity : Activity(), SettingsNav {
         fun header(v: View, bottom: Int) = panelColumn.addView(v, LinearLayout.LayoutParams(-1, -2).apply {
             marginStart = inset; marginEnd = inset; bottomMargin = dp(bottom)
         })
-        header(crumb, 6)
-        header(heading, 6)
-        header(desc, 12)
+        // A fixed header (PaneStack): the page below is the only scrolling part and clips itself.
+        header(crumb, PaneStack.CRUMB_GAP_DP)
+        header(heading, PaneStack.HEADING_GAP_DP)
+        header(desc, 0)
         pageHost = FrameLayout(this).apply {
             clipChildren = false
             isFocusable = false
         }
-        panelColumn.addView(pageHost, LinearLayout.LayoutParams(-1, 0, 1f))
+        panelColumn.addView(pageHost, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(PaneStack.DESC_GAP_DP) })
         panel.addView(panelColumn, FrameLayout.LayoutParams(-1, -1))
 
         toast = TextView(this).apply {

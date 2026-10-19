@@ -126,5 +126,14 @@ object NotificationAccess {
         false
     }
 
-    fun instructions(settingsOpened: Boolean): String = NotificationAccessText.instructions(settingsOpened, ADB_ALLOW)
+    fun instructions(settingsOpened: Boolean): String = NotificationAccessText.instructions(settingsOpened)
+
+    /** True when this TV has a system screen for listener access (else the card shows the setup line). */
+    fun hasSettingsScreen(context: Context): Boolean = try {
+        val pm = context.packageManager
+        pm.resolveActivity(settingsIntent(), 0) != null ||
+            pm.resolveActivity(Intent(SHORT_ACTION), 0) != null
+    } catch (e: RuntimeException) {
+        true
+    }
 }

@@ -21,7 +21,8 @@ class NotificationAccessTextTest {
         assertTrue(opened.contains("TV Launcher"))
         assertTrue(!opened.contains("adb"))
         val fallback = NotificationAccessText.instructions(settingsOpened = false, adbLine = "adb shell X")
-        assertTrue(fallback.contains("adb shell X"))
-        assertTrue(fallback.contains("computer"))
+        assertTrue(!fallback.contains("adb"))
+        assertTrue(!fallback.contains("computer"))
+        assertEquals(NotificationAccessText.SETUP_LINE, fallback)
     }
 }

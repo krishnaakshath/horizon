@@ -58,13 +58,21 @@ object AmbientViewModel {
         c.title?.let { c.app.length..(c.app.length + SEP.length + it.length) }
 }
 
-/** Pure user-facing text for granting listener access. */
+/**
+ * Pure user-facing text for granting listener access. Friendly one-liners only: developer recipes
+ * (the adb line from [adbLine]) live in the docs, never on screen.
+ */
 object NotificationAccessText {
+    /** The one-line setup pointer shown when the TV has no access screen of its own. */
+    const val SETUP_LINE = "Needs a one-time setup \u2014 see Settings > System > Setup"
+
+    /** For docs and the setup flow only; never shown in the UI. */
     fun adbLine(pkg: String, serviceClass: String) = "adb shell cmd notification allow_listener $pkg/$serviceClass"
 
-    fun instructions(settingsOpened: Boolean, adbLine: String): String =
+    @Suppress("UNUSED_PARAMETER")
+    fun instructions(settingsOpened: Boolean, adbLine: String = ""): String =
         if (settingsOpened) "Turn on TV Launcher in the list that just opened, then press Back."
-        else "This TV has no notification access screen. From a computer on the same network, run:\n$adbLine"
+        else SETUP_LINE
 }
 
 object NotificationFilter {

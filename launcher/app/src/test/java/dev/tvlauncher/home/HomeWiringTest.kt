@@ -22,7 +22,8 @@ class HomeWiringTest {
         assertTrue(NowPlayingHome.shouldRun(on, accessGranted = true))
         assertFalse(NowPlayingHome.shouldRun(on, accessGranted = false))
         assertFalse(NowPlayingHome.shouldRun(on.copy(showOnHome = false), accessGranted = true))
-        assertFalse(NowPlayingHome.shouldRun(NowPlayingSettings(), accessGranted = true)) // off by default
+        assertTrue(NowPlayingHome.shouldRun(NowPlayingSettings(), accessGranted = true)) // on by default
+        assertFalse(NowPlayingHome.shouldRun(NowPlayingSettings(), accessGranted = false)) // hidden until access exists
     }
 
     @Test fun accessCard_onlyWhileEnabledButNotGranted() {

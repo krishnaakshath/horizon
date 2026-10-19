@@ -26,8 +26,7 @@ object DiscoverSettingsRows {
 
     const val ADB_ALLOW = "adb shell cmd notification allow_listener dev.tvlauncher/dev.tvlauncher.ambient.AmbientNotificationService"
     const val ACCESS_HINT =
-        "Now Playing reads media sessions through the launcher's notification listener (the same one-time " +
-            "grant as ambient notifications). If the TV has no access screen, run: $ADB_ALLOW"
+        "Now Playing needs the same one-time permission as ambient notifications."
 
     private fun onOff(b: Boolean) = if (b) "On" else "Off"
 

@@ -13,7 +13,8 @@ class DiscoverSettingsTest {
         assertEquals(null, d.region)
         assertTrue(d.hiddenCatalogIds.isEmpty())
         val n = NowPlayingSettings()
-        assertFalse(n.nowPlayingEnabled)
+        assertTrue(n.nowPlayingEnabled) // on by default, hidden until access exists
+        assertFalse(n.showHome(accessGranted = false))
         assertTrue(n.showOnHome)
         assertTrue(n.showOnAmbient)
     }
@@ -52,14 +53,14 @@ class DiscoverSettingsTest {
     }
 
     @Test fun rows_accessCard_visibleOnlyWhenEnabledWithoutAccess() {
-        val off = DiscoverSettingsRows.rows(DiscoverSettings(), NowPlayingSettings(), false, "IN")
+        val off = DiscoverSettingsRows.rows(DiscoverSettings(), NowPlayingSettings(nowPlayingEnabled = false), false, "IN")
         assertFalse(off.first { it.key == "nowPlayingAccess" }.visible)
         assertFalse(off.first { it.key == "nowPlayingShowOnHome" }.visible)
         val noAccess = DiscoverSettingsRows.rows(DiscoverSettings(), NowPlayingSettings(nowPlayingEnabled = true), false, "IN")
         val card = noAccess.first { it.key == "nowPlayingAccess" }
         assertTrue(card.visible)
         assertEquals(DiscoverSettingsRows.Kind.CARD, card.kind)
-        assertTrue(card.hint!!.contains("allow_listener"))
+        assertTrue(!card.hint!!.contains("adb") && !card.hint!!.contains("allow_listener"))
         val ok = DiscoverSettingsRows.rows(DiscoverSettings(), NowPlayingSettings(nowPlayingEnabled = true), true, "IN")
         assertFalse(ok.first { it.key == "nowPlayingAccess" }.visible)
         assertTrue(ok.first { it.key == "nowPlayingShowOnHome" }.visible)
@@ -78,7 +79,7 @@ class DiscoverSettingsTest {
         d = DiscoverSettingsRows.toggle(d, "showGetMoreAppsTile")
         assertFalse(d.showGetMoreAppsTile)
         n = DiscoverSettingsRows.toggleNowPlaying(n, "nowPlayingEnabled")
-        assertTrue(n.nowPlayingEnabled)
+        assertFalse(n.nowPlayingEnabled) // on by default: the first toggle turns it off
         n = DiscoverSettingsRows.toggleNowPlaying(n, "nowPlayingShowOnAmbient")
         assertFalse(n.showOnAmbient)
         val stepped = DiscoverSettingsRows.stepRegion(DiscoverSettings(), 1)

@@ -82,9 +82,16 @@ object WallpaperPage {
 
     fun intervalLabel(sec: Int) = if (sec < 60) "$sec s" else "${sec / 60} min"
 
+    /** Friendly, no developer commands: where the pictures go and what works. */
     fun folderNote(path: String) =
-        "Put pictures in $path\nFrom a computer: ${UserWallpapers.ADB_PUSH}\n" +
-            "JPG, PNG or WebP, up to 8 MB each, ${WallpaperPlan.MAX_FILES} pictures max."
+        "Copy pictures into the folder ${friendlyPath(path)} with a file manager app.\n" +
+            "JPG, PNG or WebP, up to 8 MB each, ${WallpaperPlan.MAX_FILES} pictures at most."
+
+    /** "Android/data/dev.tvlauncher/files/wallpapers" instead of an absolute /storage/emulated/0/... path. */
+    fun friendlyPath(path: String): String {
+        val i = path.indexOf("Android/")
+        return (if (i >= 0) path.substring(i) else path).trimEnd('/')
+    }
 
     fun build(context: Context, nav: SettingsNav): View {
         val store = WallpaperStore(context)

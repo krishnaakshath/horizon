@@ -77,8 +77,10 @@ data class SettingsLayout(
             val pane = Box(sidebar.right + gap, mv, widthPx - mh, heightPx - mv)
             val pad = dp(PANE_PAD_DP)
             val bar = if (hasScrollbar) {
-                val r = pane.right - dp(4)
-                Box(r - dp(SCROLLBAR_DP), pane.top + pad, r, pane.bottom - pad)
+                    // Centred in the page column's right gutter (inside the card padding, right of every row).
+                val c = pane.right - dp(PAGE_PAD_END_DP) / 2
+                val l = c - dp(SCROLLBAR_DP) / 2
+                Box(l, pane.top + pad, l + dp(SCROLLBAR_DP), pane.bottom - pad)
             } else null
             // The thumb lives in the pane's right padding; rows never reach it.
             val contentRight = minOf(pane.right - pad, bar?.let { it.left - dp(SCROLLBAR_GAP_DP) } ?: Int.MAX_VALUE)
@@ -169,5 +171,37 @@ object SidebarMetrics {
             y += (if (h) HEADER_DP else ENTRY_DP) + ENTRY_GAP_DP
             top
         }
+    }
+}
+
+/**
+ * The pane's vertical stack: a FIXED header (breadcrumb on sub-pages only, heading, optional
+ * description) and below it the page body. The body is the only scrolling part and clips to its
+ * own bounds (SettingsPage.clipChildren = true), so a row, scrolled or not, can never draw over the
+ * header. Heights are measured px; gaps are dp.
+ */
+object PaneStack {
+    const val TOP_DP = 22
+    const val CRUMB_GAP_DP = 6
+    const val HEADING_GAP_DP = 6
+    const val DESC_GAP_DP = 12
+
+    data class Result(val header: Box, val body: Box)
+
+    fun layout(pane: Box, density: Float, crumbH: Int, headingH: Int, descH: Int): Result {
+        fun dp(v: Int) = Math.round(v * density)
+        var y = pane.top + dp(TOP_DP)
+        if (crumbH > 0) y += crumbH + dp(CRUMB_GAP_DP)
+        y += headingH + dp(HEADING_GAP_DP)
+        if (descH > 0) y += descH
+        y += dp(DESC_GAP_DP)
+        val headerBottom = minOf(y, pane.bottom)
+        return Result(Box(pane.left, pane.top, pane.right, headerBottom), Box(pane.left, headerBottom, pane.right, pane.bottom))
+    }
+
+    /** What of a row at [row] is drawn: its intersection with the clipping [body] (null when hidden). */
+    fun visible(row: Box, body: Box): Box? {
+        val b = Box(maxOf(row.left, body.left), maxOf(row.top, body.top), minOf(row.right, body.right), minOf(row.bottom, body.bottom))
+        return if (b.width > 0 && b.height > 0) b else null
     }
 }

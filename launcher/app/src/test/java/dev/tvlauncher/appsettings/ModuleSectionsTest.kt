@@ -35,7 +35,7 @@ class ModuleSectionsTest {
         assertNull(granted.second)
         val missing = ModuleSections.usageAccessStatus(granted = false)
         assertEquals("Not granted", missing.first)
-        assertTrue(missing.second!!.contains(UsageAccess.ADB_LINE))
+        assertTrue(!missing.second!!.contains("adb"))
     }
 
     @Test

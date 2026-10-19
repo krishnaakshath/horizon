@@ -31,8 +31,12 @@ class AddOnsTest {
     }
 
     @Test
-    fun howToInstall_namesThePackage_andNeedsNoInternetFromTheLauncher() {
-        for (a in AddOns.all) assertTrue(AddOns.howToInstall(a).contains(a.packageName))
+    fun howToInstall_isFriendly_noDeveloperCommands() {
+        for (a in AddOns.all) {
+            val t = AddOns.howToInstall(a)
+            assertTrue(t.contains(a.title))
+            assertTrue(!t.contains("adb") && !t.contains(a.packageName))
+        }
     }
 
     @Test

@@ -30,7 +30,7 @@ object ModuleSections {
     /** Value and an optional note for the "Usage access" row. */
     fun usageAccessStatus(granted: Boolean): Pair<String, String?> =
         if (granted) "Granted" to null
-        else "Not granted" to "If this TV has no usage access page, run this once from a computer:\n${UsageAccess.ADB_LINE}"
+        else "Not granted" to dev.tvlauncher.ambient.NotificationAccessText.SETUP_LINE
 
     fun installedValue(installed: Boolean): String = if (installed) "Installed" else "Not installed"
 }
@@ -65,15 +65,9 @@ object InsightsSection : SettingsSection, SpecifiedPage {
         page.row("insights.access", "Usage access", if (granted) RowKind.Info(value) else RowKind.Action(value) {
             if (!UsageAccess.openSettings(context)) nav.notify("This TV has no usage access page; see Advanced")
         }, subtitle = "Lets the launcher see which app is on screen", iconRes = R.drawable.ic_set_eye)
-        page.advanced(nav, "insights.advanced", "Grant usage access from a computer") { adv ->
-            adv.row("insights.adb", "Grant from a computer", RowKind.Action {
-                nav.push("Grant from a computer") { c, n ->
-                    TextPage(c, n.style).apply {
-                        setText(ModuleSections.usageAccessStatus(false).second.orEmpty() +
-                            "\n\nThen come back here; the status updates by itself.")
-                    }
-                }
-            }, subtitle = "One adb line, for TVs without a usage access page", iconRes = R.drawable.ic_sc_developer)
+        page.advanced(nav, "insights.advanced", "If this TV has no usage access page") { adv ->
+            adv.row("insights.adb", "One-time setup", RowKind.Info(if (granted) "Done" else "See System > Setup"),
+                subtitle = "For TVs without a usage access page", iconRes = R.drawable.ic_sc_developer)
         }
         return page
     }

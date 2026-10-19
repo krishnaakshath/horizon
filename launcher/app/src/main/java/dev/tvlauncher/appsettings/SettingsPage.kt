@@ -184,8 +184,10 @@ class SettingsPage(context: Context, val style: SettingsStyle, spec: PageSpec? =
             computeVerticalScrollRange(), computeVerticalScrollExtent(), computeVerticalScrollOffset(),
             height - inset * 2, context.dp(24)
         ) ?: return
+        // Inside the card's padding: centred in the column's right gutter, right of every row.
         val w = context.dp(SettingsLayout.SCROLLBAR_DP).toFloat()
-        val x = scrollX + width - w - context.dp(4)
+        val gutter = column.paddingRight.toFloat()
+        val x = scrollX + width - gutter / 2f - w / 2f
         val y = scrollY + inset + t.first.toFloat()
         thumbRect.set(x, y, x + w, y + t.second)
         canvas.drawRoundRect(thumbRect, w / 2, w / 2, thumbPaint)

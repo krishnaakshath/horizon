@@ -21,7 +21,7 @@ internal class TextPage(context: Context, style: SettingsStyle) : ScrollView(con
 
     init {
         isFocusable = true
-        isVerticalScrollBarEnabled = true
+        isVerticalScrollBarEnabled = false // no system track over the text; the focus rail shows where it is
         overScrollMode = OVER_SCROLL_NEVER
         setPadding(context.dp(30), context.dp(8), context.dp(30), context.dp(36))
         clipToPadding = false

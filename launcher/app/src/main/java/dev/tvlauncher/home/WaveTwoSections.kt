@@ -163,7 +163,7 @@ object AmbientSection : SettingsSection, SpecifiedPage {
         page.advanced(nav, "ambient.advanced", "Clock, notification chips, burn-in and screensaver") { adv ->
             for (r in rows) if (r.key !in WaveTwoSections.AMBIENT_PRIMARY_MODEL_KEYS && r.key !in elsewhere) render(adv, r)
             adv.group("Screensaver")
-            adv.note("To use Ambient as the TV's screensaver, run these once from a computer:\n${WaveTwoSections.SCREENSAVER_ADB}", maxLines = 5)
+            adv.note("Ambient can also be the TV's screensaver. ${dev.tvlauncher.ambient.NotificationAccessText.SETUP_LINE}.", maxLines = 2)
         }
         return page
     }
