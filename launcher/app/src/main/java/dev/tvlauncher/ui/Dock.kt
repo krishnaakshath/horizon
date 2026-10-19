@@ -12,6 +12,7 @@ class Dock(
     onInputs: () -> Unit,
     onAllApps: () -> Unit,
     onAssistant: () -> Unit,
+    onSettingsLongPress: () -> Unit,
     private val onUp: () -> Boolean
 ) : LinearLayout(context) {
     private val buttons = listOf(
@@ -22,6 +23,7 @@ class Dock(
     )
 
     init {
+        buttons[0].setOnLongClickListener { onSettingsLongPress(); true }
         orientation = HORIZONTAL
         gravity = Gravity.CENTER
         for (b in buttons) {

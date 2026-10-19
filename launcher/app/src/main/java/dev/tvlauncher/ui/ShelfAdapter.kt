@@ -4,6 +4,7 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.util.LruCache
 import android.view.KeyEvent
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import dev.tvlauncher.apps.AppEntry
@@ -14,7 +15,8 @@ class ShelfAdapter(
     private val pm: PackageManager,
     private val profile: DeviceProfile,
     private val onFocused: (Int, AppEntry) -> Unit,
-    private val onClick: (AppEntry) -> Unit,
+    private val onClick: (AppEntry, View) -> Unit,
+    private val onLongPress: (AppEntry) -> Unit,
     private val onDown: () -> Boolean
 ) : RecyclerView.Adapter<ShelfAdapter.Holder>() {
     class Holder(val tile: TileView) : RecyclerView.ViewHolder(tile)
@@ -51,7 +53,9 @@ class ShelfAdapter(
         val art = artCache.get(app.packageName)
             ?: TileArtResolver.resolve(pm, app).also { artCache.put(app.packageName, it) }
         holder.tile.bind(app, art, profile)
-        holder.tile.setOnClickListener { onClick(app) }
+        holder.tile.setOnClickListener { onClick(app, holder.tile) }
+        // Covers touch long-press and DPAD_CENTER long-press (framework maps it to a long click).
+        holder.tile.setOnLongClickListener { onLongPress(app); true }
         holder.tile.setOnFocusChangeListener { _, has ->
             val pos = holder.bindingAdapterPosition
             if (has && pos != RecyclerView.NO_POSITION) {

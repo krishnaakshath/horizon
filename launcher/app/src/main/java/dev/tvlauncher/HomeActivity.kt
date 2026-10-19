@@ -17,13 +17,15 @@ import androidx.recyclerview.widget.RecyclerView
 import dev.tvlauncher.apps.AppEntry
 import dev.tvlauncher.apps.AppOrdering
 import dev.tvlauncher.apps.AppRepository
-import dev.tvlauncher.apps.component
 import dev.tvlauncher.device.DeviceProfileReader
+import dev.tvlauncher.launch.AndroidLaunchBackend
+import dev.tvlauncher.launch.AppLauncher
 import dev.tvlauncher.settings.Prefs
 import dev.tvlauncher.ui.Dock
 import dev.tvlauncher.ui.FocusRules
 import dev.tvlauncher.ui.ShelfAdapter
 import dev.tvlauncher.ui.SystemActions
+import dev.tvlauncher.ui.TileMenu
 import dev.tvlauncher.ui.TileSpec
 import dev.tvlauncher.ui.TopBar
 import dev.tvlauncher.ui.dp
@@ -33,6 +35,8 @@ import java.util.concurrent.atomic.AtomicInteger
 class HomeActivity : Activity() {
     private lateinit var repo: AppRepository
     private lateinit var prefs: Prefs
+    private lateinit var launcher: AppLauncher
+    private lateinit var tileMenu: TileMenu
     private lateinit var adapter: ShelfAdapter
     private lateinit var shelf: RecyclerView
     private lateinit var topBar: TopBar
@@ -86,10 +90,13 @@ class HomeActivity : Activity() {
         root.addView(hero, LinearLayout.LayoutParams(-1, 0, 1f))
 
         val profile = DeviceProfileReader.read(this)
+        launcher = AppLauncher(profile, AndroidLaunchBackend(this))
+        tileMenu = TileMenu(this, prefs) { reload() }
         adapter = ShelfAdapter(
             packageManager, profile,
             onFocused = { _, app -> heroTitle.text = app.label },
-            onClick = { launch(it) },
+            onClick = { app, v -> launcher.launch(app, v) },
+            onLongPress = { app -> tileMenu.show(app, adapter.getItems().map { it.packageName }) },
             onDown = { dock.focusFirst() }
         )
         shelf = RecyclerView(this).apply {
@@ -113,6 +120,7 @@ class HomeActivity : Activity() {
             onInputs = { SystemActions.inputs(this) },
             onAllApps = { focusTile(0) },
             onAssistant = { SystemActions.assistant(this) },
+            onSettingsLongPress = { tileMenu.showDockMenu() },
             onUp = { focusTile(adapter.lastFocused) }
         )
         root.addView(dock, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
@@ -163,10 +171,6 @@ class HomeActivity : Activity() {
             shelf.findViewHolderForAdapterPosition(i)?.itemView?.requestFocus()
         }
         return true
-    }
-
-    private fun launch(app: AppEntry) {
-        SystemActions.start(this, Intent().setComponent(app.component()))
     }
 
     override fun onNewIntent(intent: Intent?) {
