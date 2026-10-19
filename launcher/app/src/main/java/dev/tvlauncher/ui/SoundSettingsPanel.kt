@@ -55,14 +55,21 @@ class SoundSettingsPanel(
         row("Sound effects", { if (s.enabled) "On" else "Off" }, onOk = {
             update(s.copy(enabled = !s.enabled)); player?.preview(SoundEvent.SELECT)
         })
-        val cycleTheme = { d: Int ->
+        fun cycle(current: String, d: Int): String {
             val all = SoundThemes.all
-            val i = all.indexOfFirst { it.id == s.themeId }.coerceAtLeast(0)
-            update(s.copy(themeId = all[(i + d + all.size) % all.size].id))
-            player?.preview(SoundEvent.SELECT)
+            val i = all.indexOfFirst { it.id == current }.coerceAtLeast(0)
+            return all[(i + d + all.size) % all.size].id
         }
-        row("Theme (OK or left / right)", { SoundThemes.byId(s.themeId).name },
-            onOk = { cycleTheme(1) }, onHorizontal = { d -> cycleTheme(d) })
+        val nav = { d: Int ->
+            update(s.copy(navThemeId = cycle(s.navThemeId, d))); player?.preview(SoundEvent.SELECT)
+        }
+        val launch = { d: Int ->
+            update(s.copy(launchThemeId = cycle(s.launchThemeId, d))); player?.preview(SoundEvent.LAUNCH)
+        }
+        row("Navigation sounds (OK or left / right)", { SoundThemes.byId(s.navThemeId).name },
+            onOk = { nav(1) }, onHorizontal = { d -> nav(d) })
+        row("Launch sounds (OK or left / right)", { SoundThemes.byId(s.launchThemeId).name },
+            onOk = { launch(1) }, onHorizontal = { d -> launch(d) })
         row("Volume", { "${s.volume}%   (left / right)" }, onOk = { player?.preview(SoundEvent.SELECT) },
             onHorizontal = { d ->
                 update(s.copy(volume = (s.volume + d * 10).coerceIn(0, 100)))
@@ -84,6 +91,14 @@ class SoundSettingsPanel(
             style(14f, Theme.regular, Theme.TEXT_2)
             setPadding(dp(Theme.S4), dp(Theme.S2), dp(Theme.S4), dp(Theme.S3))
         })
+        addView(TextView(context).apply {
+            text = "Sound lab: OK plays that sound with the selected theme"
+            style(16f, Theme.regular, Theme.TEXT_2)
+            setPadding(dp(Theme.S4), dp(Theme.S4), dp(Theme.S4), 0)
+        })
+        for (e in SoundEvent.values()) {
+            row("  Play " + label(e), { SoundThemes.byId(s.themeIdFor(e)).name }, onOk = { player?.preview(e) })
+        }
         row("Preview", { "OK to play all" }, onOk = {
             SoundEvent.values().forEachIndexed { i, e ->
                 val r = Runnable { player?.preview(e) }

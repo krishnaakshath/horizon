@@ -118,7 +118,7 @@ class SoundPlayer(
         }
     }
 
-    private fun keyOf(event: SoundEvent, s: SoundSettings) = "${s.themeId}|${s.useCustomFolder}"
+    private fun keyOf(event: SoundEvent, s: SoundSettings) = "${s.themeIdFor(event)}|${s.useCustomFolder}"
 
     private fun customFile(event: SoundEvent): File =
         File(customDir() ?: File("/nonexistent"), "${event.name.lowercase()}.wav")
@@ -137,7 +137,7 @@ class SoundPlayer(
             if (file != null && file.isFile && file.length() <= WavParser.MAX_BYTES) {
                 WavParser.parse(file.readBytes())?.let { rate = it.sampleRate; pcm = it.samples }
             }
-            val spec = SoundThemes.byId(s.themeId).events.getValue(event)
+            val spec = SoundThemes.byId(s.themeIdFor(event)).events.getValue(event)
             val data = pcm ?: if (spec.gain > 0f) ToneSynth.render(spec, SAMPLE_RATE) else ShortArray(0)
             val bytes = data.size * 2
             if (bytes > 0 && bytes <= budget) {

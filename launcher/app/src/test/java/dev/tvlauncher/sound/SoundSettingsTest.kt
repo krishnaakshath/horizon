@@ -12,7 +12,7 @@ class SoundSettingsTest {
     }
 
     @Test fun round_trip() {
-        val s = SoundSettings(false, "retro", 30, SoundEvent.values().associateWith { it != SoundEvent.MOVE }, true)
+        val s = SoundSettings(false, "retro", 30, SoundEvent.values().associateWith { it != SoundEvent.MOVE }, true, "bell", "aurora")
         assertEquals(s, SoundSettings.fromJson(s.toJson()))
     }
 
@@ -38,5 +38,18 @@ class SoundSettingsTest {
     @Test fun wrong_types_do_not_throw() {
         val s = SoundSettings.fromJson("""{"perEvent":5,"volume":"x","themeId":null}""")
         assertEquals(60, s.volume)
+    }
+
+    @Test fun oldJson_withoutNewFields_loads() {
+        val s = SoundSettings.fromJson("""{"version":1,"enabled":false,"themeId":"retro","volume":40,"useCustomFolder":true}""")
+        assertEquals("retro", s.themeId); assertEquals("retro", s.navThemeId); assertEquals("retro", s.launchThemeId)
+        assertFalse(s.enabled); assertEquals(40, s.volume)
+    }
+
+    @Test fun categories_pickRightTheme() {
+        val s = SoundSettings(themeId = "glass", navThemeId = "soft", launchThemeId = "bell")
+        for (e in listOf(SoundEvent.MOVE, SoundEvent.SELECT, SoundEvent.BACK, SoundEvent.MENU_OPEN))
+            assertEquals("soft", s.themeIdFor(e))
+        for (e in listOf(SoundEvent.LAUNCH, SoundEvent.ERROR)) assertEquals("bell", s.themeIdFor(e))
     }
 }

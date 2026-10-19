@@ -9,8 +9,17 @@ data class SoundSettings(
     val themeId: String = "glass",
     val volume: Int = 60,
     val perEvent: Map<SoundEvent, Boolean> = SoundEvent.values().associateWith { true },
-    val useCustomFolder: Boolean = false
+    val useCustomFolder: Boolean = false,
+    /** Theme for MOVE/SELECT/BACK/MENU_OPEN. Defaults to [themeId] for backwards compatibility. */
+    val navThemeId: String = themeId,
+    /** Theme for LAUNCH/ERROR. Defaults to [themeId]. */
+    val launchThemeId: String = themeId
 ) {
+    fun themeIdFor(e: SoundEvent): String = when (e) {
+        SoundEvent.LAUNCH, SoundEvent.ERROR -> launchThemeId
+        else -> navThemeId
+    }
+
     fun isEventOn(e: SoundEvent) = perEvent[e] ?: true
 
     fun toJson(): String {
@@ -23,6 +32,8 @@ data class SoundSettings(
             .put("volume", volume)
             .put("perEvent", ev)
             .put("useCustomFolder", useCustomFolder)
+            .put("navThemeId", navThemeId)
+            .put("launchThemeId", launchThemeId)
             .toString()
     }
 
@@ -36,13 +47,19 @@ data class SoundSettings(
                 val per = SoundEvent.values().associateWith { e ->
                     evObj?.optBoolean(e.name, true) ?: true
                 }
-                val theme = j.optString("themeId", d.themeId)
+                fun id(key: String, fallback: String): String {
+                    val v = j.optString(key, fallback)
+                    return if (v.isBlank() || v == "null") fallback else v
+                }
+                val theme = id("themeId", d.themeId)
                 SoundSettings(
                     enabled = j.optBoolean("enabled", d.enabled),
-                    themeId = if (theme.isBlank() || theme == "null") d.themeId else theme,
+                    themeId = theme,
                     volume = j.optInt("volume", d.volume).coerceIn(0, 100),
                     perEvent = per,
-                    useCustomFolder = j.optBoolean("useCustomFolder", d.useCustomFolder)
+                    useCustomFolder = j.optBoolean("useCustomFolder", d.useCustomFolder),
+                    navThemeId = id("navThemeId", theme),
+                    launchThemeId = id("launchThemeId", theme)
                 )
             } catch (e: Exception) {
                 SoundSettings()
