@@ -18,102 +18,139 @@ class RoomLightModelTest {
     private fun inputs(lux: Float?, now: Long, choice: RoomChoice = RoomChoice.AUTO, min: Int = hm(12, 0)) =
         RoomLightModel.Inputs(lux, min, null, null, choice, now)
 
-    // ---- Fixed schedule (no sun times) ----
+    // ---- No-sun table (controller ruling) ----
+    // CINEMA 23:30-06:30 | EVENING 06:30-07:30 | STANDARD 07:30-18:30 | EVENING 18:30-23:30
 
-    @Test fun default_schedule_boundaries() {
-        assertEquals(CINEMA, sched(hm(6, 59)))
-        assertEquals(STANDARD, sched(hm(7, 0)))
+    @Test fun no_sun_table_boundaries() {
+        assertEquals(CINEMA, sched(hm(6, 29)))
+        assertEquals(EVENING, sched(hm(6, 30)))
+        assertEquals(EVENING, sched(hm(7, 29)))
+        assertEquals(STANDARD, sched(hm(7, 30)))
+        assertEquals(STANDARD, sched(hm(12, 0)))
         assertEquals(STANDARD, sched(hm(18, 29)))
         assertEquals(EVENING, sched(hm(18, 30)))
         assertEquals(EVENING, sched(hm(23, 29)))
         assertEquals(CINEMA, sched(hm(23, 30)))
         assertEquals(CINEMA, sched(0))
         assertEquals(CINEMA, sched(1439))
-        assertEquals(STANDARD, sched(hm(12, 0)))
     }
 
     @Test fun out_of_range_minutes_wrap() {
         assertEquals(sched(hm(12, 0)), sched(hm(12, 0) + 1440))
         assertEquals(sched(hm(23, 50)), sched(-10))
+        assertEquals(CINEMA, sched(-1))
     }
 
-    @Test fun custom_schedule_respected() {
+    @Test fun user_overrides_respected_with_midnight_wrap() {
+        // Day 08:00, evening 20:00, dark room from 01:00 (after midnight); morning EVENING = 07:00-08:00.
         val s = Schedule(dayStart = hm(8, 0), eveningStart = hm(20, 0), nightStart = hm(1, 0))
-        assertEquals(CINEMA, sched(hm(7, 59), schedule = s))
         assertEquals(STANDARD, sched(hm(8, 0), schedule = s))
+        assertEquals(STANDARD, sched(hm(19, 59), schedule = s))
         assertEquals(EVENING, sched(hm(20, 0), schedule = s))
-        // Night start after midnight: 23:59 and 00:30 are still evening.
         assertEquals(EVENING, sched(hm(23, 59), schedule = s))
         assertEquals(EVENING, sched(hm(0, 30), schedule = s))
         assertEquals(CINEMA, sched(hm(1, 0), schedule = s))
+        assertEquals(CINEMA, sched(hm(6, 59), schedule = s))
+        assertEquals(EVENING, sched(hm(7, 0), schedule = s))
+        assertEquals(EVENING, sched(hm(7, 59), schedule = s))
     }
 
-    @Test fun degenerate_schedule_does_not_crash() {
-        val s = Schedule(dayStart = 600, eveningStart = 600, nightStart = 600)
-        for (m in 0 until 1440) sched(m, schedule = s)
+    @Test fun insane_overrides_fall_back_to_defaults() {
+        val bad = listOf(
+            Schedule(dayStart = 600, eveningStart = 600, nightStart = 600),          // degenerate
+            Schedule(dayStart = hm(7, 0), eveningStart = hm(18, 30), nightStart = hm(6, 45)), // ~23.75 h "night" (the 1425-min case)
+            Schedule(dayStart = hm(7, 30), eveningStart = hm(18, 30), nightStart = hm(5, 0)), // night 1.5 h < 3 h
+            Schedule(dayStart = hm(12, 0), eveningStart = hm(12, 30), nightStart = hm(15, 0)), // night 20 h > 12 h
+            Schedule(dayStart = 1500, eveningStart = hm(18, 30), nightStart = hm(23, 30)),   // out of range
+            Schedule(dayStart = hm(7, 30), eveningStart = -1, nightStart = hm(23, 30)),
+            Schedule(dayStart = hm(7, 30), eveningStart = hm(23, 45), nightStart = hm(23, 30)) // evening after night
+        )
+        for (s in bad) {
+            assertTrue(RoomLightModel.sane(s) == Schedule.DEFAULT)
+            for (m in 0 until 1440) assertEquals("$s @$m", sched(m), sched(m, schedule = s))
+        }
+        // Night windows of exactly 3 h and 12 h are accepted.
+        assertEquals(Schedule(hm(7, 30), hm(18, 30), hm(3, 30)), RoomLightModel.sane(Schedule(hm(7, 30), hm(18, 30), hm(3, 30))))
+        assertEquals(Schedule(hm(7, 30), hm(17, 0), hm(18, 30)), RoomLightModel.sane(Schedule(hm(7, 30), hm(17, 0), hm(18, 30))))
     }
 
-    // ---- Sun schedule ----
+    // ---- Sun table (controller ruling) ----
+    // EVENING [D-30, cinemaStart) with cinemaStart = max(D+90, 20:30)
+    // CINEMA  [cinemaStart, cinemaEnd) with cinemaEnd = clamp(S-30, 03:00, 07:30)
+    // EVENING [cinemaEnd, S+60) | STANDARD [S+60, D-30)
 
-    private val rise = hm(6, 25)
-    private val set = hm(17, 48)
-
-    @Test fun sun_schedule_boundaries() {
-        // Night until sunrise-30.
-        assertEquals(CINEMA, sched(hm(5, 54), rise, set))
-        // Hard night: before 06:30 stays CINEMA even though it is inside sunrise-30.
-        assertEquals(CINEMA, sched(hm(5, 55), rise, set))
-        assertEquals(CINEMA, sched(hm(6, 29), rise, set))
-        // Sunrise window [sunrise-30, sunrise+60) once past the hard-night end.
-        assertEquals(EVENING, sched(hm(6, 30), rise, set))
-        assertEquals(EVENING, sched(rise + 59, rise, set))
-        assertEquals(STANDARD, sched(rise + 60, rise, set))
-        assertEquals(STANDARD, sched(set - 61, rise, set))
-        assertEquals(EVENING, sched(set - 60, rise, set))
-        assertEquals(EVENING, sched(set + 29, rise, set))
-        assertEquals(CINEMA, sched(set + 30, rise, set))
-        assertEquals(CINEMA, sched(hm(23, 0), rise, set))
-        assertEquals(CINEMA, sched(0, rise, set))
+    @Test fun delhi_20_oct() {
+        val s = hm(6, 24); val d = hm(17, 47)
+        assertEquals(CINEMA, sched(hm(5, 53), s, d))
+        assertEquals(EVENING, sched(hm(5, 54), s, d))
+        assertEquals(EVENING, sched(hm(7, 23), s, d))
+        assertEquals(STANDARD, sched(hm(7, 24), s, d))
+        assertEquals(STANDARD, sched(hm(17, 16), s, d))
+        assertEquals(EVENING, sched(hm(17, 17), s, d))
+        // D+90 = 19:17 is before 20:30, so lamp-time evening lasts until 20:30.
+        assertEquals(EVENING, sched(hm(20, 29), s, d))
+        assertEquals(CINEMA, sched(hm(20, 30), s, d))
+        assertEquals(CINEMA, sched(0, s, d))
     }
 
-    @Test fun late_sunrise_morning_window() {
-        // Winter London: sunrise 08:04, sunset 15:53.
-        val r = hm(8, 4); val s = hm(15, 53)
-        assertEquals(CINEMA, sched(hm(7, 33), r, s))
-        assertEquals(EVENING, sched(hm(7, 34), r, s))
-        assertEquals(STANDARD, sched(hm(9, 4), r, s))
-        assertEquals(EVENING, sched(hm(14, 53), r, s))
-        assertEquals(CINEMA, sched(hm(16, 23), r, s))
+    @Test fun london_june() {
+        // S 04:43, D 21:21: cinemaStart = D+90 = 22:51, cinemaEnd = S-30 = 04:13.
+        val s = hm(4, 43); val d = hm(21, 21)
+        assertEquals(CINEMA, sched(hm(4, 12), s, d))
+        assertEquals(EVENING, sched(hm(4, 13), s, d))
+        assertEquals(EVENING, sched(hm(5, 42), s, d))
+        assertEquals(STANDARD, sched(hm(5, 43), s, d))
+        assertEquals(STANDARD, sched(hm(20, 50), s, d))
+        assertEquals(EVENING, sched(hm(20, 51), s, d))
+        assertEquals(EVENING, sched(hm(22, 50), s, d))
+        assertEquals(CINEMA, sched(hm(22, 51), s, d))
+        assertEquals(CINEMA, sched(hm(1, 0), s, d))
     }
 
-    @Test fun summer_late_sunset_still_hard_night_after_2330() {
-        // Far-north summer: sunset 23:10 local.
-        val r = hm(3, 30); val s = hm(23, 10)
-        assertEquals(EVENING, sched(hm(23, 0), r, s))
-        assertEquals(CINEMA, sched(hm(23, 30), r, s))
-        assertEquals(CINEMA, sched(hm(3, 0), r, s))
-        // 06:30 onwards: the sunrise window is long past: day.
-        assertEquals(STANDARD, sched(hm(6, 30), r, s))
+    @Test fun cinema_never_past_0730_and_never_ends_before_0300() {
+        // Late sunrise 09:30: CINEMA ends at 07:30, then EVENING until S+60 = 10:30.
+        val late = hm(9, 30); val d1 = hm(16, 0)
+        assertEquals(CINEMA, sched(hm(7, 29), late, d1))
+        assertEquals(EVENING, sched(hm(7, 30), late, d1))
+        assertEquals(EVENING, sched(hm(10, 29), late, d1))
+        assertEquals(STANDARD, sched(hm(10, 30), late, d1))
+        assertEquals(EVENING, sched(hm(15, 30), late, d1))
+        assertEquals(CINEMA, sched(hm(20, 30), late, d1))
+        // Earliest plausible sunrise 03:00: S-30 = 02:30 is clamped to 03:00.
+        val early = hm(3, 0); val d2 = hm(21, 30)
+        assertEquals(CINEMA, sched(hm(2, 59), early, d2))
+        assertEquals(EVENING, sched(hm(3, 0), early, d2))
+        assertEquals(STANDARD, sched(hm(4, 0), early, d2))
+        // Latest plausible sunset 21:30: CINEMA from 23:00.
+        assertEquals(EVENING, sched(hm(22, 59), early, d2))
+        assertEquals(CINEMA, sched(hm(23, 0), early, d2))
     }
 
-    @Test fun sun_schedule_never_bright() {
+    @Test fun cinema_never_starts_before_2030() {
+        for ((s, d) in listOf(hm(6, 0) to hm(15, 0), hm(7, 0) to hm(17, 0), hm(4, 43) to hm(21, 21))) {
+            for (m in hm(7, 30) until hm(20, 30)) assertTrue("$s/$d @$m", sched(m, s, d) != CINEMA)
+            for (m in hm(7, 30) until hm(20, 30)) assertTrue(sched(m) != CINEMA)
+        }
+    }
+
+    @Test fun never_bright_without_lux() {
         for (m in 0 until 1440) {
-            assertTrue(sched(m, rise, set) != BRIGHT)
+            assertTrue(sched(m, hm(6, 24), hm(17, 47)) != BRIGHT)
             assertTrue(sched(m) != BRIGHT)
         }
     }
 
-    @Test fun missing_or_anomalous_sun_times_fall_back_to_fixed_schedule() {
-        for (m in 0 until 1440 step 7) {
-            val fixed = sched(m)
-            assertEquals(fixed, sched(m, null, set))
-            assertEquals(fixed, sched(m, rise, null))
-            // Polar-day style anomaly: sunrise after sunset.
-            assertEquals(fixed, sched(m, hm(20, 0), hm(4, 0)))
-            // Garbage values.
-            assertEquals(fixed, sched(m, -50, 9999))
-            assertEquals(fixed, sched(m, 600, 600))
-        }
+    @Test fun implausible_or_polar_sun_times_use_the_no_sun_table() {
+        val cases = listOf(
+            null to hm(17, 47), hm(6, 24) to null,
+            hm(20, 0) to hm(4, 0),            // polar-day style inversion
+            hm(2, 59) to hm(17, 0),           // S before 03:00
+            hm(9, 31) to hm(17, 0),           // S after 09:30
+            hm(6, 0) to hm(14, 59),           // D before 15:00
+            hm(6, 0) to hm(21, 31),           // D after 21:30
+            -50 to 9999, 600 to 600
+        )
+        for ((s, d) in cases) for (m in 0 until 1440) assertEquals("$s/$d @$m", sched(m), sched(m, s, d))
     }
 
     // ---- Manual ----
@@ -166,7 +203,6 @@ class RoomLightModelTest {
     }
 
     @Test fun hysteresis_thresholds() {
-        val st = RoomLightModel.State(STANDARD, 0, null, 0)
         // Rising needs +25 %.
         assertEquals(STANDARD, RoomLightModel.desiredForLux(450f, STANDARD))
         assertEquals(BRIGHT, RoomLightModel.desiredForLux(500f, STANDARD))
@@ -179,7 +215,7 @@ class RoomLightModelTest {
         assertEquals(EVENING, RoomLightModel.desiredForLux(6.25f, CINEMA))
         // Large drops go straight to the right band.
         assertEquals(CINEMA, RoomLightModel.desiredForLux(1f, BRIGHT))
-        assertEquals(STANDARD, st.mode)
+        assertEquals(EVENING, RoomLightModel.desiredForLux(10f, BRIGHT))
     }
 
     @Test fun dwell_45s_for_one_step() {

@@ -1,16 +1,21 @@
 package dev.tvlauncher.room
 
 /**
- * Fixed day schedule used by AUTO when there is no light sensor and no sunrise/sunset.
- * Minutes of the LOCAL day (0..1439); the cycle is dayStart -> eveningStart -> nightStart -> dayStart
- * and may wrap midnight (e.g. nightStart = 01:00).
+ * The no-sun schedule (user-overridable; minutes of the LOCAL day, 0..1439). The cycle is
+ * morning EVENING [dayStart-60, dayStart) -> STANDARD [dayStart, eveningStart) -> EVENING
+ * [eveningStart, nightStart) -> CINEMA [nightStart, dayStart-60), wrapping midnight as needed.
+ * Invalid combinations are replaced by [DEFAULT] (see [RoomLightModel.sane]).
  */
 data class Schedule(
-    val dayStart: Int = 7 * 60,
+    val dayStart: Int = 7 * 60 + 30,
     val eveningStart: Int = 18 * 60 + 30,
     val nightStart: Int = 23 * 60 + 30
 ) {
+    /** End of the night = start of the morning lamp-time EVENING hour. */
+    val nightEnd: Int get() = Math.floorMod(dayStart - MORNING_MIN, 1440)
+
     companion object {
+        const val MORNING_MIN = 60
         val DEFAULT = Schedule()
     }
 }
@@ -23,7 +28,7 @@ data class Schedule(
  * 2. AUTO with a (smoothed, see [LuxSmoother]) lux reading: bands with +/-25 % hysteresis and a
  *    dwell before switching ([DWELL_MS]; [FAST_DWELL_MS] when brightening by 2+ steps, so a sunny
  *    reveal isn't held back).
- * 3. AUTO without lux: the time-of-day schedule ([scheduleMode]); it switches at the boundary,
+ * 3. AUTO without lux: the time-of-day tables ([scheduleMode]); it switches at the boundary,
  *    no dwell (it can't flap). BRIGHT is never chosen from the schedule: without a sensor we can't
  *    know whether the sun is on the screen, and a wrong BRIGHT looks washed out at night.
  *
@@ -38,13 +43,19 @@ object RoomLightModel {
     const val EXIT = 0.75f
     const val DWELL_MS = 45_000L
     const val FAST_DWELL_MS = 10_000L
-    /** Minutes either side of sunrise/sunset that count as EVENING (total 90). */
-    const val SUN_BEFORE_SET = 60
-    const val SUN_AFTER_SET = 30
-    const val SUN_BEFORE_RISE = 30
-    const val SUN_AFTER_RISE = 60
-    /** Shortest believable day for the sun schedule (else the fixed schedule is used). */
-    const val MIN_DAY_MIN = 120
+    /** Sun table constants (minutes of the local day / offsets). See [scheduleMode]. */
+    const val SUNSET_EVENING_BEFORE = 30
+    const val SUNSET_CINEMA_AFTER = 90
+    const val CINEMA_EARLIEST_START = 20 * 60 + 30
+    const val CINEMA_LATEST_END = 7 * 60 + 30
+    const val CINEMA_EARLIEST_END = 3 * 60
+    const val SUNRISE_EVENING_BEFORE = 30
+    const val SUNRISE_EVENING_AFTER = 60
+    /** Plausible local sunrise / sunset; outside these the sun times are ignored. */
+    val SUNRISE_RANGE = 3 * 60..9 * 60 + 30
+    val SUNSET_RANGE = 15 * 60..21 * 60 + 30
+    /** Accepted night length for user schedules, minutes. */
+    val NIGHT_LENGTH_RANGE = 3 * 60..12 * 60
 
     data class Inputs(
         val lux: Float?,
@@ -116,22 +127,46 @@ object RoomLightModel {
     }
 
     /**
-     * Time-of-day mode (never BRIGHT). With believable sun times: EVENING in
-     * [sunrise-30, sunrise+60) and [sunset-60, sunset+30), STANDARD between, CINEMA otherwise, plus
-     * a hard night [schedule.nightStart, schedule.dayStart-30) (23:30..06:30 by default) that is
-     * always CINEMA. Without them (missing, sunrise >= sunset, out of range, polar): [schedule].
+     * Time-of-day mode. Never BRIGHT: a clock can't know about sun glare.
+     *
+     * No sun times (missing or implausible: S outside 03:00-09:30, D outside 15:00-21:30, S >= D):
+     *
+     * | from  | to    | mode     |
+     * |-------|-------|----------|
+     * | 23:30 | 06:30 | CINEMA   |
+     * | 06:30 | 07:30 | EVENING  |
+     * | 07:30 | 18:30 | STANDARD |
+     * | 18:30 | 23:30 | EVENING  |
+     *
+     * (defaults; [schedule] overrides dayStart / eveningStart / nightStart, night ends 60 min
+     * before dayStart.)
+     *
+     * With sunrise S and sunset D (local minutes):
+     *
+     * | from                                   | to                     | mode     |
+     * |----------------------------------------|------------------------|----------|
+     * | cinemaEnd = clamp(S-30, 03:00, 07:30)  | S+60                   | EVENING  |
+     * | S+60                                   | D-30                   | STANDARD |
+     * | D-30                                   | cinemaStart            | EVENING  |
+     * | cinemaStart = max(D+90, 20:30)         | cinemaEnd (next day)   | CINEMA   |
+     *
+     * So CINEMA never starts before 20:30 and never lasts past 07:30 in either table's spirit,
+     * and lamp-time evenings stay EVENING.
      */
     fun scheduleMode(minuteOfDay: Int, sunriseMin: Int?, sunsetMin: Int?, schedule: Schedule = Schedule.DEFAULT): RoomMode {
         val m = mod(minuteOfDay)
-        val sched = sane(schedule)
-        if (sunriseMin == null || sunsetMin == null || sunriseMin !in 0 until DAY || sunsetMin !in 0 until DAY ||
-            sunsetMin - sunriseMin < MIN_DAY_MIN
-        ) return fixed(m, sched)
-        if (inWindow(m, sched.nightStart, sched.dayStart - 30)) return RoomMode.CINEMA
-        if (inWindow(m, sunriseMin - SUN_BEFORE_RISE, sunriseMin + SUN_AFTER_RISE)) return RoomMode.EVENING
-        if (inWindow(m, sunsetMin - SUN_BEFORE_SET, sunsetMin + SUN_AFTER_SET)) return RoomMode.EVENING
-        if (inWindow(m, sunriseMin + SUN_AFTER_RISE, sunsetMin - SUN_BEFORE_SET)) return RoomMode.STANDARD
-        return RoomMode.CINEMA
+        if (sunriseMin == null || sunsetMin == null || sunriseMin !in SUNRISE_RANGE || sunsetMin !in SUNSET_RANGE ||
+            sunriseMin >= sunsetMin
+        ) return fixed(m, sane(schedule))
+        val s = sunriseMin; val d = sunsetMin
+        val cinemaStart = maxOf(d + SUNSET_CINEMA_AFTER, CINEMA_EARLIEST_START)
+        val cinemaEnd = (s - SUNRISE_EVENING_BEFORE).coerceIn(CINEMA_EARLIEST_END, CINEMA_LATEST_END)
+        return when {
+            inWindow(m, cinemaStart, cinemaEnd) -> RoomMode.CINEMA
+            inWindow(m, cinemaEnd, s + SUNRISE_EVENING_AFTER) -> RoomMode.EVENING
+            inWindow(m, s + SUNRISE_EVENING_AFTER, d - SUNSET_EVENING_BEFORE) -> RoomMode.STANDARD
+            else -> RoomMode.EVENING
+        }
     }
 
     private const val DAY = 1440
@@ -144,11 +179,19 @@ object RoomLightModel {
         return mod(m - start) < len
     }
 
-    private fun sane(s: Schedule): Schedule {
-        val d = mod(s.dayStart)
-        val e = mod(s.eveningStart - d)
-        val n = mod(s.nightStart - d)
-        return if (e <= n) Schedule(d, mod(s.eveningStart), mod(s.nightStart)) else Schedule.DEFAULT
+    /**
+     * [s] if usable, else [Schedule.DEFAULT]: every value in 0..1439, the cycle order
+     * day -> evening -> night -> morning holds with non-empty day and evening, and the night
+     * lasts 3..12 h (so no window can cover ~the whole day).
+     */
+    fun sane(s: Schedule): Schedule {
+        if (s.dayStart !in 0 until DAY || s.eveningStart !in 0 until DAY || s.nightStart !in 0 until DAY) return Schedule.DEFAULT
+        val e = mod(s.eveningStart - s.dayStart)
+        val n = mod(s.nightStart - s.dayStart)
+        val morning = DAY - Schedule.MORNING_MIN
+        if (e <= 0 || n <= e || n >= morning) return Schedule.DEFAULT
+        if ((morning - n) !in NIGHT_LENGTH_RANGE) return Schedule.DEFAULT
+        return s
     }
 
     private fun fixed(m: Int, s: Schedule): RoomMode {
@@ -156,7 +199,8 @@ object RoomLightModel {
         return when {
             x < mod(s.eveningStart - s.dayStart) -> RoomMode.STANDARD
             x < mod(s.nightStart - s.dayStart) -> RoomMode.EVENING
-            else -> RoomMode.CINEMA
+            x < DAY - Schedule.MORNING_MIN -> RoomMode.CINEMA
+            else -> RoomMode.EVENING
         }
     }
 }
