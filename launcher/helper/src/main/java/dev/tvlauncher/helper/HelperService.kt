@@ -2,20 +2,23 @@ package dev.tvlauncher.helper
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 
 class HelperService : AccessibilityService() {
-    private lateinit var prefs: HelperPrefs
+    private var machine: KeyStateMachine? = null
     private var foreground: String? = null
-    private var detector: DoubleBackDetector? = null
-    private var detectorWindow = -1L
-    private var swallowBackUp = false
-    private var swallowShortcutUp = false
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        prefs = HelperPrefs(this)
+        val prefs = HelperPrefs(this)
+        machine = KeyStateMachine(
+            now = { SystemClock.uptimeMillis() },
+            settings = { prefs.load() },
+            goHome = { performGlobalAction(GLOBAL_ACTION_HOME) },
+            openSpotlight = { openSpotlight() },
+        )
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -28,57 +31,28 @@ class HelperService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        if (!::prefs.isInitialized) return false
-        val settings = prefs.load()
-        val code = event.keyCode
-        return when {
-            code == KeyEvent.KEYCODE_BACK -> handleBack(event, settings)
-            settings.shortcutKey != 0 && code == settings.shortcutKey -> handleShortcut(event)
-            else -> false
-        }
-    }
-
-    private fun handleBack(event: KeyEvent, s: HelperSettings): Boolean {
-        val up = event.action == KeyEvent.ACTION_UP
-        if (!s.doubleBackEnabled || ExclusionList.isExcluded(foreground, s.exclusions)) {
-            detector?.reset()
-            // Finish consuming a press whose DOWN we already swallowed.
-            if (up && swallowBackUp) {
-                swallowBackUp = false
-                return true
+        return try {
+            val machine = machine ?: return false
+            val action = when (event.action) {
+                KeyEvent.ACTION_DOWN -> KeyAction.DOWN
+                KeyEvent.ACTION_UP -> KeyAction.UP
+                else -> return false
             }
-            return false
+            val input = KeyInput(
+                event.keyCode,
+                action,
+                event.repeatCount,
+                (event.flags and KeyEvent.FLAG_CANCELED) != 0,
+                foreground,
+            )
+            machine.handle(input) == Decision.CONSUME
+        } catch (e: Throwable) {
+            machine?.reset()
+            false
         }
-        val d = detectorFor(s.windowMs)
-        if (event.action == KeyEvent.ACTION_DOWN) {
-            if (event.repeatCount == 0 && d.isArmed()) swallowBackUp = true
-            return swallowBackUp
-        }
-        if (!up) return false
-        val second = d.onBackUp()
-        if (swallowBackUp || second) {
-            swallowBackUp = false
-            performGlobalAction(GLOBAL_ACTION_HOME)
-            return true
-        }
-        return false
     }
 
-    private fun detectorFor(windowMs: Long): DoubleBackDetector {
-        val existing = detector
-        if (existing != null && detectorWindow == windowMs) return existing
-        detectorWindow = windowMs
-        return DoubleBackDetector(windowMs) { System.currentTimeMillis() }.also { detector = it }
-    }
-
-    private fun handleShortcut(event: KeyEvent): Boolean {
-        if (foreground == packageName) return false
-        if (event.action == KeyEvent.ACTION_DOWN) {
-            swallowShortcutUp = true
-            return true
-        }
-        if (event.action != KeyEvent.ACTION_UP) return false
-        swallowShortcutUp = false
+    private fun openSpotlight() {
         try {
             startActivity(
                 Intent("dev.tvlauncher.action.SPOTLIGHT")
@@ -88,6 +62,5 @@ class HelperService : AccessibilityService() {
         } catch (e: Exception) {
             // Launcher missing or not handling the action: do nothing.
         }
-        return true
     }
 }

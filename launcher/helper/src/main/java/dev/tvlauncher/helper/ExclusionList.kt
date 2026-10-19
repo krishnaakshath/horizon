@@ -14,7 +14,7 @@ object ExclusionList {
 
     private val pkg = Regex("^[a-z0-9_]+(\\.[a-z0-9_]+)+$")
 
-    /** Accepts comma, semicolon, whitespace or newline separated package names. */
+    /** Accepts comma, semicolon, tab or newline separated package names; surrounding spaces are trimmed. */
     fun parse(text: String?): Set<String> =
         (text ?: "").split(',', ';', '\n', '\r', '\t')
             .map { it.trim().lowercase() }

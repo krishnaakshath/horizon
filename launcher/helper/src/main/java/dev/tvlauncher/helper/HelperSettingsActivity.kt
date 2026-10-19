@@ -60,6 +60,7 @@ class HelperSettingsActivity : Activity() {
 
     private fun render() {
         val s = prefs.load()
+        val focusIdx = (0 until content.childCount).firstOrNull { content.getChildAt(it).hasFocus() } ?: 3
         content.removeAllViews()
         content.addView(label("Launcher Helper", 28f, text, true))
         content.addView(label("Optional companion for the TV launcher. Both features are off by default.", 15f, muted, false))
@@ -120,7 +121,7 @@ class HelperSettingsActivity : Activity() {
         content.addView(spacer())
         content.addView(label("Runs on this TV only. Does not read screen content. No internet access.", 14f, muted, false))
 
-        content.getChildAt(3)?.requestFocus()
+        content.getChildAt(focusIdx.coerceAtMost(content.childCount - 1))?.requestFocus()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {

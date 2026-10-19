@@ -56,4 +56,34 @@ class DoubleBackDetectorTest {
         now += 501
         assertFalse(d.isArmed())
     }
+
+    @Test fun boundary_exactlyWindow_inclusive_true() {
+        val d = detector(500)
+        d.onBackUp()
+        now += 500
+        assertTrue(d.onBackUp())
+    }
+
+    @Test fun boundary_windowPlusOne_false() {
+        val d = detector(500)
+        d.onBackUp()
+        now += 501
+        assertFalse(d.onBackUp())
+    }
+
+    @Test fun configured100_behavesAs300() {
+        val d = detector(100)
+        d.onBackUp(); now += 300
+        assertTrue(d.onBackUp())
+        d.onBackUp(); now += 301
+        assertFalse(d.onBackUp())
+    }
+
+    @Test fun configured5000_behavesAs900() {
+        val d = detector(5000)
+        d.onBackUp(); now += 900
+        assertTrue(d.onBackUp())
+        d.onBackUp(); now += 901
+        assertFalse(d.onBackUp())
+    }
 }
