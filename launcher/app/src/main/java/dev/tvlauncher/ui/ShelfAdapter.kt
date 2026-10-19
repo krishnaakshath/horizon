@@ -36,6 +36,12 @@ class ShelfAdapter(
         if (profile.device.effectsMode == EffectsMode.FULL) 96 else 40
     )
     private val accents = BrandColors.Cache()
+
+    init {
+        // Speed cleanup drops cached tile art while home is in the background (tiles reload on demand).
+        dev.tvlauncher.speed.OwnCaches.register(this) { it.artCache.evictAll() }
+    }
+
     private var sampler: ArtSampler? = null
     private var bgSampler: ArtSampler? = null
 

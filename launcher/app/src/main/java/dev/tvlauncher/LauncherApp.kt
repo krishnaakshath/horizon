@@ -6,6 +6,7 @@ import dev.tvlauncher.home.WaveTwoSections
 import dev.tvlauncher.power.PowerOn
 import dev.tvlauncher.power.PowerOnSection
 import dev.tvlauncher.safemode.SafeMode
+import dev.tvlauncher.speed.Speed
 import dev.tvlauncher.ui.Theme
 
 /**
@@ -37,6 +38,10 @@ class LauncherApp : Application() {
         }
         try {
             PowerOnSection.register() // Settings > System > Power on
+        } catch (e: Throwable) {
+        }
+        try {
+            Speed.install(this) // Settings > System > Speed and Connections > Private DNS; nightly cleanup
         } catch (e: Throwable) {
         }
         try {
