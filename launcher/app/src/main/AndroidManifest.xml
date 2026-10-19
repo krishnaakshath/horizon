@@ -21,6 +21,8 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- Spotlight shows a Browser quick action only when our browser is installed. -->
+        <package android:name="dev.tvlauncher.browser" />
     </queries>
 
     <application
@@ -31,12 +33,18 @@
             android:name=".HomeActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:stateNotNeeded="true">
+            android:stateNotNeeded="true"
+            android:windowSoftInputMode="stateAlwaysHidden|adjustNothing">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <!-- Opens the Spotlight panel (e.g. from a key-mapping helper or adb am start). -->
+            <intent-filter>
+                <action android:name="dev.tvlauncher.action.SPOTLIGHT" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>

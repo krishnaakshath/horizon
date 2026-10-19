@@ -14,10 +14,12 @@ import dev.tvlauncher.device.EffectsMode
 class ShelfAdapter(
     private val pm: PackageManager,
     private val profile: DeviceProfile,
-    private val onFocused: (Int, AppEntry) -> Unit,
+    private val onFocused: (Int, AppEntry, View) -> Unit,
     private val onClick: (AppEntry, View) -> Unit,
     private val onLongPress: (AppEntry) -> Unit,
-    private val onDown: () -> Boolean
+    private val onDown: () -> Boolean,
+    /** Any other D-pad press on a tile (restarts the quick-strip dwell). */
+    private val onDpad: () -> Unit
 ) : RecyclerView.Adapter<ShelfAdapter.Holder>() {
     class Holder(val tile: TileView) : RecyclerView.ViewHolder(tile)
 
@@ -29,7 +31,7 @@ class ShelfAdapter(
     private var sampler: ArtSampler? = null
     private var bgSampler: ArtSampler? = null
 
-    /** Position of the most recently focused tile, used to return from the dock. */
+    /** Position of the most recently focused tile, used to return from the quick-strip and Spotlight. */
     var lastFocused = 0
         private set
 
@@ -83,11 +85,21 @@ class ShelfAdapter(
             val pos = holder.bindingAdapterPosition
             if (has && pos != RecyclerView.NO_POSITION) {
                 lastFocused = pos
-                onFocused(pos, items[pos])
+                onFocused(pos, items[pos], holder.tile)
             }
         }
         holder.tile.setOnKeyListener { _, code, ev ->
-            code == KeyEvent.KEYCODE_DPAD_DOWN && ev.action == KeyEvent.ACTION_DOWN && onDown()
+            if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+            when (code) {
+                KeyEvent.KEYCODE_DPAD_DOWN -> onDown()
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_UP -> { onDpad(); false }
+                else -> false
+            }
         }
+    }
+
+    companion object {
+        /** Tiles whose art/accent are prepared off the main thread before the first bind. */
+        const val PRELOAD = 8
     }
 }

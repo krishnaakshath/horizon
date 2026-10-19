@@ -2,15 +2,11 @@ package dev.tvlauncher
 
 import android.app.Activity
 import android.content.Intent
-import android.graphics.Rect
 import android.os.Bundle
-import android.util.TypedValue
-import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import dev.tvlauncher.apps.AppEntry
 import dev.tvlauncher.apps.AppFilter
@@ -22,18 +18,20 @@ import dev.tvlauncher.launch.AndroidLaunchBackend
 import dev.tvlauncher.launch.AppLauncher
 import dev.tvlauncher.settings.Prefs
 import dev.tvlauncher.ui.BackdropView
-import dev.tvlauncher.ui.BouncingDots
-import dev.tvlauncher.ui.LaunchOverlay
-import dev.tvlauncher.ui.Dock
 import dev.tvlauncher.ui.FocusRules
-import dev.tvlauncher.ui.HeroView
+import dev.tvlauncher.ui.HeroBox
+import dev.tvlauncher.ui.HomeContent
+import dev.tvlauncher.ui.LaunchOverlay
+import dev.tvlauncher.ui.QuickStrip
 import dev.tvlauncher.ui.RevealTargets
+import dev.tvlauncher.ui.Shelf
 import dev.tvlauncher.ui.ShelfAdapter
 import dev.tvlauncher.ui.SplashOverlay
+import dev.tvlauncher.ui.SpotlightKeys
+import dev.tvlauncher.ui.SpotlightPanel
 import dev.tvlauncher.ui.SystemActions
 import dev.tvlauncher.ui.Theme
 import dev.tvlauncher.ui.TileMenu
-import dev.tvlauncher.ui.TileSpec
 import dev.tvlauncher.ui.TileView
 import dev.tvlauncher.ui.TopBar
 import dev.tvlauncher.ui.dp
@@ -48,19 +46,22 @@ class HomeActivity : Activity() {
     private lateinit var tileMenu: TileMenu
     private lateinit var adapter: ShelfAdapter
     private lateinit var backdrop: BackdropView
-    private lateinit var content: LinearLayout
+    private lateinit var content: HomeContent
     private lateinit var shelf: RecyclerView
     private lateinit var topBar: TopBar
-    private lateinit var dock: Dock
-    private lateinit var hero: HeroView
-    private lateinit var emptyText: TextView
-    private lateinit var shelfLoader: BouncingDots
+    private lateinit var strip: QuickStrip
+    private lateinit var spotlight: SpotlightPanel
+    private lateinit var heroBox: HeroBox
+    private lateinit var shelfBox: Shelf
     private lateinit var launchOverlay: LaunchOverlay
     private val loader = Executors.newSingleThreadExecutor()
     private val generation = AtomicInteger()
     private var firstLoad = true
     private var splash: SplashOverlay? = null
     @Volatile private var installed: List<AppEntry> = emptyList()
+    /** Where focus returns when Spotlight closes: a non-shelf view, else the tile at [restoreIndex]. */
+    private var restoreFocus: View? = null
+    private var restoreIndex = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,15 +69,16 @@ class HomeActivity : Activity() {
         prefs = Prefs(applicationContext)
         profile = DeviceProfileReader.read(this)
         buildUi()
-        if (SplashOverlay.enabled(this)) {
+        val wantsSpotlight = intent?.action == SpotlightKeys.ACTION
+        if (SplashOverlay.enabled(this) && !wantsSpotlight) {
             splash = SplashOverlay(this, profile.effectsMode == EffectsMode.FULL).also {
                 (content.parent as FrameLayout).addView(it, FrameLayout.LayoutParams(-1, -1))
                 it.prepare(revealTargets())
                 it.start()
-                shelfLoader.visibility = View.GONE // the splash shows its own dots
-
+                shelfBox.loader.visibility = View.GONE // the splash shows its own dots
             }
         }
+        if (wantsSpotlight) content.post { openSpotlight() }
         repo.register { reload() }
         reload()
     }
@@ -86,81 +88,42 @@ class HomeActivity : Activity() {
         val root = FrameLayout(this)
         backdrop = BackdropView(this, if (full) 350L else 250L)
         root.addView(backdrop, FrameLayout.LayoutParams(-1, -1))
-        // Alpha fades on these full-screen containers must not allocate offscreen layers (LITE).
-        content = object : LinearLayout(this) {
-            override fun hasOverlappingRendering() = false
-        }.apply {
-            orientation = LinearLayout.VERTICAL
-            clipChildren = false
-            clipToPadding = false
-            setPadding(0, dp(Theme.MARGIN_V), 0, dp(Theme.MARGIN_V))
-        }
-        root.addView(content, FrameLayout.LayoutParams(-1, -1))
-        val h = dp(Theme.MARGIN_H)
-
         topBar = TopBar(this) { SystemActions.inputs(this) }
-        content.addView(topBar, margins(LinearLayout.LayoutParams(-1, -2), h))
-
-        hero = HeroView(this, packageManager)
-        emptyText = TextView(this).apply {
-            text = "No apps found — open the Play Store"
-            setTextColor(Theme.TEXT_2)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
-            gravity = Gravity.CENTER
-            visibility = View.GONE
-        }
-        val heroBox = FrameLayout(this)
-        heroBox.addView(hero, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL))
-        heroBox.addView(emptyText, FrameLayout.LayoutParams(-1, -1))
-        content.addView(heroBox, margins(LinearLayout.LayoutParams(-1, 0, 1f), h))
-
+        heroBox = HeroBox(this, packageManager)
         launcher = AppLauncher(profile, AndroidLaunchBackend(this))
         tileMenu = TileMenu(this, prefs) { reload() }
         adapter = ShelfAdapter(
             packageManager, profile,
-            onFocused = { _, app -> onAppFocused(app) },
+            onFocused = { pos, app, tile -> onAppFocused(app); strip.onTileFocused(pos, tile, app) },
             onClick = { app, v -> if (launcher.launch(app, v)) launchOverlay.show() },
-            onLongPress = { app -> tileMenu.show(app, adapter.getItems().map { it.packageName }) },
-            onDown = { dock.focusFirst() }
+            onLongPress = { app -> tileMenu.show(app, visiblePackages()) },
+            onDown = { onTileDown() },
+            onDpad = { strip.onTileDpad() }
         )
-        val pad = TileSpec.PAD_DP
-        shelf = RecyclerView(this).apply {
-            layoutManager = LinearLayoutManager(this@HomeActivity, LinearLayoutManager.HORIZONTAL, false)
-            adapter = this@HomeActivity.adapter
-            clipToPadding = false
-            clipChildren = false
-            itemAnimator = null
-            setPadding(h - dp(pad), dp(pad), h - dp(pad), dp(pad))
-            addItemDecoration(object : RecyclerView.ItemDecoration() {
-                override fun getItemOffsets(out: Rect, v: View, p: RecyclerView, s: RecyclerView.State) {
-                    out.right = dp(TileSpec.GAP_DP - 2 * pad)
-                }
-            })
+        shelfBox = Shelf(this, adapter, dp(Theme.MARGIN_H))
+        shelf = shelfBox.list
+        strip = QuickStrip(this, full, shelf, isFavorite = { tileMenu.isFavorite(it) }) { action, app ->
+            tileMenu.stripAction(action, app, visiblePackages())
         }
-        shelfLoader = BouncingDots(this)
-        val shelfBox = FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
-        shelfBox.addView(shelf, FrameLayout.LayoutParams(-1, -1))
-        shelfBox.addView(shelfLoader, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
-        content.addView(shelfBox, LinearLayout.LayoutParams(-1, dp(TileSpec.VIEW_HEIGHT_DP + 2 * pad)))
-
-        dock = Dock(
-            this, translucent = full,
-            onInputs = { SystemActions.inputs(this) },
-            onSettings = { SystemActions.settings(this) },
-            onSettingsLongPress = {
-                tileMenu.showDockMenu(adapter.getItems().map { it.packageName }, installed)
-            },
-            onUp = { focusTile(adapter.lastFocused) }
+        content = HomeContent(this, topBar, heroBox, shelfBox, strip)
+        root.addView(content, FrameLayout.LayoutParams(-1, -1))
+        spotlight = SpotlightPanel(
+            this, packageManager, full,
+            onAction = { SystemActions.quickAction(this, it) },
+            onActionLongPress = { tileMenu.showDockMenu(visiblePackages(), installed) },
+            onLaunch = { app, v -> if (launcher.launch(app, v)) launchOverlay.show() },
+            onClosed = ::onSpotlightClosed
         )
-        content.addView(dock, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(Theme.S3) })
+        root.addView(spotlight, FrameLayout.LayoutParams(-1, -1))
         launchOverlay = LaunchOverlay(this)
         root.addView(launchOverlay, FrameLayout.LayoutParams(-1, -1))
+        root.viewTreeObserver.addOnGlobalFocusChangeListener { _, now -> strip.onGlobalFocus(now) }
         setContentView(root)
     }
 
-    private fun margins(lp: LinearLayout.LayoutParams, h: Int) = lp.apply { marginStart = h; marginEnd = h }
+    private fun visiblePackages() = adapter.getItems().map { it.packageName }
 
-    private fun revealTargets() = RevealTargets(content, topBar, hero, shelf, dock) {
+    private fun revealTargets() = RevealTargets(content, topBar, heroBox.hero, shelf, strip) {
         (0 until shelf.childCount).map { shelf.getChildAt(it) }
             .sortedBy { it.left }
             .mapNotNull { (it as? TileView)?.content }
@@ -168,32 +131,58 @@ class HomeActivity : Activity() {
 
     private fun onAppFocused(app: AppEntry) {
         backdrop.setAccent(adapter.accentOf(app))
-        hero.show(app, backdrop.heroColor)
+        heroBox.hero.show(app, backdrop.heroColor)
+    }
+
+    private fun onTileDown(): Boolean = when (SpotlightKeys.onTileDown(strip.isStripShown)) {
+        SpotlightKeys.TileDown.STRIP -> strip.focusFirst()
+        SpotlightKeys.TileDown.SPOTLIGHT -> { openSpotlight(); true }
+    }
+
+    private fun openSpotlight() {
+        if (spotlight.isOpen || splash != null || isDestroyed) return // not under the cold-start splash
+        val f = currentFocus
+        restoreFocus = f?.takeIf { it.parent !== shelf && !strip.hasFocus() }
+        restoreIndex = adapter.lastFocused
+        strip.setSpotlightOpen(true)
+        spotlight.open(installed.mapTo(HashSet()) { it.packageName })
+        content.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS // nothing leaks to the shelf
+    }
+
+    private fun onSpotlightClosed() {
+        content.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+        strip.setSpotlightOpen(false)
+        val back = restoreFocus?.takeIf { it.isAttachedToWindow }?.requestFocus() ?: false
+        if (!back && !focusTile(restoreIndex)) topBar.inputsButton.requestFocus()
+        restoreFocus = null
     }
 
     private fun reload() {
         val gen = generation.incrementAndGet()
         loader.execute {
-            val apps = try {
+            val result = try {
                 val all = repo.load()
                 installed = all
-                AppFilter.arrange(all, prefs.load()).also { adapter.preload(it, PRELOAD) }
+                val s = prefs.load()
+                val shown = AppFilter.arrange(all, s).also { adapter.preload(it, ShelfAdapter.PRELOAD) }
+                shown to AppFilter.searchable(all, shown, s)
             } catch (e: Exception) {
-                emptyList()
+                emptyList<AppEntry>() to emptyList()
             }
-            runOnUiThread { if (gen == generation.get() && !isDestroyed) applyApps(apps) }
+            runOnUiThread { if (gen == generation.get() && !isDestroyed) applyApps(result.first, result.second) }
         }
     }
 
-    private fun applyApps(apps: List<AppEntry>) {
+    private fun applyApps(apps: List<AppEntry>, searchable: List<AppEntry>) {
         val old = adapter.getItems()
-        val hadFocus = shelf.hasFocus()
-        val oldPos = adapter.lastFocused
+        val hadFocus = shelf.hasFocus() || strip.hasFocus() || (spotlight.isOpen && restoreFocus == null)
+        val oldPos = if (spotlight.isOpen) restoreIndex else adapter.lastFocused
         val focusedPkg = old.getOrNull(oldPos)?.packageName
+        strip.reset()
         adapter.submit(apps)
-        shelfLoader.visibility = View.GONE
-        emptyText.visibility = if (apps.isEmpty()) View.VISIBLE else View.GONE
-        hero.visibility = if (apps.isEmpty()) View.GONE else View.VISIBLE
+        spotlight.setApps(searchable)
+        shelfBox.loader.visibility = View.GONE
+        heroBox.setEmpty(apps.isEmpty())
         val wasFirst = firstLoad
         firstLoad = false
         if (wasFirst) {
@@ -201,7 +190,7 @@ class HomeActivity : Activity() {
             splash = null
         }
         if (apps.isEmpty()) {
-            if (hadFocus || wasFirst) dock.focusFirst()
+            if ((hadFocus || wasFirst) && !spotlight.isOpen) topBar.inputsButton.requestFocus()
             return
         }
         val target = when {
@@ -209,11 +198,11 @@ class HomeActivity : Activity() {
             !hadFocus -> null
             else -> apps.indexOfFirst { it.packageName == focusedPkg }.takeIf { it >= 0 }
                 ?: FocusRules.nextFocusIndexAfterRemoval(oldPos, apps.size)
-        }
-        if (target != null && focusTile(target)) {
-            // A reload can reorder apps under the same index; keep hero/backdrop in sync.
-            apps.getOrNull(target.coerceIn(0, apps.size - 1))?.let { onAppFocused(it) }
-        }
+        } ?: return
+        val i = target.coerceIn(0, apps.size - 1)
+        if (spotlight.isOpen) restoreIndex = i else focusTile(i)
+        // A reload can reorder apps under the same index; keep hero/backdrop in sync.
+        onAppFocused(apps[i])
     }
 
     private fun focusTile(index: Int): Boolean {
@@ -224,9 +213,23 @@ class HomeActivity : Activity() {
         return true
     }
 
+    /** MENU / SEARCH toggle Spotlight from anywhere on the home screen (including its search field). */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (!SpotlightKeys.isToggleKey(event.keyCode)) return super.dispatchKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            if (spotlight.isOpen) spotlight.close() else openSpotlight()
+        }
+        return true
+    }
+
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        focusTile(0)
+        if (intent?.action == SpotlightKeys.ACTION) {
+            openSpotlight()
+        } else {
+            spotlight.close(animate = false) // HOME press: back to a clean shelf
+            focusTile(0)
+        }
     }
 
     override fun onPause() {
@@ -241,18 +244,15 @@ class HomeActivity : Activity() {
 
     override fun onStop() {
         launchOverlay.hide()
+        spotlight.close(animate = false)
         topBar.stopStatus()
         super.onStop()
     }
 
+    /** BACK closes Spotlight, or leaves the quick-strip for its tile. The launcher never finishes. */
     @Deprecated("Home screen never exits on Back")
     override fun onBackPressed() {
-        // Intentionally empty: the launcher must not finish.
-    }
-
-    private companion object {
-        /** Tiles whose art/accent are prepared off the main thread before the first bind. */
-        const val PRELOAD = 8
+        if (spotlight.isOpen) spotlight.close() else if (strip.hasFocus()) strip.returnToTile()
     }
 
     override fun onDestroy() {

@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.text.TextUtils
+import android.view.Gravity
+import android.view.View
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import dev.tvlauncher.apps.AppEntry
@@ -47,5 +50,26 @@ class HeroView(context: Context, private val pm: PackageManager) : LinearLayout(
 
     private companion object {
         const val NONE = ""
+    }
+}
+
+/** Hero area: the [hero] centered vertically, or an empty-state message when there are no apps. */
+class HeroBox(context: Context, pm: PackageManager) : FrameLayout(context) {
+    val hero = HeroView(context, pm)
+    private val emptyText = TextView(context).apply {
+        text = "No apps found — open the Play Store"
+        style(22f, Theme.regular, Theme.TEXT_2)
+        gravity = Gravity.CENTER
+        visibility = View.GONE
+    }
+
+    init {
+        addView(hero, LayoutParams(-1, -2, Gravity.CENTER_VERTICAL))
+        addView(emptyText, LayoutParams(-1, -1))
+    }
+
+    fun setEmpty(empty: Boolean) {
+        emptyText.visibility = if (empty) View.VISIBLE else View.GONE
+        hero.visibility = if (empty) View.GONE else View.VISIBLE
     }
 }
