@@ -15,11 +15,14 @@ import dev.tvlauncher.ambient.WallpaperStore
 import dev.tvlauncher.ambient.WeatherCompanion
 import dev.tvlauncher.ambient.WeatherContract
 import dev.tvlauncher.appsettings.ModulePlaceholderSection
+import dev.tvlauncher.appsettings.PageSpec
 import dev.tvlauncher.appsettings.RowKind
+import dev.tvlauncher.appsettings.SettingsGroup
 import dev.tvlauncher.appsettings.SettingsNav
 import dev.tvlauncher.appsettings.SettingsPage
 import dev.tvlauncher.appsettings.SettingsRegistry
 import dev.tvlauncher.appsettings.SettingsSection
+import dev.tvlauncher.appsettings.SpecifiedPage
 import dev.tvlauncher.devices.DeviceMonitor
 import dev.tvlauncher.devices.DevicesPanel
 import dev.tvlauncher.settings.AppearanceFormat
@@ -48,6 +51,20 @@ object WaveTwoSections {
 
     enum class PageKind { ACTION, TOGGLE, STEPPER, CARD, INFO }
 
+    /** Ambient model rows shown on the page itself; every other model row sits in "Advanced". */
+    val AMBIENT_PRIMARY_MODEL_KEYS = listOf("wallpaper", "slideshowInterval", "dim", "idleMinutes", "nightDim")
+
+    /** Ambient model rows inside the page's "Advanced" block (the CARD row is a view, not a guarded row). */
+    val AMBIENT_ADVANCED_MODEL_KEYS = listOf("notificationsEnabled", "showNotificationText", "clock24h", "clockPosition", "pixelShift")
+
+    val AMBIENT_SPEC = PageSpec(
+        AMBIENT_ID,
+        listOf("ambient.start") + AMBIENT_PRIMARY_MODEL_KEYS.map { "ambient.$it" } + "ambient.homeWallpaper",
+        AMBIENT_ADVANCED_MODEL_KEYS.map { "ambient.$it" }
+    )
+
+    val HOME_EXTRAS_SPEC = PageSpec(HOME_EXTRAS_ID, listOf("home.weatherTopBar", "home.weather"))
+
     data class PageRow(val key: String, val title: String, val kind: PageKind, val value: String, val hint: String?)
 
     /**
@@ -71,13 +88,15 @@ object WaveTwoSections {
 }
 
 /** Settings > Ambient: wallpaper, dimming, idle time, burn-in, notification chips and screensaver setup. */
-object AmbientSection : SettingsSection {
+object AmbientSection : SettingsSection, SpecifiedPage {
     override val id = WaveTwoSections.AMBIENT_ID
     override val title = "Ambient"
     override val iconRes = R.drawable.ic_qa_ambient
+    override val group = SettingsGroup.HOME
+    override val spec = WaveTwoSections.AMBIENT_SPEC
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
-        val page = SettingsPage(context, nav.style)
+        val page = SettingsPage(context, nav.style, spec)
         val store = WallpaperStore(context)
         val a = AppearancePrefs(context).load()
         val is24h = AppearanceFormat.is24h(a.clockFormat, android.text.format.DateFormat.is24HourFormat(context))
@@ -88,30 +107,34 @@ object AmbientSection : SettingsSection {
         page.row("ambient.start", "Start ambient now", RowKind.Action {
             if (!SystemActions.ambient(context)) nav.notify("Ambient could not be opened")
         }, iconRes = R.drawable.ic_qa_ambient)
-        for (r in WaveTwoSections.ambientRows(s, NotificationAccess.isEnabled(context), is24h)) {
+        val rows = WaveTwoSections.ambientRows(s, NotificationAccess.isEnabled(context), is24h)
+        fun render(block: SettingsPage.Block, r: WaveTwoSections.PageRow) {
             val key = "ambient.${r.key}"
             when (r.kind) {
-                WaveTwoSections.PageKind.ACTION -> page.row(key, r.title, RowKind.Action(r.value) {
+                WaveTwoSections.PageKind.ACTION -> block.row(key, r.title, RowKind.Action(r.value) {
                     nav.push("Wallpaper") { c, n -> pickerPage(c, n) }
                 }, subtitle = r.hint)
-                WaveTwoSections.PageKind.TOGGLE -> page.row(key, r.title, RowKind.Toggle(r.value == "On") {
+                WaveTwoSections.PageKind.TOGGLE -> block.row(key, r.title, RowKind.Toggle(r.value == "On") {
                     save(AmbientSettingsRows.toggle(store.load(), r.key))
                 }, subtitle = r.hint)
                 // A centred three-step stepper: LEFT/RIGHT/OK step the model by -1/+1, then the page rebuilds.
-                WaveTwoSections.PageKind.STEPPER -> page.row(key, r.title, RowKind.Stepper(1, 0, 2, { r.value }) { v ->
+                WaveTwoSections.PageKind.STEPPER -> block.row(key, r.title, RowKind.Stepper(1, 0, 2, { r.value }) { v ->
                     save(AmbientSettingsRows.step(store.load(), r.key, if (v < 1) -1 else 1))
                 }, subtitle = r.hint)
-                WaveTwoSections.PageKind.CARD -> page.add(NotificationAccessCard(context))
-                WaveTwoSections.PageKind.INFO -> page.row(key, r.title, RowKind.Info(r.value), subtitle = r.hint)
+                WaveTwoSections.PageKind.CARD -> block.add(NotificationAccessCard(context))
+                WaveTwoSections.PageKind.INFO -> block.row(key, r.title, RowKind.Info(r.value), subtitle = r.hint)
             }
         }
+        for (r in rows) if (r.key in WaveTwoSections.AMBIENT_PRIMARY_MODEL_KEYS) render(page.body, r)
         val extras = HomeExtrasPrefs(context)
-        page.group("Home screen")
         page.row("ambient.homeWallpaper", "Use wallpaper on home", RowKind.Toggle(extras.wallpaperOnHome) { on ->
             extras.wallpaperOnHome = on
         }, subtitle = "Shows this wallpaper under the home colors (uses more memory)")
-        page.group("Screensaver")
-        page.note("To use Ambient as the TV's screensaver, run these once from a computer:\n${WaveTwoSections.SCREENSAVER_ADB}")
+        page.advanced(nav, "ambient.advanced", "Clock, notification chips, burn-in and screensaver") { adv ->
+            for (r in rows) if (r.key !in WaveTwoSections.AMBIENT_PRIMARY_MODEL_KEYS) render(adv, r)
+            adv.group("Screensaver")
+            adv.note("To use Ambient as the TV's screensaver, run these once from a computer:\n${WaveTwoSections.SCREENSAVER_ADB}", maxLines = 5)
+        }
         return page
     }
 
@@ -148,6 +171,7 @@ object DevicesSection : SettingsSection {
     override val id = ModulePlaceholderSection.DEVICES
     override val title = "Devices"
     override val iconRes = R.drawable.ic_set_devices
+    override val group = SettingsGroup.CONNECTIONS
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val panel = DevicesPanel(context)
@@ -171,13 +195,15 @@ object DevicesSection : SettingsSection {
 }
 
 /** Settings > Home screen: the top-bar weather chip and the weather companion's own settings. */
-object HomeExtrasSection : SettingsSection {
+object HomeExtrasSection : SettingsSection, SpecifiedPage {
     override val id = WaveTwoSections.HOME_EXTRAS_ID
     override val title = "Home screen"
     override val iconRes = R.drawable.ic_set_home
+    override val group = SettingsGroup.HOME
+    override val spec = WaveTwoSections.HOME_EXTRAS_SPEC
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
-        val page = SettingsPage(context, nav.style)
+        val page = SettingsPage(context, nav.style, spec)
         val extras = HomeExtrasPrefs(context)
         page.lead("Extras for the home screen's top bar.")
         page.row("home.weatherTopBar", "Weather in top bar", RowKind.Toggle(extras.weatherInTopBar) { on ->

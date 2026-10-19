@@ -3,7 +3,11 @@ package dev.tvlauncher.home
 import dev.tvlauncher.ambient.AmbientSettingsRows
 import dev.tvlauncher.ambient.WallpaperSettings
 import dev.tvlauncher.appsettings.ModulePlaceholderSection
+import dev.tvlauncher.appsettings.PageSpec
+import dev.tvlauncher.appsettings.RowGuard
+import dev.tvlauncher.appsettings.SettingsGroup
 import dev.tvlauncher.appsettings.SettingsRegistry
+import dev.tvlauncher.appsettings.SpecifiedPage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -54,5 +58,35 @@ class WaveTwoSectionsTest {
         assertTrue(t.contains("adb shell settings put secure screensaver_components dev.tvlauncher/dev.tvlauncher.ambient.AmbientDream"))
         assertTrue(t.contains("adb shell settings put secure screensaver_enabled 1"))
         assertTrue(t.contains("adb shell settings put secure screensaver_activate_on_sleep 1"))
+    }
+
+    @Test fun sections_declareTheirSidebarGroups() {
+        assertEquals(SettingsGroup.HOME, AmbientSection.group)
+        assertEquals(SettingsGroup.HOME, HomeExtrasSection.group)
+        assertEquals(SettingsGroup.CONNECTIONS, DevicesSection.group)
+    }
+
+    @Test fun specs_stayWithinTheBudget_andCoverEveryModelRow() {
+        for (s in listOf(AmbientSection, HomeExtrasSection)) {
+            val spec = (s as SpecifiedPage).spec
+            assertEquals(s.id, spec.id)
+            assertTrue("${s.id}: ${spec.primaryRows.size}", spec.primaryRows.size <= PageSpec.MAX_PRIMARY)
+            val keys = spec.primaryRows + spec.advancedRows
+            assertEquals(keys.size, keys.toSet().size)
+        }
+        val primary = WaveTwoSections.AMBIENT_PRIMARY_MODEL_KEYS.toSet()
+        // Every guarded model row (CARD is a plain view) is declared on the side it is rendered on.
+        for (notif in listOf(true, false)) for (slide in listOf(true, false)) {
+            val ws = WallpaperSettings(notificationsEnabled = notif).let {
+                if (slide) it.copy(source = dev.tvlauncher.ambient.WallpaperSource.Slideshow(java.io.File("/tmp"), 60)) else it
+            }
+            val guard = RowGuard(WaveTwoSections.AMBIENT_SPEC)
+            guard.claim("ambient.start", advanced = false)
+            for (r in WaveTwoSections.ambientRows(ws, accessGranted = false, is24h = true)) {
+                if (r.kind == WaveTwoSections.PageKind.CARD) continue
+                guard.claim("ambient.${r.key}", advanced = r.key !in primary)
+            }
+            guard.claim("ambient.homeWallpaper", advanced = false)
+        }
     }
 }
