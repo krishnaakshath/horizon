@@ -56,7 +56,7 @@ class WeatherStatusTest {
         val r = read(true, listOf(fresh))
         assertEquals(WeatherStatus.OK, r.status)
         assertEquals("21°", WeatherDisplay.from(r, now).temp)
-        val stale = read(true, listOf(fresh + ("updated_ms" to now - 4 * 3_600_000L)))
+        val stale = read(true, listOf(fresh + ("updated_ms" to now - 13 * 3_600_000L)))
         assertEquals(WeatherStatus.UNAVAILABLE, stale.status)
     }
 

@@ -20,7 +20,7 @@ data class WeatherChip(
 /**
  * Pure decision for the compact weather chip next to the clock: hidden when the user turned it off
  * (Settings > Home screen > "Weather in top bar"), the companion is missing (null snapshot) or the
- * data is older than 3 h or has no usable temperature; otherwise the condition icon and the rounded temperature in the
+ * data is older than 12 h or has no usable temperature; otherwise the condition icon and the rounded temperature in the
  * provider's unit (values are Celsius; high/low are not used, so null ones are fine).
  */
 object WeatherChipModel {

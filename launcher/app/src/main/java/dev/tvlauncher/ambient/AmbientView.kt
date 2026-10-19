@@ -100,6 +100,8 @@ class AmbientView(
             main.postDelayed(this, WEATHER_INTERVAL_MS)
         }
     }
+    private var stopWeatherObserver: (() -> Unit)? = null
+    private val weatherLoadNow = Runnable { loadWeather() }
     private val idleDim = Runnable { updateDim(animate = true) }
     private val feedListener: () -> Unit = { main.post { renderChips() } }
 
@@ -262,7 +264,7 @@ class AmbientView(
         main.postDelayed(minuteTick, msToNextMinute())
         main.post(weatherTick)
         main.postDelayed(idleDim, AmbientDimming.IDLE_DIM_AFTER_MS + 50)
-        WeatherCompanion.requestRefresh(context)
+        stopWeatherObserver = WeatherCompanion.observe(context) { main.post(weatherLoadNow) }
         status = StatusIcons(context) { renderNetwork(it) }.also { it.start() }
         syncFeedListener()
         content.alpha = 0f
@@ -273,6 +275,7 @@ class AmbientView(
         attachedGen++
         main.removeCallbacks(minuteTick)
         main.removeCallbacks(weatherTick)
+        stopWeatherObserver?.invoke(); stopWeatherObserver = null
         main.removeCallbacks(idleDim)
         status?.stop(); status = null
         feed.removeListener(feedListener)
@@ -330,6 +333,7 @@ class AmbientView(
         val gen = attachedGen
         weatherExecutor.execute {
             val read = WeatherReader(weatherSource).readState()
+            WeatherCompanion.requestRefreshIfStale(context, read)
             main.post { if (gen == attachedGen) { weather = read; renderWeather() } }
         }
     }

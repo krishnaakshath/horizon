@@ -64,6 +64,40 @@ object WeatherCompanion {
     /** Shared across ambient instances so re-showing ambient never spams the companion. */
     val refreshThrottle = RefreshThrottle(15 * 60_000L)
 
+    /** At most one stale-data request per 5 min, shared by Home and Ambient. */
+    val staleThrottle = RefreshThrottle(5 * 60_000L)
+
+    /**
+     * Asks the companion to refresh when [read] is older than 20 min. Explicit broadcast guarded
+     * by a signature permission (only the same signer receives it); the companion applies its own
+     * staleness and rate rules. Cheap, so safe on any thread.
+     */
+    fun requestRefreshIfStale(context: Context, read: WeatherRead, nowMs: Long = System.currentTimeMillis()) {
+        if (!WeatherRefreshRequest.needed(read, nowMs)) return
+        if (!staleThrottle.tryAcquire(nowMs)) return
+        try {
+            context.sendBroadcast(
+                Intent(WeatherContract.ACTION_REFRESH_IF_STALE).setPackage(WeatherContract.PACKAGE),
+                WeatherContract.PERMISSION_REFRESH
+            )
+        } catch (e: Exception) {
+        }
+    }
+
+    /** Calls [onChange] on the main thread when the companion stores new data. Returns the stop handle. */
+    fun observe(context: Context, onChange: () -> Unit): () -> Unit {
+        val app = context.applicationContext
+        val o = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) { onChange() }
+        }
+        try {
+            app.contentResolver.registerContentObserver(Uri.parse(WeatherContract.CURRENT_URI), false, o)
+        } catch (e: RuntimeException) {
+            return {}
+        }
+        return { try { app.contentResolver.unregisterContentObserver(o) } catch (e: RuntimeException) { } }
+    }
+
     /** Explicit broadcast to the companion package; no-op when absent. */
     fun requestRefresh(context: Context, nowMs: Long = System.currentTimeMillis()) {
         if (!refreshThrottle.tryAcquire(nowMs)) return

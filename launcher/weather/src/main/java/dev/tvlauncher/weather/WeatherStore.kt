@@ -60,6 +60,20 @@ class WeatherStore(
     fun scheduleFailed(): Boolean = synchronized(LOCK) { backing.get(KEY_SCHEDULE_FAILED) == "1" }
     fun setScheduleFailed(failed: Boolean) = synchronized(LOCK) { backing.put(KEY_SCHEDULE_FAILED, if (failed) "1" else "0") }
 
+    /** Start times (epoch ms) of recent network calls, newest last; only the last hour is kept. */
+    fun attempts(): List<Long> = synchronized(LOCK) {
+        backing.get(KEY_ATTEMPTS)?.split(',')?.mapNotNull { it.toLongOrNull() } ?: emptyList()
+    }
+
+    fun recordAttempt(now: Long) = synchronized(LOCK) {
+        val kept = attempts().filter { it <= now && now - it < RefreshPolicy.HOUR_MS }.takeLast(RefreshPolicy.MAX_PER_HOUR * 2)
+        backing.put(KEY_ATTEMPTS, (kept + now).joinToString(","))
+    }
+
+    /** Consecutive failed network calls; reset by a success. */
+    fun failures(): Int = synchronized(LOCK) { backing.get(KEY_FAILURES)?.toIntOrNull() ?: 0 }
+    fun setFailures(n: Int) = synchronized(LOCK) { backing.put(KEY_FAILURES, n.coerceAtLeast(0).toString()) }
+
     private class PrefsBacking(context: Context) : StoreBacking {
         private val prefs = context.getSharedPreferences("weather_state", Context.MODE_PRIVATE)
         override fun get(key: String): String? = prefs.getString(key, null)
@@ -70,6 +84,8 @@ class WeatherStore(
         private val LOCK = Any()
         private const val KEY_STATE = "state"
         private const val KEY_LAST_REQUEST = "last_request_ms"
+        private const val KEY_ATTEMPTS = "attempts"
+        private const val KEY_FAILURES = "failures"
         private const val KEY_SCHEDULE_FAILED = "schedule_failed"
 
         private fun notifier(app: Context): () -> Unit = {
