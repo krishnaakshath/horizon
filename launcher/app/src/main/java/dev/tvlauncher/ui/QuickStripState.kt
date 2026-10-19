@@ -65,4 +65,16 @@ class QuickStripState(private val dwellMs: Long = DWELL_MS) {
         const val NONE = -1
         const val DWELL_MS = 700L
     }
+
+    object Geometry {
+        /**
+         * Left of the strip ([w] wide) centered under [centerX], kept inside the overscan-safe area:
+         * [safeStart]/[safeEnd] are the safe margins measured from the host's own edges.
+         */
+        fun stripLeft(centerX: Float, w: Float, hostW: Float, safeStart: Float, safeEnd: Float): Float {
+            val lo = maxOf(0f, safeStart)
+            val hi = maxOf(lo, hostW - maxOf(0f, safeEnd) - w)
+            return (centerX - w / 2f).coerceIn(lo, hi)
+        }
+    }
 }

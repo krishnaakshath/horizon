@@ -87,6 +87,8 @@ object AuditEngine {
         }
 
         fun has(n: Node, token: String) = token in inh.getValue(n.id)
+        /** The audit:peek scroller itself (a frame running edge to edge, not content). */
+        fun peekOwner(n: Node) = AuditTokens.PEEK in own.getValue(n.id)
         fun isScroll(n: Node) = c.scrollClassHints.any { n.cls.contains(it) }
         fun clips(n: Node) = n.clipChildren
         fun hasText(n: Node) = !n.text.isNullOrBlank()
@@ -170,7 +172,7 @@ object AuditEngine {
         }
 
         fun offscreen(n: Node, out: MutableList<Finding>) {
-            if (!content(n) || has(n, AuditTokens.FULLBLEED)) return
+            if (!content(n) || has(n, AuditTokens.FULLBLEED) || peekOwner(n)) return
             val r = rect(n)
             // Hidden by a clipping ancestor (scrolled out / reported as CLIPPED), or cut by a scroller.
             if (clipAnc.getValue(n.id).any { r.and(rect(it)).empty || (isScroll(it) && !rect(it).contains(r)) }) return
@@ -178,19 +180,23 @@ object AuditEngine {
                 out += Finding(Kind.OFFSCREEN, Severity.MEDIUM, n.id, null, "${label(n)} is entirely off screen at $r", r.list())
                 return
             }
-            val stick = maxOf(screen.l - r.l, screen.t - r.t, r.r - screen.r, r.b - screen.b)
+            val stick = if (has(n, AuditTokens.PEEK)) maxOf(screen.l - r.l, screen.t - r.t)
+            else maxOf(screen.l - r.l, screen.t - r.t, r.r - screen.r, r.b - screen.b)
             if (stick >= px(c.offscreenMinDp))
                 out += Finding(Kind.OFFSCREEN, Severity.LOW, n.id, null, "${label(n)} runs ${dp(stick)}dp off screen", r.list())
         }
 
         fun safeArea(n: Node, out: MutableList<Finding>) {
-            if (!strong(n) || has(n, AuditTokens.FULLBLEED)) return
+            if (!strong(n) || has(n, AuditTokens.FULLBLEED) || peekOwner(n)) return
             val hx = px(c.safeHorizontalDp).roundToInt()
             val vy = px(c.safeVerticalDp).roundToInt()
             val safe = R(hx, vy, screen.r - hx, screen.b - vy)
             val e = eff.getValue(n.id)
             if (safe.contains(e)) return
-            val by = maxOf(safe.l - e.l, safe.t - e.t, e.r - safe.r, e.b - safe.b)
+            // Under an audit:peek scroller only the start edges count: items peek past the end on purpose.
+            val by = if (has(n, AuditTokens.PEEK)) maxOf(safe.l - e.l, safe.t - e.t)
+            else maxOf(safe.l - e.l, safe.t - e.t, e.r - safe.r, e.b - safe.b)
+            if (by <= 0) return
             out += Finding(Kind.SAFE_AREA, Severity.MEDIUM, n.id, null,
                 "${label(n)} is ${dp(by)}dp outside the overscan-safe area (${c.safeHorizontalDp.fmt()}x${c.safeVerticalDp.fmt()}dp insets)", e.list())
         }

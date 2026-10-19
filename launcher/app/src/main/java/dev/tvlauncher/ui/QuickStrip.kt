@@ -161,7 +161,9 @@ class QuickStrip(
         val cx = shelfAt[0] - hostAt[0] + t.left + t.width / 2f
         val w = group.width.toFloat()
         group.animate().cancel()
-        group.translationX = (cx - w / 2f).coerceIn(0f, maxOf(0f, width - w))
+        val safe = context.dp(Theme.MARGIN_H).toFloat()
+        group.translationX = QuickStripState.Geometry.stripLeft(cx, w, width.toFloat(), safe - hostAt[0],
+            safe - (rootView.width - hostAt[0] - width))
         group.translationY = -context.dp(6).toFloat()
         group.alpha = 0f
         group.visibility = View.VISIBLE

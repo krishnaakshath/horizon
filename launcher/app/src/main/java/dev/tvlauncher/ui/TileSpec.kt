@@ -28,6 +28,12 @@ object TileSpec {
     /** Spec open question 2: settle on-device in Task 12. */
     const val PARALLAX_IN_LITE = false
 
+    /** Item decoration between two tile views (the visual gap minus both ring paddings). */
+    const val DECOR_DP = GAP_DP - 2 * PAD_DP
+
+    /** How far a focused tile view grows past its resting bounds on each side (FOCUS_SCALE about the center). */
+    fun focusGrowDp(d: TileDims): Int = Math.ceil(d.viewWidthDp * (FOCUS_SCALE - 1f) / 2.0).toInt()
+
     const val VIEW_WIDTH_DP = WIDTH_DP + 2 * PAD_DP
     const val VIEW_HEIGHT_DP = PAD_DP + HEIGHT_DP + LABEL_GAP_DP + LABEL_HEIGHT_DP + PAD_DP
 

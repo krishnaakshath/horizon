@@ -118,6 +118,7 @@ object AuditTokens {
     const val CONTENT = AuditTags.CONTENT
     const val SCRIM = AuditTags.SCRIM
     const val OPAQUE = AuditTags.OPAQUE
+    const val PEEK = AuditTags.PEEK
 
     fun parse(tag: String?): Set<String> =
         if (tag.isNullOrBlank()) emptySet()

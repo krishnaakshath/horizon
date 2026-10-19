@@ -126,7 +126,7 @@ internal class SidebarHeader(
         gravity = Gravity.CENTER_VERTICAL
         isFocusable = true
         isClickable = true
-        minimumHeight = context.dp(SidebarMetrics.HEADER_DP)
+        minimumHeight = Math.ceil(SidebarMetrics.HEADER_DP * resources.displayMetrics.density.toDouble()).toInt() // never under 40 dp after rounding
         setPadding(context.dp(14), 0, context.dp(SidebarMetrics.END_PAD_DP), 0)
         addView(label, LayoutParams(0, -2, 1f))
         addView(chevron, LayoutParams(context.dp(16), context.dp(16)).apply { marginStart = context.dp(8) })
