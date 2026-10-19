@@ -13,6 +13,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.text.TextUtils
 import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -22,7 +23,6 @@ import dev.tvlauncher.device.DeviceProfile
 import dev.tvlauncher.device.DeviceProfileReader
 import dev.tvlauncher.device.EffectsMode
 import dev.tvlauncher.settings.AppearancePrefs
-import dev.tvlauncher.settings.Branding
 import dev.tvlauncher.ui.FocusRules
 import dev.tvlauncher.ui.Theme
 import dev.tvlauncher.ui.Theme.style
@@ -31,10 +31,11 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
- * The launcher's own Settings: a sidebar of [SettingsRegistry] sections and a glass content pane.
- * D-pad: focusing a sidebar entry shows its page; RIGHT enters the page (restoring the last
- * focused row); LEFT at a page's edge returns to the sidebar. BACK goes up one level: sub-page,
- * then sidebar, then closes.
+ * The launcher's own Settings: a grouped sidebar ([SidebarState] over [GroupedRegistry]) and a
+ * glass content pane, sized by [SettingsLayout]. D-pad: focusing a sidebar entry shows its page;
+ * OK on a group header expands or collapses it (one group open at a time); RIGHT enters the page
+ * (restoring the last focused row); LEFT at a page's edge returns to the sidebar. BACK goes up
+ * one level: sub-page, then sidebar, then closes. The last page is remembered.
  */
 class AppSettingsActivity : Activity(), SettingsNav {
     private class Level(val title: String, val build: (Context, SettingsNav) -> View, val returnKey: String?)
@@ -46,8 +47,10 @@ class AppSettingsActivity : Activity(), SettingsNav {
     override var style = SettingsStyle(0, null)
         private set
 
-    private val sections = SettingsRegistry.shared.sections()
-    private val items = ArrayList<SidebarItem>()
+    private val sectionsById = LinkedHashMap<String, SettingsSection>()
+    private lateinit var sidebarState: SidebarState
+    private val sidebarViews = ArrayList<View>()
+    private lateinit var layout: SettingsLayout
     private lateinit var root: FrameLayout
     private lateinit var glow: View
     private lateinit var sidebar: LinearLayout
@@ -56,43 +59,76 @@ class AppSettingsActivity : Activity(), SettingsNav {
     private lateinit var pageHost: FrameLayout
     private lateinit var crumb: TextView
     private lateinit var heading: TextView
+    private lateinit var desc: TextView
     private lateinit var toast: TextView
 
-    private var selected = -1
-    private var pendingSelect = -1
+    private var selected: String? = null
+    private var pendingSelect: String? = null
     private val stack = ArrayList<Level>()
     private var current: View? = null
     private var generation = 0
     private var pendingFocus: FocusTarget? = null
     private val lastKey = HashMap<String, String>()
+    private val advancedOpen = HashSet<String>()
     private val main = Handler(Looper.getMainLooper())
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
-    private val selectRunnable = Runnable { if (pendingSelect >= 0) select(pendingSelect) }
+    private val selectRunnable = Runnable { pendingSelect?.let { select(it) } }
     private val hideToast = Runnable { fade(toast, 0f) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         profile = DeviceProfileReader.read(this)
         style = readStyle()
+        val m = resources.displayMetrics
+        layout = SettingsLayout.compute(m.widthPixels, m.heightPixels, m.density, hasScrollbar = true)
+        val groups = loadGroups()
+        val start = SidebarState.startPage(
+            saved = savedInstanceState?.getString(STATE_SECTION),
+            requested = intent?.getStringExtra(EXTRA_SECTION),
+            last = uiPrefs().getString(PREF_LAST_PAGE, null),
+            available = groups.flatMap { it.second }
+        )
+        sidebarState = SidebarState.initial(groups, start)
         buildUi()
         setContentView(root)
-        val wanted = savedInstanceState?.getString(STATE_SECTION) ?: intent?.getStringExtra(EXTRA_SECTION)
-        val start = sections.indexOfFirst { it.id == wanted }.coerceAtLeast(0)
-        select(start)
-        items.getOrNull(start)?.requestFocus()
+        renderSidebar(null)
+        start?.let { select(it) }
+        start?.let { focusSidebarEntry(sidebarState.indexOfPage(it)) }
         overridePendingTransition(0, 0)
         playEntry()
     }
 
     override fun onRestart() {
         super.onRestart()
-        // Back from a system page or the home screen: status and lists may have changed.
+        // Back from a system page, an installer or the home screen: apps and status may have changed.
+        val groups = loadGroups()
+        if (groups != sidebarState.groups) {
+            val inSidebar = currentFocus?.let { isInside(it, sidebarList) } == true
+            val cur = selected?.takeIf { id -> groups.any { id in it.second } } ?: groups.firstOrNull()?.second?.firstOrNull()
+            sidebarState = SidebarState(groups, cur, sidebarState.expanded).let { if (it.groupOf(cur) == null) it else it.reveal() }
+            renderSidebar(if (inSidebar) cur?.let { sidebarState.indexOfPage(it) } else null)
+            if (cur != null && cur != selected) { select(cur); return }
+        }
         refresh()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        sections.getOrNull(selected)?.let { outState.putString(STATE_SECTION, it.id) }
+        selected?.let { outState.putString(STATE_SECTION, it) }
+    }
+
+    private fun uiPrefs() = getSharedPreferences(PREFS_UI, Context.MODE_PRIVATE)
+
+    /** Registered sections grouped for the sidebar, without uninstalled companions and placeholders. */
+    private fun loadGroups(): List<Pair<SettingsGroup, List<String>>> {
+        val probe = object : SectionAvailability.Probe {
+            override fun appInstalled(pkg: String) = ModuleProbe.isAppInstalled(this@AppSettingsActivity, pkg)
+            override fun classPresent(name: String) = ModuleProbe.isPresent(name)
+        }
+        val groups = SettingsRegistry.shared.groups(probe)
+        sectionsById.clear()
+        SettingsRegistry.shared.sections().forEach { sectionsById[it.id] = it }
+        return groups.map { g -> g.group to g.sections.map { it.id } }
     }
 
     override fun onDestroy() {
@@ -127,7 +163,8 @@ class AppSettingsActivity : Activity(), SettingsNav {
             orientation = LinearLayout.HORIZONTAL
             clipChildren = false
             clipToPadding = false
-            setPadding(dp(Theme.MARGIN_H), dp(Theme.MARGIN_V), dp(Theme.MARGIN_H), dp(Theme.MARGIN_V))
+            // Overscan-safe margins from the pure layout model (never less than Theme.MARGIN_H/V).
+            setPadding(layout.marginH, layout.marginV, layout.marginH, layout.marginV)
         }
         root.addView(row, FrameLayout.LayoutParams(-1, -1))
 
@@ -137,29 +174,14 @@ class AppSettingsActivity : Activity(), SettingsNav {
             clipToPadding = false
         }
         sidebar.addView(TextView(this).apply {
-            text = Branding.NAME.uppercase()
-            letterSpacing = 0.12f
-            style(13f, Theme.medium, Theme.TEXT_2)
-        }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(14); topMargin = dp(6) })
-        sidebar.addView(TextView(this).apply {
             text = "Settings"
-            style(36f, Theme.light)
-        }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(12); topMargin = dp(6); bottomMargin = dp(18) })
+            style(32f, Theme.light)
+        }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(12); topMargin = dp(10); bottomMargin = dp(14) })
         sidebarList = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             clipChildren = false
             clipToPadding = false
             setPadding(dp(6), dp(4), dp(10), dp(12))
-        }
-        sections.forEachIndexed { i, s ->
-            val item = SidebarItem(this, style, s)
-            item.setOnFocusChangeListener { _, has -> if (has) onSidebarFocus(i) }
-            item.setOnClickListener {
-                select(i)
-                focusContent()
-            }
-            items.add(item)
-            sidebarList.addView(item, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(4) })
         }
         val sideScroll = ScrollView(this).apply {
             isVerticalScrollBarEnabled = false
@@ -169,7 +191,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
             addView(sidebarList, FrameLayout.LayoutParams(-1, -2))
         }
         sidebar.addView(sideScroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        row.addView(sidebar, LinearLayout.LayoutParams(dp(SIDEBAR_DP), -1).apply { marginEnd = dp(Theme.S5) })
+        row.addView(sidebar, LinearLayout.LayoutParams(layout.sidebar.width, -1).apply { marginEnd = layout.gap })
 
         panel = FrameLayout(this).apply {
             background = Glass.rect(this@AppSettingsActivity, Glass.PANEL, Glass.RADIUS_PANEL, Glass.HAIRLINE)
@@ -178,16 +200,31 @@ class AppSettingsActivity : Activity(), SettingsNav {
         val panelColumn = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             clipChildren = false
-            setPadding(0, dp(24), 0, 0)
+            setPadding(0, dp(22), 0, 0)
         }
+        val inset = dp(SettingsLayout.PANE_PAD_DP + 4)
         crumb = TextView(this).apply {
-            style(14f, Theme.medium, Theme.TEXT_2)
+            style(13f, Theme.medium, Theme.TEXT_2)
             letterSpacing = 0.04f
-            visibility = View.GONE
+            isSingleLine = true
+            ellipsize = TextUtils.TruncateAt.END
         }
-        heading = TextView(this).apply { style(30f, Theme.light) }
-        panelColumn.addView(crumb, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(30); bottomMargin = dp(4) })
-        panelColumn.addView(heading, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(30); bottomMargin = dp(10) })
+        heading = TextView(this).apply {
+            style(30f, Theme.light)
+            isSingleLine = true
+            ellipsize = TextUtils.TruncateAt.END
+        }
+        desc = TextView(this).apply {
+            style(15f, Theme.regular, Theme.TEXT_2)
+            isSingleLine = true
+            ellipsize = TextUtils.TruncateAt.END
+        }
+        fun header(v: View, bottom: Int) = panelColumn.addView(v, LinearLayout.LayoutParams(-1, -2).apply {
+            marginStart = inset; marginEnd = inset; bottomMargin = dp(bottom)
+        })
+        header(crumb, 6)
+        header(heading, 6)
+        header(desc, 12)
         pageHost = FrameLayout(this).apply {
             clipChildren = false
             isFocusable = false
@@ -232,38 +269,103 @@ class AppSettingsActivity : Activity(), SettingsNav {
 
     // ---- Sections and pages ----
 
-    private fun onSidebarFocus(i: Int) {
+    // ---- Sidebar ----
+
+    /** Rebuilds the sidebar from [sidebarState]; focuses entry [focusIndex] if given. */
+    private fun renderSidebar(focusIndex: Int?) {
+        val hadFocus = currentFocus?.let { isInside(it, sidebarList) } == true
+        if (hadFocus) {
+            // Park focus on the list itself so removing the focused entry cannot push it into the pane.
+            sidebarList.isFocusable = true
+            sidebarList.requestFocus()
+        }
+        sidebarList.removeAllViews()
+        sidebarViews.clear()
+        sidebarState.entries.forEachIndexed { i, e ->
+            val v: View = when (e) {
+                is SidebarEntry.Header -> SidebarHeader(this, style, e.group, e.expanded).apply {
+                    setOnFocusChangeListener { _, has -> if (has) main.removeCallbacks(selectRunnable) }
+                    setOnClickListener { toggleGroup(e.group) }
+                }
+                is SidebarEntry.Page -> {
+                    val section = sectionsById.getValue(e.id)
+                    SidebarItem(this, style, section).apply {
+                        isCurrent = e.id == selected
+                        setOnFocusChangeListener { _, has -> if (has) onSidebarFocus(e.id) }
+                        setOnClickListener {
+                            select(e.id)
+                            focusContent()
+                        }
+                    }
+                }
+            }
+            val header = e is SidebarEntry.Header
+            sidebarViews.add(v)
+            sidebarList.addView(v, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = if (header && i > 0) dp(6) else 0
+                bottomMargin = dp(if (header) 2 else 4)
+            })
+        }
+        if (focusIndex != null) focusSidebarEntry(focusIndex)
+        else if (hadFocus) focusSidebarEntry(selected?.let { sidebarState.indexOfPage(it) }?.takeIf { it >= 0 } ?: 0)
+        sidebarList.isFocusable = false
+    }
+
+    private fun focusSidebarEntry(i: Int) {
+        (sidebarViews.getOrNull(i) ?: sidebarViews.firstOrNull())?.requestFocus()
+    }
+
+    private fun toggleGroup(group: SettingsGroup) {
+        sidebarState = sidebarState.toggle(group)
+        renderSidebar(sidebarState.indexOfHeader(group))
+    }
+
+    private fun onSidebarFocus(id: String) {
         main.removeCallbacks(selectRunnable)
-        if (i == selected) return
-        pendingSelect = i
+        if (id == selected) return
+        pendingSelect = id
         main.postDelayed(selectRunnable, SELECT_DEBOUNCE_MS)
     }
 
-    private fun select(i: Int) {
+    // ---- Sections and pages ----
+
+    private fun select(id: String) {
         main.removeCallbacks(selectRunnable)
-        pendingSelect = -1
-        if (i == selected || i !in sections.indices) return
-        selected = i
-        items.forEachIndexed { k, item -> item.isCurrent = k == i }
+        pendingSelect = null
+        if (id == selected || id !in sectionsById) return
+        selected = id
+        val next = sidebarState.select(id)
+        val regroup = next.expanded != sidebarState.expanded
+        sidebarState = next
+        if (regroup) renderSidebar(null)
+        sidebarViews.forEach { (it as? SidebarItem)?.isCurrent = it.section.id == id }
+        try {
+            uiPrefs().edit().putString(PREF_LAST_PAGE, id).apply()
+        } catch (e: RuntimeException) {
+        }
         stack.clear()
+        advancedOpen.clear()
         pendingFocus = null
         showLevel(animate = true)
     }
 
     /** Rebuilds the top of the stack (or the section root) into the content pane. */
     private fun showLevel(animate: Boolean) {
-        val section = sections.getOrNull(selected) ?: return
+        val section = selected?.let { sectionsById[it] } ?: return
         val top = stack.lastOrNull()
         heading.text = top?.title ?: section.title
-        crumb.text = (listOf(section.title) + stack.dropLast(1).map { it.title }).joinToString("  ›  ")
-        crumb.visibility = if (top == null) View.GONE else View.VISIBLE
+        val groupTitle = (sidebarState.groupOf(section.id) ?: section.group).title
+        crumb.text = Breadcrumb.of(groupTitle, section.title, stack.map { it.title })
+        val d = if (top == null) section.description else ""
+        desc.text = d
+        desc.visibility = if (d.isEmpty()) View.GONE else View.VISIBLE
         generation++
         val old = current
         if (old != null && old.hasFocus()) parkFocus()
         val view = try {
             top?.build?.invoke(this, this) ?: section.buildPage(this, this)
         } catch (e: RuntimeException) {
-            SettingsPage(this, style).apply { lead("This page could not be shown.") }
+            SettingsPage(this, style).apply { note("This page could not be shown.") }
         }
         old?.let { it.animate().cancel(); pageHost.removeView(it) }
         pageHost.addView(view, FrameLayout.LayoutParams(-1, -1))
@@ -302,9 +404,15 @@ class AppSettingsActivity : Activity(), SettingsNav {
 
     override fun appearanceChanged() {
         style = readStyle()
-        items.forEach { it.applyStyle(style) }
+        sidebarViews.forEach { (it as? SidebarItem)?.applyStyle(style) }
         applyGlow()
         refresh()
+    }
+
+    override fun isAdvancedOpen(key: String) = key in advancedOpen
+
+    override fun setAdvancedOpen(key: String, open: Boolean) {
+        if (open) advancedOpen.add(key) else advancedOpen.remove(key)
     }
 
     override fun contentReady() = applyPendingFocus()
@@ -375,7 +483,8 @@ class AppSettingsActivity : Activity(), SettingsNav {
         val page = current ?: return
         val list = focusables(page)
         if (list.isEmpty()) return // async page: contentReady() will try again
-        val byKey = target.key?.let { k -> list.firstOrNull { it.tag == k } }
+        val wanted = target.key ?: (page as? SettingsPage)?.preferredFocus
+        val byKey = wanted?.let { k -> list.firstOrNull { it.tag == k } }
         val v = byKey ?: list[FocusRules.nextFocusIndexAfterRemoval(target.index, list.size) ?: 0]
         pendingFocus = null
         v.requestFocus()
@@ -418,17 +527,22 @@ class AppSettingsActivity : Activity(), SettingsNav {
     private fun focusSidebar() {
         val page = current
         val f = currentFocus
-        val section = sections.getOrNull(selected)
-        if (page != null && f != null && section != null && isInside(f, page)) {
-            keyOf(f, page)?.let { lastKey[section.id] = it }
+        val id = selected
+        if (page != null && f != null && id != null && isInside(f, page)) {
+            keyOf(f, page)?.let { lastKey[id] = it }
         }
-        items.getOrNull(selected)?.requestFocus()
+        val revealed = sidebarState.reveal()
+        if (revealed.expanded != sidebarState.expanded) {
+            sidebarState = revealed
+            renderSidebar(null)
+        }
+        val i = id?.let { sidebarState.indexOfPage(it) } ?: -1
+        focusSidebarEntry(if (i >= 0) i else 0)
     }
 
     private fun focusContent() {
         val page = current ?: return
-        val section = sections.getOrNull(selected)
-        val key = if (stack.isEmpty()) section?.let { lastKey[it.id] } else null
+        val key = if (stack.isEmpty()) selected?.let { lastKey[it] } else null
         pendingFocus = FocusTarget(key, 0)
         applyPendingFocus()
         if (pendingFocus != null) parkFocus()
@@ -478,7 +592,8 @@ class AppSettingsActivity : Activity(), SettingsNav {
         /** Optional section id to open first, e.g. [AppearanceSection.ID]. */
         const val EXTRA_SECTION = "dev.tvlauncher.extra.SECTION"
         private const val STATE_SECTION = "section"
-        private const val SIDEBAR_DP = 272
+        private const val PREFS_UI = "settings_ui"
+        private const val PREF_LAST_PAGE = "last_page"
         private const val SELECT_DEBOUNCE_MS = 110L
         private const val TOAST_MS = 2600L
         private const val GLOW_RADIUS_DP = 560
