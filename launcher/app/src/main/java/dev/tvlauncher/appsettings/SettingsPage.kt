@@ -94,7 +94,9 @@ class SettingsPage(context: Context, val style: SettingsStyle, spec: PageSpec? =
     init {
         isVerticalScrollBarEnabled = false
         isFillViewport = true
-        clipChildren = false
+        // Clip to the page: rows scrolled past the top must never draw over the pane's header.
+        // The column keeps clipChildren = false, and its padding leaves room for the focus scale.
+        clipChildren = true
         overScrollMode = OVER_SCROLL_NEVER
         if (style.full) {
             isVerticalFadingEdgeEnabled = true
@@ -192,7 +194,7 @@ class SettingsPage(context: Context, val style: SettingsStyle, spec: PageSpec? =
     private companion object {
         const val PAD_DP = SettingsLayout.PANE_PAD_DP
         const val LEAD_SP = 16f
-        const val GROUP_SP = 13f
+        const val GROUP_SP = 14f
         const val NOTE_SP = 14f
         const val FOCUS_MARGIN_DP = 28
         const val TRACK_INSET_DP = 10

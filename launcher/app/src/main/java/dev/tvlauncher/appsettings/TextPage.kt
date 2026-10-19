@@ -28,7 +28,7 @@ internal class TextPage(context: Context, style: SettingsStyle) : ScrollView(con
         addView(body, LayoutParams(-1, -2))
         tag = "text.body"
         background = android.graphics.drawable.StateListDrawable().apply {
-            addState(intArrayOf(android.R.attr.state_focused), Glass.rect(context, Glass.SHEEN, Glass.RADIUS_ROW))
+            addState(intArrayOf(android.R.attr.state_focused), Glass.item(context))
             addState(intArrayOf(), Glass.rect(context, 0, Glass.RADIUS_ROW))
         }
         body.text = "…"

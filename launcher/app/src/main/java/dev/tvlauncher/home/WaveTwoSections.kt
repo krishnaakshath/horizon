@@ -9,7 +9,6 @@ import dev.tvlauncher.ambient.AmbientDream
 import dev.tvlauncher.ambient.AmbientSettingsRows
 import dev.tvlauncher.ambient.NotificationAccess
 import dev.tvlauncher.ambient.NotificationAccessCard
-import dev.tvlauncher.ambient.WallpaperPickerPanel
 import dev.tvlauncher.ambient.WallpaperSettings
 import dev.tvlauncher.ambient.WallpaperStore
 import dev.tvlauncher.ambient.WeatherCompanion
@@ -57,8 +56,11 @@ object WaveTwoSections {
 
     enum class PageKind { ACTION, TOGGLE, STEPPER, CARD, INFO }
 
-    /** Ambient model rows shown on the page itself; every other model row sits in "Advanced". */
-    val AMBIENT_PRIMARY_MODEL_KEYS = listOf("wallpaper", "slideshowInterval", "dim", "idleMinutes", "nightDim")
+    /**
+     * Ambient model rows shown on the page itself; every other model row sits in "Advanced", except
+     * the wallpaper's own rows ([WallpaperPage.MODEL_KEYS]), which live only on the Wallpaper page.
+     */
+    val AMBIENT_PRIMARY_MODEL_KEYS = listOf("wallpaper", "idleMinutes", "nightDim")
 
     /** Ambient model rows inside the page's "Advanced" block (the CARD row is a view, not a guarded row). */
     val AMBIENT_ADVANCED_MODEL_KEYS = listOf("notificationsEnabled", "showNotificationText", "clock24h", "clockPosition", "pixelShift")
@@ -139,7 +141,7 @@ object AmbientSection : SettingsSection, SpecifiedPage {
             val key = "ambient.${r.key}"
             when (r.kind) {
                 WaveTwoSections.PageKind.ACTION -> block.row(key, r.title, RowKind.Action(r.value) {
-                    nav.push("Wallpaper") { c, n -> pickerPage(c, n) }
+                    nav.push("Wallpaper") { c, n -> WallpaperPage.build(c, n) }
                 }, subtitle = r.hint)
                 WaveTwoSections.PageKind.TOGGLE -> block.row(key, r.title, RowKind.Toggle(r.value == "On") {
                     save(AmbientSettingsRows.toggle(store.load(), r.key))
@@ -152,44 +154,18 @@ object AmbientSection : SettingsSection, SpecifiedPage {
                 WaveTwoSections.PageKind.INFO -> block.row(key, r.title, RowKind.Info(r.value), subtitle = r.hint)
             }
         }
+        val elsewhere = WallpaperPage.MODEL_KEYS
         for (r in rows) if (r.key in WaveTwoSections.AMBIENT_PRIMARY_MODEL_KEYS) render(page.body, r)
         val extras = HomeExtrasPrefs(context)
         page.row("ambient.homeWallpaper", "Use wallpaper on home", RowKind.Toggle(extras.wallpaperOnHome) { on ->
             extras.wallpaperOnHome = on
         }, subtitle = "Shows this wallpaper under the home colors (uses more memory)")
         page.advanced(nav, "ambient.advanced", "Clock, notification chips, burn-in and screensaver") { adv ->
-            for (r in rows) if (r.key !in WaveTwoSections.AMBIENT_PRIMARY_MODEL_KEYS) render(adv, r)
+            for (r in rows) if (r.key !in WaveTwoSections.AMBIENT_PRIMARY_MODEL_KEYS && r.key !in elsewhere) render(adv, r)
             adv.group("Screensaver")
             adv.note("To use Ambient as the TV's screensaver, run these once from a computer:\n${WaveTwoSections.SCREENSAVER_ADB}", maxLines = 5)
         }
         return page
-    }
-
-    /**
-     * Hosts [WallpaperPickerPanel] in the content pane. The panel stacks taller than a 720p pane
-     * (title, grid, slideshow/interval/dim and notification rows, path text), so it sits in a
-     * ScrollView capped at the pane height; focus moves scroll it. The picker is shown once the
-     * host has its real width (the pane is narrower than the screen), and dismissed on detach.
-     */
-    private fun pickerPage(context: Context, nav: SettingsNav): View {
-        val picker = WallpaperPickerPanel(context, nav.profile, WallpaperStore(context)) { }
-        val host = object : FrameLayout(context) {
-            override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-                super.onSizeChanged(w, h, oldw, oldh)
-                if (w > 0 && !picker.isShowing) post { if (isAttachedToWindow && !picker.isShowing) picker.show(this) }
-            }
-
-            override fun onDetachedFromWindow() {
-                picker.dismiss() // cancels jobs and recycles thumbnails
-                super.onDetachedFromWindow()
-            }
-        }
-        return ScrollView(context).apply {
-            isFillViewport = true
-            isVerticalScrollBarEnabled = false
-            overScrollMode = View.OVER_SCROLL_NEVER
-            addView(host, FrameLayout.LayoutParams(-1, -2))
-        }
     }
 }
 

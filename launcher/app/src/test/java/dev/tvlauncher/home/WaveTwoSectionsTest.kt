@@ -83,7 +83,7 @@ class WaveTwoSectionsTest {
             val guard = RowGuard(WaveTwoSections.AMBIENT_SPEC)
             guard.claim("ambient.start", advanced = false)
             for (r in WaveTwoSections.ambientRows(ws, accessGranted = false, is24h = true)) {
-                if (r.kind == WaveTwoSections.PageKind.CARD) continue
+                if (r.kind == WaveTwoSections.PageKind.CARD || r.key in WallpaperPage.MODEL_KEYS) continue
                 guard.claim("ambient.${r.key}", advanced = r.key !in primary)
             }
             guard.claim("ambient.homeWallpaper", advanced = false)

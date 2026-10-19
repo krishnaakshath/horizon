@@ -69,7 +69,7 @@ class SettingsRow(
 ) : LinearLayout(context) {
     private val titleView = TextView(context).apply {
         text = title
-        isSingleLine = true
+        maxLines = 2 // long titles wrap inside the row instead of running under the value
         ellipsize = TextUtils.TruncateAt.END
         style(SP_TITLE, Theme.medium)
     }
@@ -80,12 +80,13 @@ class SettingsRow(
         setLineSpacing(0f, 1.1f)
     }
     private val valueView = TextView(context).apply {
-        isSingleLine = true
+        maxLines = 2
         ellipsize = TextUtils.TruncateAt.END
         gravity = Gravity.END or Gravity.CENTER_VERTICAL
         style(SP_VALUE, Theme.regular, Theme.TEXT_2)
     }
     private val iconView = ImageView(context)
+    private var iconChip: View? = null
     private val levelBar = LevelBar(context)
     private val arrowLeft = chevron(R.drawable.ic_set_chevron_left)
     private val arrowRight = chevron(R.drawable.ic_set_chevron)
@@ -103,15 +104,8 @@ class SettingsRow(
         isClickable = true
         minimumHeight = context.dp(SettingsLayout.ROW_MIN_DP)
         setPadding(context.dp(16), context.dp(10), context.dp(16), context.dp(10))
-        background = StateListDrawable().apply {
-            setEnterFadeDuration(style.focusMs.toInt())
-            setExitFadeDuration(style.focusMs.toInt())
-            addState(
-                intArrayOf(android.R.attr.state_focused),
-                Glass.rect(context, style.tint(0.26f), Glass.RADIUS_ROW, style.accentOnDark, 2)
-            )
-            addState(intArrayOf(), Glass.rect(context, Glass.ROW, Glass.RADIUS_ROW))
-        }
+        // The shared glass: faint glass at rest; focused: the one Settings focus style (accent-lit glass + ring).
+        background = Glass.states(context, style.focusMs, Glass.RADIUS_ROW, Glass.item(context), focused = style.focusDrawable(context))
 
         if (iconRes != 0) {
             val chip = FrameLayout(context).apply { background = Glass.rect(context, Glass.CHIP, Glass.RADIUS_CHIP) }
@@ -119,6 +113,7 @@ class SettingsRow(
             iconView.imageTintList = ColorStateList.valueOf(Theme.TEXT)
             chip.addView(iconView, FrameLayout.LayoutParams(context.dp(22), context.dp(22), Gravity.CENTER))
             addView(chip, LayoutParams(context.dp(38), context.dp(38)).apply { marginEnd = context.dp(16) })
+            iconChip = chip
         }
 
         val column = LinearLayout(context).apply { orientation = VERTICAL }
@@ -129,7 +124,7 @@ class SettingsRow(
 
         when (kind) {
             is RowKind.Toggle -> {
-                val t = ToggleSwitch(context, style.accent, style.focusMs)
+                val t = ToggleSwitch(context, style.accentOnDark, style.focusMs)
                 t.setChecked(checked, animate = false)
                 toggle = t
                 addView(t, LayoutParams(-2, -2).apply { marginStart = context.dp(16) })
@@ -191,10 +186,25 @@ class SettingsRow(
         arrowRight.rotation = if (open) -90f else 90f
     }
 
-    /** The value column never takes more than [SettingsLayout.VALUE_MAX_FRACTION] of the row. */
+    /**
+     * The value column never takes more than [RowMetrics.valueMax] of the row, so the title always
+     * keeps [RowMetrics.TITLE_MIN_FRACTION] of it (nothing overlaps, long values wrap or ellipsize).
+     */
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val w = MeasureSpec.getSize(widthMeasureSpec)
-        if (w > 0) valueView.maxWidth = (w * SettingsLayout.VALUE_MAX_FRACTION).toInt()
+        if (w > 0) {
+            var fixed = paddingLeft + paddingRight
+            for (i in 0 until childCount) {
+                val c = getChildAt(i)
+                if (c === valueView || c.visibility == View.GONE) continue
+                val lp = c.layoutParams as LayoutParams
+                if (lp.weight > 0f) continue
+                fixed += lp.width.coerceAtLeast(0) + lp.leftMargin + lp.rightMargin
+            }
+            val vlp = valueView.layoutParams as? LayoutParams
+            val valueMargins = (vlp?.leftMargin ?: 0) + (vlp?.rightMargin ?: 0)
+            valueView.maxWidth = RowMetrics.valueMax(w, fixed + valueMargins + (toggle?.let { context.dp(48) } ?: 0))
+        }
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
 
@@ -279,9 +289,7 @@ class SettingsRow(
 
     override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
-        val chip = (kind as? RowKind.Action)?.chip
-        valueView.setTextColor(if (chip != null) ChipColors.text(chip, gainFocus) else if (gainFocus) Theme.TEXT else Theme.TEXT_2)
-        subtitleView.setTextColor(if (gainFocus) SUB_FOCUSED else Theme.TEXT_2)
+        applyLit(gainFocus)
         if (kind is RowKind.Action) arrowRight.alpha = if (gainFocus) 1f else 0.55f
         updateArrows()
         val s = if (gainFocus) FOCUS_SCALE else 1f
@@ -293,23 +301,34 @@ class SettingsRow(
         }
     }
 
+    /** Focused rows are accent-lit glass: values and subtitles brighten, everything stays light ink. */
+    private fun applyLit(lit: Boolean) {
+        val chip = (kind as? RowKind.Action)?.chip
+        valueView.setTextColor(if (chip != null) ChipColors.text(chip, lit) else if (lit) Theme.TEXT else Theme.TEXT_2)
+        if (chip != null) valueView.background = Glass.pill(context, ChipColors.fill(chip, style.accent, lit))
+        subtitleView.setTextColor(if (lit) Theme.TEXT_SUB_FOCUSED else Theme.TEXT_2)
+        iconChip?.background = Glass.rect(context, if (lit) Glass.SELECTED else Glass.CHIP, Glass.RADIUS_CHIP)
+    }
+
     override fun hasOverlappingRendering() = false
 
     /** A thin rounded level bar (track + accent fill) for steppers such as Volume. */
     private inner class LevelBar(context: Context) : View(context) {
         var level = 0f
             set(v) { field = v.coerceIn(0f, 1f); invalidate() }
+        var onLight = false
+            set(v) { if (field != v) { field = v; invalidate() } }
         private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
         private val r = android.graphics.RectF()
 
         override fun onDraw(canvas: android.graphics.Canvas) {
             val h = height.toFloat()
             r.set(0f, 0f, width.toFloat(), h)
-            paint.color = Theme.TOGGLE_OFF
+            paint.color = if (onLight) TRACK_ON_LIGHT else Theme.TOGGLE_OFF
             canvas.drawRoundRect(r, h / 2, h / 2, paint)
             r.right = width * level
             if (r.right > 0f) {
-                paint.color = style.accentOnDark
+                paint.color = if (onLight) Theme.TEXT_DARK else style.accentOnDark
                 canvas.drawRoundRect(r, h / 2, h / 2, paint)
             }
         }
@@ -324,6 +343,6 @@ class SettingsRow(
         const val FOCUS_SCALE = 1.015f
         const val ARROW_ON = 0.95f
         const val ARROW_DIM = 0.25f
-        const val SUB_FOCUSED = Theme.TEXT_SUB_FOCUSED
+        const val TRACK_ON_LIGHT = 0x330B0D12
     }
 }

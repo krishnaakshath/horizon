@@ -27,6 +27,19 @@ data class SettingsLayout(
     /** Horizontal inset of the pane's content (header text and rows) from the pane's left edge. */
     val paneInset: Int get() = paneContent.left - pane.left
 
+    /** Where sidebar entries go: the card minus its padding and the list's side padding. */
+    fun sidebarEntries(density: Float): Box {
+        val p = Math.round((SIDEBAR_PAD_DP + SIDEBAR_LIST_PAD_DP) * density)
+        val v = Math.round(SIDEBAR_PAD_DP * density)
+        return Box(sidebar.left + p, sidebar.top + v, sidebar.right - p, sidebar.bottom - v)
+    }
+
+    /** Where rows go in the pane: the page column's padding inside the pane. */
+    fun rows(density: Float): Box = Box(
+        pane.left + Math.round(PANE_PAD_DP * density), pane.top,
+        pane.right - Math.round(PAGE_PAD_END_DP * density), pane.bottom
+    )
+
     /** The trailing value text may take at most this much of a row. */
     fun valueMaxWidth(rowWidth: Int): Int = (rowWidth * VALUE_MAX_FRACTION).toInt()
 
@@ -43,6 +56,12 @@ data class SettingsLayout(
         const val ROW_MIN_DP = 60
         const val ROW_GAP_DP = 8
         const val VALUE_MAX_FRACTION = 0.35f
+        /** Inner padding of the frosted sidebar card. */
+        const val SIDEBAR_PAD_DP = 14
+        /** Side padding of the sidebar list inside the card: room for an entry's focus scale. */
+        const val SIDEBAR_LIST_PAD_DP = 8
+        /** Right padding of a page's row column (also holds the scroll thumb). */
+        const val PAGE_PAD_END_DP = PANE_PAD_DP + 4
 
         fun compute(widthPx: Int, heightPx: Int, density: Float, hasScrollbar: Boolean): SettingsLayout {
             fun dp(v: Int) = (v * density).roundToInt()
@@ -58,7 +77,7 @@ data class SettingsLayout(
             val pane = Box(sidebar.right + gap, mv, widthPx - mh, heightPx - mv)
             val pad = dp(PANE_PAD_DP)
             val bar = if (hasScrollbar) {
-                val r = pane.right - dp(SCROLLBAR_GAP_DP)
+                val r = pane.right - dp(4)
                 Box(r - dp(SCROLLBAR_DP), pane.top + pad, r, pane.bottom - pad)
             } else null
             // The thumb lives in the pane's right padding; rows never reach it.
@@ -77,5 +96,78 @@ object ScrollIndicator {
         val maxOffset = range - extent
         val top = ((track - h).toLong() * offset.coerceIn(0, maxOffset) / maxOffset).toInt()
         return top to h
+    }
+}
+
+/**
+ * Horizontal budget of one [SettingsRow]: icon chip, title column (weight 1), value and controls.
+ * The value may take at most [SettingsLayout.VALUE_MAX_FRACTION] of the row and never so much that
+ * the title keeps less than [TITLE_MIN_FRACTION]; long text wraps (2 lines) or ellipsizes inside
+ * its own column, so the columns cannot overlap.
+ */
+object RowMetrics {
+    const val TITLE_MIN_FRACTION = 0.30f
+
+    /** Max width (px) of the value text in a row [rowWidth] wide whose other fixed parts take [fixed] px. */
+    fun valueMax(rowWidth: Int, fixed: Int): Int {
+        val byFraction = (rowWidth * SettingsLayout.VALUE_MAX_FRACTION).toInt()
+        val byTitle = rowWidth - fixed - (rowWidth * TITLE_MIN_FRACTION).toInt()
+        return minOf(byFraction, byTitle).coerceAtLeast(0)
+    }
+}
+
+/**
+ * Sizes a row of [count] round swatches so the whole strip, including the focus scale
+ * ([focusScale]) of the last swatch, fits [available] px. Prefers [size]/[gap]; shrinks both
+ * (gap first, to half) when the pane is narrow. Returns (size, gap).
+ */
+object SwatchFit {
+    fun fit(available: Int, count: Int, size: Int, gap: Int, focusScale: Float): Pair<Int, Int> {
+        if (count <= 0 || available <= 0) return size to gap
+        fun width(s: Int, g: Int) = count * s + (count - 1) * g + Math.ceil(s * (focusScale - 1f).toDouble()).toInt()
+        if (width(size, gap) <= available) return size to gap
+        val minGap = gap / 2
+        if (width(size, minGap) <= available) {
+            var g = gap
+            while (g > minGap && width(size, g) > available) g--
+            return size to g
+        }
+        var s = size
+        while (s > 1 && width(s, minGap) > available) s--
+        return s to minGap
+    }
+}
+
+/**
+ * Vertical rhythm of the sidebar card, on the 8 dp grid: a fixed title row, then the clipped list
+ * (it starts below the title, so nothing can scroll under it). Entries are [ENTRY_DP] tall,
+ * headers [HEADER_DP], each later group starts [GROUP_GAP_DP] below the previous entry.
+ */
+object SidebarMetrics {
+    const val TITLE_DP = 48
+    const val TITLE_GAP_DP = 8
+    const val ENTRY_DP = 48
+    const val HEADER_DP = 40
+    const val GROUP_GAP_DP = 8
+    const val ENTRY_GAP_DP = 0
+    /** Right padding of entries and headers: chevrons and labels end on the same column. */
+    const val END_PAD_DP = 16
+
+    /** Title row and list region inside a sidebar card [card] (px), with [pad] px card padding. */
+    fun regions(card: Box, padPx: Int, density: Float): Pair<Box, Box> {
+        val title = Box(card.left + padPx, card.top + padPx, card.right - padPx, card.top + padPx + Math.round(TITLE_DP * density))
+        val list = Box(title.left, title.bottom + Math.round(TITLE_GAP_DP * density), title.right, card.bottom - padPx)
+        return title to list
+    }
+
+    /** Top offsets (dp) of each entry in a list of [headers] flags (true = group header). */
+    fun tops(headers: List<Boolean>): List<Int> {
+        var y = 0
+        return headers.mapIndexed { i, h ->
+            if (h && i > 0) y += GROUP_GAP_DP
+            val top = y
+            y += (if (h) HEADER_DP else ENTRY_DP) + ENTRY_GAP_DP
+            top
+        }
     }
 }

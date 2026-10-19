@@ -40,10 +40,19 @@ data class SettingsStyle(val accent: Int, val motion: EffectsMode?) {
     /** Accent blended into the glass surface; [t] 0 = surface, 1 = accent. */
     fun tint(t: Float): Int = BrandColors.blend(Theme.SURFACE, accent, t)
 
+    /** The one focus style (rows, sidebar entries, headers): accent-lit glass and a 2 dp accent ring. */
+    fun focusDrawable(context: android.content.Context): android.graphics.drawable.Drawable =
+        Glass.rect(context, focusFill, Glass.RADIUS_ROW, accentOnDark, 2)
+
+    /** Opaque fill of a focused row/entry: [FOCUS_TINT] of the accent over the surface. */
+    val focusFill: Int get() = tint(FOCUS_TINT)
+
     /** Accent lifted for text/stroke legibility on near-black. */
     val accentOnDark: Int get() = BrandColors.backdropAccent(accent)
 
     companion object {
+        const val FOCUS_TINT = 0.26f
+
         /** Settings has no focused app, so "auto from brand" uses the launcher's default accent. */
         fun accentOf(a: AppearanceSettings): Int =
             if (a.accentMode == AccentMode.FIXED) a.fixedAccent else AppearanceSettings.DEFAULT_ACCENT

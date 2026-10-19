@@ -69,8 +69,13 @@ data class SidebarState(
 object Breadcrumb {
     const val SEP = " › "
 
+    /**
+     * Only sub-pages get a trail ("Home layout › Favorites"); a section's root page shows none, since
+     * the sidebar already names its group. [group] is kept for callers; it is not repeated.
+     */
+    @Suppress("UNUSED_PARAMETER")
     fun of(group: String, section: String, stack: List<String>): String =
-        (listOf(group) + if (stack.isEmpty()) emptyList() else listOf(section) + stack.dropLast(1)).joinToString(SEP)
+        if (stack.isEmpty()) "" else (listOf(section) + stack).joinToString(SEP)
 }
 
 /** Open/closed state of a page's single "Advanced" block (closed by default). */

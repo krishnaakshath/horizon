@@ -244,8 +244,7 @@ class GlassDrawable(context: Context, val kind: Kind, radiusDp: Int, private val
     private fun drawSample(canvas: Canvas) {
         val g = GlassBackdrop
         if (sampleVersion != g.version) rebuildSample()
-        val v = host
-        if (v != null && v.isAttachedToWindow) v.getLocationInWindow(loc) else { loc[0] = 0; loc[1] = 0 }
+        layoutLocation(host, loc)
         val dx = -loc[0].toFloat()
         val dy = -loc[1].toFloat()
         val bs = bitmapShader
@@ -269,6 +268,25 @@ class GlassDrawable(context: Context, val kind: Kind, radiusDp: Int, private val
         scrim.shader = ss
         scrim.alpha = alphaMul
         canvas.drawRoundRect(rect, radius, radius, scrim)
+    }
+
+    /**
+     * [v]'s resting position in its window from layout alone (translations ignored): an entry or
+     * slide animation moves the card over a still backdrop sample, and the recorded drawing is
+     * right again once the animation ends without a re-record. No allocation.
+     */
+    private fun layoutLocation(v: View?, out: IntArray) {
+        out[0] = 0; out[1] = 0
+        if (v == null) return
+        var x = v.left
+        var y = v.top
+        var p = v.parent
+        while (p is View) {
+            x += p.left - p.scrollX
+            y += p.top - p.scrollY
+            p = p.parent
+        }
+        out[0] = x; out[1] = y
     }
 
     /** Runs only when the published sample changed (never per frame). */

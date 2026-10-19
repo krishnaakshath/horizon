@@ -8,7 +8,9 @@ object ChipColors {
     /** How much accent goes into a positive chip over the surface (bright accents stay readable). */
     const val POSITIVE_T = 0.45f
 
-    fun fill(tone: Chip, accent: Int): Int =
+    /** Positive: accent over the surface (opaque). Neutral: a faint wash ([rowFocused] kept for callers). */
+    @Suppress("UNUSED_PARAMETER")
+    fun fill(tone: Chip, accent: Int, rowFocused: Boolean = false): Int =
         if (tone == Chip.POSITIVE) BrandColors.blend(Theme.SURFACE, accent, POSITIVE_T) else Glass.CHIP
 
     /** Positive chips always use the bright text; neutral ones follow the row (dim at rest). */

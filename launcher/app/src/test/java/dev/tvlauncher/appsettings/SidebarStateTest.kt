@@ -115,9 +115,9 @@ class SidebarStateTest {
 
     @Test
     fun breadcrumb_neverRepeatsTheTitle() {
-        assertEquals("Home", Breadcrumb.of("Home", "Appearance", emptyList()))
-        assertEquals("Home › Home layout", Breadcrumb.of("Home", "Home layout", listOf("Favorites")))
-        assertEquals("Sound › Sounds › Sound lab", Breadcrumb.of("Sound", "Sounds", listOf("Sound lab", "Play")))
+        assertEquals("", Breadcrumb.of("Home", "Appearance", emptyList()))
+        assertEquals("Home layout › Favorites", Breadcrumb.of("Home", "Home layout", listOf("Favorites")))
+        assertEquals("Sounds › Sound lab › Play", Breadcrumb.of("Sound", "Sounds", listOf("Sound lab", "Play")))
     }
 
     @Test

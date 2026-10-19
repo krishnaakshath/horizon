@@ -22,6 +22,11 @@ internal class ToggleSwitch(context: Context, private var accent: Int, private v
     var checked: Boolean = false
         private set
 
+    /** On a lit (white) row: a dark off-track and a ringed thumb so the switch still reads. */
+    var onLight = false
+        set(v) { if (field != v) { field = v; invalidate() } }
+    private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; color = 0x400B0D12 }
+
     fun setChecked(value: Boolean, animate: Boolean) {
         checked = value
         val target = if (value) 1f else 0f
@@ -48,12 +53,16 @@ internal class ToggleSwitch(context: Context, private var accent: Int, private v
     override fun onDraw(canvas: Canvas) {
         val h = height.toFloat()
         rect.set(0f, 0f, width.toFloat(), h)
-        track.color = BrandColors.blend(OFF_TRACK, accent, t)
+        track.color = BrandColors.blend(if (onLight) OFF_ON_LIGHT else OFF_TRACK, accent, t)
         canvas.drawRoundRect(rect, h / 2f, h / 2f, track)
         val inset = 3f * density
         val r = h / 2f - inset
         val cx = inset + r + (width - 2 * (inset + r)) * t
         canvas.drawCircle(cx, h / 2f, r, thumb)
+        if (onLight && t < 1f) {
+            ring.strokeWidth = density
+            canvas.drawCircle(cx, h / 2f, r, ring)
+        }
     }
 
     override fun onDetachedFromWindow() {
@@ -65,5 +74,6 @@ internal class ToggleSwitch(context: Context, private var accent: Int, private v
         const val W_DP = 48
         const val H_DP = 28
         const val OFF_TRACK = Theme.TOGGLE_OFF
+        const val OFF_ON_LIGHT = 0x400B0D12
     }
 }

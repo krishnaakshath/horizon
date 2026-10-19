@@ -3,7 +3,6 @@ package dev.tvlauncher.appsettings
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -21,7 +20,11 @@ import android.widget.TextView
 import dev.tvlauncher.device.DeviceProfile
 import dev.tvlauncher.device.DeviceProfileReader
 import dev.tvlauncher.device.EffectsMode
+import dev.tvlauncher.audit.AuditTags
+import dev.tvlauncher.audit.auditTag
+import dev.tvlauncher.room.RoomTheme
 import dev.tvlauncher.settings.AppearancePrefs
+import dev.tvlauncher.ui.BackdropView
 import dev.tvlauncher.ui.FocusRules
 import dev.tvlauncher.ui.Theme
 import dev.tvlauncher.ui.Theme.style
@@ -31,7 +34,8 @@ import java.util.concurrent.Executors
 
 /**
  * The launcher's own Settings: a grouped sidebar ([SidebarState] over [GroupedRegistry]) and a
- * glass content pane, sized by [SettingsLayout]. D-pad: focusing a sidebar entry shows its page;
+ * content pane, sized by [SettingsLayout]. Both are frosted glass cards (dev.tvlauncher.ui.Glass)
+ * floating over the same room- and accent-aware backdrop as the home screen ([BackdropView]). D-pad: focusing a sidebar entry shows its page;
  * OK on a group header expands or collapses it (one group open at a time); RIGHT enters the page
  * (restoring the last focused row); LEFT at a page's edge returns to the sidebar. BACK goes up
  * one level: sub-page, then sidebar, then closes. The last page is remembered.
@@ -51,7 +55,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
     private val sidebarViews = ArrayList<View>()
     private lateinit var layout: SettingsLayout
     private lateinit var root: FrameLayout
-    private lateinit var glow: View
+    private lateinit var backdrop: BackdropView
     private lateinit var sidebar: LinearLayout
     private lateinit var sidebarList: LinearLayout
     private lateinit var panel: FrameLayout
@@ -110,8 +114,9 @@ class AppSettingsActivity : Activity(), SettingsNav {
             sidebarState = SidebarState.regroup(sidebarState, groups, cur)
             val index = entry?.let { sidebarState.indexOf(it) }?.takeIf { it >= 0 }
             renderSidebar(if (focused != null) index ?: 0 else null)
-            if (cur != null && cur != selected) { select(cur); return }
+            if (cur != null && cur != selected) { applyBackdrop(); select(cur); return }
         }
+        applyBackdrop()
         refresh()
     }
 
@@ -156,11 +161,14 @@ class AppSettingsActivity : Activity(), SettingsNav {
 
     // ---- Layout ----
 
+    private val full: Boolean get() = device == EffectsMode.FULL
+
     private fun buildUi() {
         root = FrameLayout(this).apply { setBackgroundColor(Theme.BASE) }
-        glow = View(this)
-        root.addView(glow, FrameLayout.LayoutParams(-1, -1))
-        applyGlow()
+        // The home screen's backdrop: room palette gradient tinted by the accent (full-bleed by design).
+        backdrop = BackdropView(this, 0L).apply { glassBlur = full }
+        root.addView(backdrop, FrameLayout.LayoutParams(-1, -1))
+        applyBackdrop()
 
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -175,31 +183,44 @@ class AppSettingsActivity : Activity(), SettingsNav {
             orientation = LinearLayout.VERTICAL
             clipChildren = false
             clipToPadding = false
+            val p = dp(SettingsLayout.SIDEBAR_PAD_DP)
+            setPadding(p, p, p, p)
         }
+        Glass.frost(sidebar, full)
+        val listPad = dp(SettingsLayout.SIDEBAR_LIST_PAD_DP)
+        // A fixed title row; the list region starts below it and clips (SidebarMetrics.regions).
         sidebar.addView(TextView(this).apply {
             text = "Settings"
-            style(32f, Theme.light)
-        }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(12); topMargin = dp(10); bottomMargin = dp(14) })
+            style(26f, Theme.semibold)
+            isSingleLine = true
+            gravity = Gravity.CENTER_VERTICAL
+        }, LinearLayout.LayoutParams(-1, dp(SidebarMetrics.TITLE_DP)).apply {
+            marginStart = listPad + dp(6); bottomMargin = dp(SidebarMetrics.TITLE_GAP_DP)
+        })
         sidebarList = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             clipChildren = false
             clipToPadding = false
-            setPadding(dp(6), dp(4), dp(10), dp(12))
+            setPadding(listPad, dp(4), listPad, dp(8))
         }
         val sideScroll = FocusScrollView(this, dp(SIDEBAR_FOCUS_MARGIN_DP)).apply {
             isVerticalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_NEVER
-            clipChildren = false
-            clipToPadding = false
+            // Clips: entries scrolled past the top never draw over the "Settings" title; a soft fade
+            // marks the clip edges (FULL; LITE clips hard) instead of scroll chevrons.
+            clipChildren = true
+            clipToPadding = true
+            if (full) {
+                isVerticalFadingEdgeEnabled = true
+                setFadingEdgeLength(dp(24))
+            }
             addView(sidebarList, FrameLayout.LayoutParams(-1, -2))
         }
         sidebar.addView(sideScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         row.addView(sidebar, LinearLayout.LayoutParams(layout.sidebar.width, -1).apply { marginEnd = layout.gap })
 
-        panel = FrameLayout(this).apply {
-            background = Glass.rect(this@AppSettingsActivity, Glass.PANEL, Glass.RADIUS_PANEL, Glass.HAIRLINE)
-            clipChildren = false
-        }
+        panel = FrameLayout(this).apply { clipChildren = false }
+        Glass.frost(panel, full)
         val panelColumn = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             clipChildren = false
@@ -207,20 +228,21 @@ class AppSettingsActivity : Activity(), SettingsNav {
         }
         val inset = layout.paneInset
         crumb = TextView(this).apply {
-            style(13f, Theme.medium, Theme.TEXT_2)
+            style(14f, Theme.medium, Theme.TEXT_2)
             letterSpacing = 0.04f
             isSingleLine = true
             ellipsize = TextUtils.TruncateAt.END
         }
         heading = TextView(this).apply {
-            style(30f, Theme.light)
+            style(28f, Theme.semibold)
             isSingleLine = true
             ellipsize = TextUtils.TruncateAt.END
         }
         desc = TextView(this).apply {
             style(15f, Theme.regular, Theme.TEXT_2)
-            isSingleLine = true
+            maxLines = 2 // section descriptions wrap rather than run off the pane
             ellipsize = TextUtils.TruncateAt.END
+            setLineSpacing(0f, 1.1f)
         }
         fun header(v: View, bottom: Int) = panelColumn.addView(v, LinearLayout.LayoutParams(-1, -2).apply {
             marginStart = inset; marginEnd = inset; bottomMargin = dp(bottom)
@@ -239,7 +261,11 @@ class AppSettingsActivity : Activity(), SettingsNav {
             style(16f, Theme.medium)
             background = Glass.pill(this@AppSettingsActivity, Glass.SCRIM, Glass.HAIRLINE)
             setPadding(dp(22), dp(12), dp(22), dp(12))
+            maxLines = 2
             alpha = 0f
+            // A transient notice floating over the rows on purpose; elevated above the page.
+            auditTag(AuditTags.IGNORE)
+            elevation = dp(6).toFloat()
         }
         panel.addView(toast, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
             bottomMargin = dp(22)
@@ -247,14 +273,11 @@ class AppSettingsActivity : Activity(), SettingsNav {
         row.addView(panel, LinearLayout.LayoutParams(0, -1, 1f))
     }
 
-    /** A static accent glow in the top-left corner: one gradient, drawn once, no blur. */
-    private fun applyGlow() {
-        glow.background = GradientDrawable().apply {
-            gradientType = GradientDrawable.RADIAL_GRADIENT
-            colors = intArrayOf((style.accent and 0x00FFFFFF) or Theme.GLOW_ALPHA, 0)
-            gradientRadius = dp(GLOW_RADIUS_DP).toFloat()
-            setGradientCenter(0.12f, 0.0f)
-        }
+    /** The room palette the home screen last used, tinted by Settings' accent. No animation. */
+    private fun applyBackdrop() {
+        val p = RoomTheme.palette
+        backdrop.setRoom(p.backdropTop, p.backdropBottom, p.backdropFloor, p.accentBlend, p.scrimStrength)
+        backdrop.setAccent(style.accent, animate = false)
     }
 
     private fun playEntry() {
@@ -285,6 +308,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
         sidebarList.removeAllViews()
         sidebarViews.clear()
         sidebarState.entries.forEachIndexed { i, e ->
+            // One rhythm on the 8 dp grid: 48 dp entries, 40 dp headers, 8 dp before each later group.
             val v: View = when (e) {
                 is SidebarEntry.Header -> SidebarHeader(this, style, e.group, e.expanded).apply {
                     setOnFocusChangeListener { _, has -> if (has) main.removeCallbacks(selectRunnable) }
@@ -305,8 +329,8 @@ class AppSettingsActivity : Activity(), SettingsNav {
             val header = e is SidebarEntry.Header
             sidebarViews.add(v)
             sidebarList.addView(v, LinearLayout.LayoutParams(-1, -2).apply {
-                topMargin = if (header && i > 0) dp(6) else 0
-                bottomMargin = dp(if (header) 2 else 4)
+                topMargin = if (header && i > 0) dp(SidebarMetrics.GROUP_GAP_DP) else 0
+                bottomMargin = dp(SidebarMetrics.ENTRY_GAP_DP)
             })
         }
         if (focusIndex != null) focusSidebarEntry(focusIndex)
@@ -359,6 +383,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
         heading.text = top?.title ?: section.title
         val groupTitle = (sidebarState.groupOf(section.id) ?: section.group).title
         crumb.text = Breadcrumb.of(groupTitle, section.title, stack.map { it.title })
+        crumb.visibility = if (crumb.text.isEmpty()) View.GONE else View.VISIBLE
         val d = if (top == null) section.description else ""
         desc.text = d
         desc.visibility = if (d.isEmpty()) View.GONE else View.VISIBLE
@@ -408,7 +433,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
     override fun appearanceChanged() {
         style = readStyle()
         sidebarViews.forEach { (it as? SidebarItem)?.applyStyle(style) }
-        applyGlow()
+        applyBackdrop()
         refresh()
     }
 
@@ -600,7 +625,6 @@ class AppSettingsActivity : Activity(), SettingsNav {
         private const val SIDEBAR_FOCUS_MARGIN_DP = 16
         private const val SELECT_DEBOUNCE_MS = 110L
         private const val TOAST_MS = 2600L
-        private const val GLOW_RADIUS_DP = 560
 
         /** Intent the home screen uses to open Settings (optionally on [sectionId]). */
         fun intent(context: Context, sectionId: String? = null): Intent =

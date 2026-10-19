@@ -30,12 +30,27 @@ internal class SwatchStrip(
         setPadding(context.dp(18), context.dp(10), context.dp(18), context.dp(14))
         swatches.forEach { s ->
             s.chosen = s.color == selected
-            addView(s, LayoutParams(context.dp(SIZE_DP), context.dp(SIZE_DP)).apply { marginEnd = context.dp(14) })
+            addView(s, LayoutParams(context.dp(SIZE_DP), context.dp(SIZE_DP)).apply { marginEnd = context.dp(GAP_DP) })
             s.setOnClickListener {
                 swatches.forEach { o -> o.chosen = o === s; o.invalidate() }
                 onPick(s.color)
             }
         }
+    }
+
+    /** Shrinks swatches/gaps on a narrow pane so the strip (and a focused, scaled swatch) never leaves the row. */
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val w = MeasureSpec.getSize(widthMeasureSpec)
+        if (w > 0 && MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.UNSPECIFIED) {
+            val (size, gap) = SwatchFit.fit(w - paddingLeft - paddingRight, swatches.size,
+                context.dp(SIZE_DP), context.dp(GAP_DP), FOCUS_SCALE)
+            swatches.forEachIndexed { i, s ->
+                val lp = s.layoutParams as LayoutParams
+                lp.width = size; lp.height = size
+                lp.marginEnd = if (i < swatches.size - 1) gap else 0
+            }
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
 
     private inner class Swatch(context: Context, val color: Int, key: String) : View(context) {
@@ -70,7 +85,7 @@ internal class SwatchStrip(
         override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
             super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
             invalidate()
-            val s = if (gainFocus) 1.12f else 1f
+            val s = if (gainFocus) FOCUS_SCALE else 1f
             animate().cancel()
             if (style.focusMs > 0) animate().scaleX(s).scaleY(s).setDuration(style.focusMs).start()
             else { scaleX = s; scaleY = s }
@@ -79,5 +94,7 @@ internal class SwatchStrip(
 
     private companion object {
         const val SIZE_DP = 46
+        const val GAP_DP = 14
+        const val FOCUS_SCALE = 1.12f
     }
 }

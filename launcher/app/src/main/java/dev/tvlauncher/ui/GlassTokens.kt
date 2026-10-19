@@ -26,7 +26,7 @@ object GlassTokens {
     const val RADIUS_ITEM = 14
     const val RADIUS_CHIP = 12
 
-    const val SHEEN_TOP = 0x12FFFFFF
+    const val SHEEN_TOP = 0x0CFFFFFF
     const val SHEEN_FRACTION = 0.42f
     const val EDGE_TOP = 0x2EFFFFFF
     const val EDGE_BOTTOM = 0x08FFFFFF
@@ -35,9 +35,11 @@ object GlassTokens {
     const val SHADOW_DP = 10
 
     /** A resting row/item on a glass pane: a whisper of white. */
-    const val ROW_REST = 0x0FFFFFFF
-    /** The selected (current) sidebar entry and neutral chips on glass. */
+    const val ROW_REST = 0x0AFFFFFF
+    /** The selected (current) sidebar entry. */
     const val SELECTED = 0x1AFFFFFF
+    /** Neutral chips and icon chips on glass. */
+    const val CHIP = 0x10FFFFFF
     /** Focused rows, sidebar entries and pills: lit white glass (dark text on it). */
     const val FOCUS_FILL = 0xF5F5F7FA.toInt()
     /** Translucent dark accents drawn on [FOCUS_FILL] (icon chips, off-tracks). */
@@ -54,7 +56,7 @@ object GlassTokens {
     /**
      * Smallest tint alpha (2 decimals, within [MIN_TINT_ALPHA]..[MAX_TINT_ALPHA]) such that
      * [Theme.TEXT_2] and [Theme.TEXT] keep [TARGET_CONTRAST] on: [brightest] backdrop, then the
-     * tint, then the sheen's brightest part, then a resting row ([ROW_REST]).
+     * tint, then the sheen's brightest part, then the brightest wash on glass ([WORST_WASH]).
      */
     fun tintAlpha(glassRgb: Int, brightest: Int): Float {
         var a = MIN_TINT_ALPHA
@@ -108,9 +110,15 @@ object GlassTokens {
         return withAlpha(rgb, clearAlpha(rgb, brightest))
     }
 
-    /** What the dimmest text sits on: backdrop, tint, sheen top and a resting row. */
+    /**
+     * The brightest white wash ever stacked on glass under text: a resting row plus a neutral chip
+     * or icon chip on it (0x0A over 0x10, about 10 %), which also covers [SELECTED].
+     */
+    const val WORST_WASH = 0x1AFFFFFF
+
+    /** What the dimmest text sits on: backdrop, tint, sheen top and the worst wash (rows, chips, selection). */
     fun restingRowOn(tint: Int, backdrop: Int): Int =
-        Contrast.over(ROW_REST, Contrast.over(SHEEN_TOP, Contrast.over(tint, opaque(backdrop))))
+        Contrast.over(WORST_WASH, Contrast.over(SHEEN_TOP, Contrast.over(tint, opaque(backdrop))))
 
     /** The glass surface itself (no row) over [backdrop]. */
     fun surfaceOn(tint: Int, backdrop: Int): Int = Contrast.over(SHEEN_TOP, Contrast.over(tint, opaque(backdrop)))
