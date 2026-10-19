@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import dev.tvlauncher.apps.AppEntry
+import dev.tvlauncher.apps.AppFilter
 import dev.tvlauncher.settings.LauncherSettings
 import dev.tvlauncher.settings.Prefs
 
@@ -41,10 +42,11 @@ class TileMenu(private val context: Context, private val prefs: Prefs, private v
             .show()
     }
 
-    fun showDockMenu() {
+    /** [visible] is the current shelf order; [installed] every launchable app (for restoring clutter). */
+    fun showDockMenu(visible: List<String>, installed: List<AppEntry>) {
         dismiss()
         dialog = AlertDialog.Builder(context).setItems(arrayOf("Unhide all apps")) { _, _ ->
-            edit(prefs.load().copy(hidden = emptySet()))
+            edit(AppFilter.unhideAll(prefs.load(), visible, installed))
         }.show()
     }
 
