@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "tv-launcher"
 include(":app")
+include(":weather")
