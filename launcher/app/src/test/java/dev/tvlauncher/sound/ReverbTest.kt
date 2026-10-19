@@ -15,9 +15,11 @@ class ReverbTest {
     }
 
     @Test fun input_not_mutated_and_tail_truncated_to_length() {
-        val x = DoubleArray(50); x[40] = 1.0
+        val x = DoubleArray(50); x[40] = 1.0; x[3] = 0.25
+        val before = x.copyOf()
         val y = Reverb.apply(x, 1000, TailSpec(listOf(35 to 0.5f)))
-        assertEquals(0.0, x[75 % 50], 0.0)
+        assertArrayEquals(before, x, 0.0)
+        assertEquals(0.125, y[38], 1e-9)
         assertEquals(50, y.size)
         assertEquals(1.0, y[40], 1e-9)
     }

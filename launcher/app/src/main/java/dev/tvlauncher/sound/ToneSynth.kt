@@ -37,6 +37,9 @@ data class ToneSpec(
 object ToneSynth {
     private const val EDGE_FADE_MS = 2.0
 
+    /** Number of render() calls (lets tests prove that metadata access never renders). */
+    val renderCount = java.util.concurrent.atomic.AtomicInteger()
+
     private fun shape(wave: Wave, phase: Double): Double = when (wave) {
         Wave.SINE -> sin(phase)
         Wave.TRIANGLE -> 2.0 / PI * asin(sin(phase))
@@ -71,6 +74,7 @@ object ToneSynth {
     }
 
     fun render(spec: ToneSpec, sampleRate: Int = 22050): ShortArray {
+        renderCount.incrementAndGet()
         val n = (sampleRate.toLong() * spec.durationMs / 1000).toInt()
         if (n <= 0) return ShortArray(0)
         if (spec.gain <= 0f) return ShortArray(n)

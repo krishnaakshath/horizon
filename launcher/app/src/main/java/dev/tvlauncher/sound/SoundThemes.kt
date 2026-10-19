@@ -4,7 +4,10 @@ enum class SoundEvent { MOVE, SELECT, BACK, LAUNCH, MENU_OPEN, ERROR }
 
 data class SoundTheme(val id: String, val name: String, val events: Map<SoundEvent, ToneSpec>)
 
-/** Built-in synthesized themes. No audio assets ship in the APK. */
+/**
+ * Built-in synthesized themes. No audio assets ship in the APK. [all] and [byId] are static
+ * metadata (raw specs, placeholder gains) and never render; use [spec] for playable gains.
+ */
 object SoundThemes {
     // Loudness targets (RMS, fraction of full scale). Every audible event of every theme is
     // calibrated to its target so switching themes does not change perceived loudness (+-2 dB).
@@ -23,16 +26,30 @@ object SoundThemes {
     private fun rms(a: ShortArray): Double =
         if (a.isEmpty()) 0.0 else Math.sqrt(a.sumOf { it.toDouble() * it } / a.size) / Short.MAX_VALUE
 
-    /** Scales [spec].gain so its rendered RMS hits the event target (gain 0 stays silent). */
-    private fun calibrate(e: SoundEvent, spec: ToneSpec): ToneSpec {
-        if (spec.gain <= 0f) return spec
+    private val gains = java.util.concurrent.ConcurrentHashMap<String, Float>()
+
+    /** Renders to find the gain that hits the event target RMS. Expensive: builder thread only. */
+    private fun calibrateGain(e: SoundEvent, spec: ToneSpec): Float {
         var s = spec.copy(gain = 0.3f)
         repeat(5) {
             val r = rms(ToneSynth.render(s))
             if (r > 0.0) s = s.copy(gain = (s.gain * (target(e) / r)).toFloat().coerceIn(0.01f, 0.95f))
         }
-        return s
+        return s.gain
     }
+
+    /**
+     * The playable, loudness-calibrated spec. Calibration is lazy (per theme/event, cached) and
+     * renders, so call only from the sound-builder thread, never the UI thread.
+     */
+    fun spec(themeId: String, e: SoundEvent): ToneSpec {
+        val t = byId(themeId)
+        val raw = t.events.getValue(e)
+        if (raw.gain <= 0f) return raw
+        return raw.copy(gain = gains.computeIfAbsent("${t.id}/${e.name}") { calibrateGain(e, raw) })
+    }
+
+    internal fun resetCalibrationForTest() = gains.clear()
 
     private val SILENT = ToneSpec(440f, durationMs = 20, wave = Wave.SINE, attackMs = 4, decayMs = 10, gain = 0f)
 
@@ -42,10 +59,7 @@ object SoundThemes {
         ToneSpec(f, fe, ms, w, a, d, 0.3f, h, fm, tail?.let { TailSpec(it) }, second)
 
     private fun theme(id: String, name: String, events: Map<SoundEvent, ToneSpec>) =
-        SoundTheme(id, name, SoundEvent.values().associateWith { e ->
-            val sp = events[e] ?: SILENT
-            calibrate(e, sp)
-        })
+        SoundTheme(id, name, SoundEvent.values().associateWith { e -> events[e] ?: SILENT })
 
     private val soft = theme("soft", "Soft", mapOf(
         SoundEvent.MOVE to n(480f, ms = 48, a = 6, d = 28, h = listOf(2 to 0.15f)),
@@ -71,7 +85,7 @@ object SoundThemes {
 
     // Premium: FM shimmer on a clean sine with a soft two-tap tail.
     private val glass = theme("glass", "Glass", mapOf(
-        SoundEvent.MOVE to n(1568f, ms = 50, a = 5, d = 26, fm = FmSpec(3.5f, 0.5f, 20)),
+        SoundEvent.MOVE to n(1568f, ms = 50, a = 5, d = 26, fm = FmSpec(1.5f, 0.4f, 20)),
         SoundEvent.SELECT to n(1318.5f, 1396.9f, 210, a = 4, d = 130, fm = FmSpec(3.5f, 1.2f, 90),
             tail = listOf(48 to 0.3f, 96 to 0.15f)),
         SoundEvent.BACK to n(1174.7f, 987.8f, 200, a = 4, d = 120, fm = FmSpec(3.5f, 1.0f, 80),
@@ -85,7 +99,7 @@ object SoundThemes {
     ))
 
     private val retro = theme("retro", "Retro", mapOf(
-        SoundEvent.MOVE to n(880f, ms = 30, w = Wave.SQUARE_SOFT, a = 4, d = 16),
+        SoundEvent.MOVE to n(440f, ms = 30, w = Wave.SQUARE_SOFT, a = 4, d = 16),
         SoundEvent.SELECT to n(660f, 990f, 110, Wave.SQUARE_SOFT, a = 3, d = 70),
         SoundEvent.BACK to n(660f, 330f, 110, Wave.SQUARE_SOFT, a = 3, d = 70),
         SoundEvent.LAUNCH to n(330f, ms = 280, w = Wave.SQUARE_SOFT, a = 4, d = 160,
@@ -131,7 +145,7 @@ object SoundThemes {
 
     // Gentle bell chimes (inharmonic FM).
     private val bell = theme("bell", "Bell", mapOf(
-        SoundEvent.MOVE to n(1318.5f, ms = 55, a = 8, d = 28, fm = FmSpec(3.5f, 0.3f, 22)),
+        SoundEvent.MOVE to n(1318.5f, ms = 55, a = 8, d = 28, fm = FmSpec(2.76f, 0.3f, 22)),
         SoundEvent.SELECT to n(1568f, ms = 300, a = 2, d = 200, fm = FmSpec(3.5f, 1.5f, 150),
             tail = listOf(70 to 0.25f, 140 to 0.12f)),
         SoundEvent.BACK to n(1174.7f, ms = 280, a = 2, d = 190, fm = FmSpec(3.5f, 1.3f, 140),

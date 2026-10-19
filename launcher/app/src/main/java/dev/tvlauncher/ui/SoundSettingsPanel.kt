@@ -1,11 +1,13 @@
 package dev.tvlauncher.ui
 
 import android.content.Context
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import dev.tvlauncher.sound.SoundEvent
 import dev.tvlauncher.sound.SoundPlayer
@@ -14,10 +16,28 @@ import dev.tvlauncher.sound.SoundSettings
 import dev.tvlauncher.sound.SoundThemes
 import dev.tvlauncher.ui.Theme.style
 
+/** Pure scroll math for D-pad focus-follow. All coordinates share one space (scroll content). */
+object ScrollTarget {
+    /**
+     * Returns the scroll delta (negative = up) that makes the row fully visible with [margin],
+     * or 0 if it already is. A row taller than the viewport is aligned to its top.
+     */
+    fun compute(rowTop: Int, rowBottom: Int, viewportTop: Int, viewportBottom: Int, margin: Int): Int {
+        if (rowTop - margin < viewportTop) return rowTop - margin - viewportTop
+        if (rowBottom + margin > viewportBottom) {
+            val down = rowBottom + margin - viewportBottom
+            val maxDown = rowTop - margin - viewportTop
+            return minOf(down, maxDown)
+        }
+        return 0
+    }
+}
+
 /**
- * D-pad friendly sound settings. Rows: Enable, Theme (OK cycles + preview), Volume (left/right +-10),
- * per-event toggles, custom-files toggle (shows folder and file names), Preview.
- * Persists through [prefs] and invokes [onChanged] with the new settings after each edit.
+ * D-pad friendly, scrollable sound settings. Host it with a bounded height (e.g. MATCH_PARENT).
+ * Default view (~8 focusable rows): Sound effects, Navigation sounds, Launch sounds, Volume,
+ * "Sound events" (expandable per-event toggles), Use my own sound files, "Sound lab" (expandable,
+ * one row per event to audition), Preview. Persists via [prefs]; calls [onChanged] after each edit.
  */
 class SoundSettingsPanel(
     context: Context,
@@ -31,6 +51,8 @@ class SoundSettingsPanel(
     private val refreshers = ArrayList<() -> Unit>()
     private val previewRunnables = ArrayList<Runnable>()
     private var firstRow: View? = null
+    private val scroll = ScrollView(context)
+    private val content = LinearLayout(context)
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
@@ -51,6 +73,11 @@ class SoundSettingsPanel(
         setPadding(dp(Theme.MARGIN_H), dp(Theme.MARGIN_V), dp(Theme.MARGIN_H), dp(Theme.MARGIN_V))
 
         addView(TextView(context).apply { text = "Sounds"; style(30f, Theme.medium) })
+        scroll.isFocusable = false
+        scroll.isVerticalScrollBarEnabled = false
+        content.orientation = VERTICAL
+        scroll.addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(scroll, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
 
         row("Sound effects", { if (s.enabled) "On" else "Off" }, onOk = {
             update(s.copy(enabled = !s.enabled)); player?.preview(SoundEvent.SELECT)
@@ -75,30 +102,34 @@ class SoundSettingsPanel(
                 update(s.copy(volume = (s.volume + d * 10).coerceIn(0, 100)))
                 player?.preview(SoundEvent.SELECT)
             })
-        for (e in SoundEvent.values()) {
-            row("  " + label(e), { if (s.isEventOn(e)) "On" else "Off" }, onOk = {
-                update(s.copy(perEvent = s.perEvent + (e to !s.isEventOn(e))))
-                player?.preview(e)
-            })
+
+        group("Sound events") { box ->
+            for (e in SoundEvent.values()) {
+                row("  " + label(e), { if (s.isEventOn(e)) "On" else "Off" }, into = box, onOk = {
+                    update(s.copy(perEvent = s.perEvent + (e to !s.isEventOn(e))))
+                    player?.preview(e)
+                })
+            }
         }
+
         row("Use my own sound files", { if (s.useCustomFolder) "On" else "Off" }, onOk = {
             update(s.copy(useCustomFolder = !s.useCustomFolder))
         })
-        addView(TextView(context).apply {
+        content.addView(TextView(context).apply {
             text = "Folder: $folderPath\nFiles: " +
                 SoundEvent.values().joinToString(", ") { it.name.lowercase() + ".wav" } +
                 "\n16-bit PCM WAV, mono or stereo, 8-48 kHz, under 500 KB"
             style(14f, Theme.regular, Theme.TEXT_2)
             setPadding(dp(Theme.S4), dp(Theme.S2), dp(Theme.S4), dp(Theme.S3))
         })
-        addView(TextView(context).apply {
-            text = "Sound lab: OK plays that sound with the selected theme"
-            style(16f, Theme.regular, Theme.TEXT_2)
-            setPadding(dp(Theme.S4), dp(Theme.S4), dp(Theme.S4), 0)
-        })
-        for (e in SoundEvent.values()) {
-            row("  Play " + label(e), { SoundThemes.byId(s.themeIdFor(e)).name }, onOk = { player?.preview(e) })
+
+        group("Sound lab") { box ->
+            for (e in SoundEvent.values()) {
+                row("  Play " + label(e), { SoundThemes.byId(s.themeIdFor(e)).name }, into = box,
+                    onOk = { player?.preview(e) })
+            }
         }
+
         row("Preview", { "OK to play all" }, onOk = {
             SoundEvent.values().forEachIndexed { i, e ->
                 val r = Runnable { player?.preview(e) }
@@ -127,9 +158,32 @@ class SoundSettingsPanel(
 
     private fun refresh() = refreshers.forEach { it() }
 
+    /** Collapsed-by-default expandable group: a header row that shows/hides [fill]'s rows. */
+    private fun group(title: String, fill: (LinearLayout) -> Unit) {
+        val box = LinearLayout(context).apply { orientation = VERTICAL; visibility = View.GONE }
+        row(title, { if (box.visibility == View.VISIBLE) "Hide" else "Show (OK)" }, onOk = {
+            box.visibility = if (box.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            refresh()
+        })
+        fill(box)
+        content.addView(box, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+    }
+
+    private fun ensureVisible(v: View) {
+        val r = Rect(0, 0, v.width, v.height)
+        try {
+            content.offsetDescendantRectToMyCoords(v, r)
+        } catch (e: IllegalArgumentException) {
+            return
+        }
+        val d = ScrollTarget.compute(r.top, r.bottom, scroll.scrollY, scroll.scrollY + scroll.height, dp(Theme.S5))
+        if (d != 0) scroll.smoothScrollBy(0, d)
+    }
+
     private fun row(
         title: String,
         value: () -> String,
+        into: LinearLayout = content,
         onOk: () -> Unit,
         onHorizontal: ((Int) -> Unit)? = null
     ) {
@@ -144,9 +198,10 @@ class SoundSettingsPanel(
             isClickable = true
             background = bg
             setOnClickListener { onOk() }
-            setOnFocusChangeListener { _, f ->
+            setOnFocusChangeListener { v, f ->
                 bg.setColor(if (f) Theme.TEXT else Theme.SURFACE)
                 setTextColor(if (f) Theme.TEXT_DARK else Theme.TEXT)
+                if (f) ensureVisible(v)
             }
             setOnKeyListener { _: View, code: Int, ev: KeyEvent ->
                 if (ev.action == KeyEvent.ACTION_DOWN && onHorizontal != null &&
@@ -158,7 +213,7 @@ class SoundSettingsPanel(
         }
         if (firstRow == null) firstRow = tv
         refreshers += { tv.text = "$title:  ${value()}" }
-        addView(tv, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+        into.addView(tv, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
             topMargin = dp(Theme.S2)
         })
     }
