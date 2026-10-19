@@ -7,7 +7,7 @@ import dev.tvlauncher.R
 import dev.tvlauncher.apps.AppEntry
 import dev.tvlauncher.apps.AppRepository
 import dev.tvlauncher.settings.Prefs
-import dev.tvlauncher.ui.BouncingDots
+import dev.tvlauncher.ui.HorizonLoader
 import dev.tvlauncher.ui.dp
 
 /**
@@ -48,7 +48,7 @@ object HomeLayoutSection : SettingsSection, SpecifiedPage {
     /** Loads installed apps off the main thread, then fills [page] with [fill]. */
     private fun loading(context: Context, nav: SettingsNav, fill: (SettingsPage, List<AppEntry>) -> Unit): View {
         val page = SettingsPage(context, nav.style)
-        val dots = BouncingDots(context)
+        val dots = HorizonLoader(context)
         page.column.addView(dots, LinearLayout.LayoutParams(-2, -2).apply {
             topMargin = context.dp(24); marginStart = context.dp(8)
         })

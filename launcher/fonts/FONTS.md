@@ -39,3 +39,30 @@ upm 2048, hhea ascent 1984 / descent -494 / lineGap 0, USE_TYPO_METRICS set: nat
 (`LineHeight.INTER_NATURAL_EM`). Advance widths: Latin text about 1-3% wider than the previous face, tabular digits about
 5% narrower; Theme.style applies size-based tracking (`Tracking`). Telugu, Devanagari, CJK, emoji etc. are not in the
 subset, so Android falls back to the system fonts per glyph.
+
+## Brand wordmark face (Horizon / H02)
+
+Family: Unbounded (SIL OFL 1.1, no Reserved Font Name; Copyright 2022 The Unbounded Project Authors,
+https://github.com/googlefonts/unbounded). Source: the official Google Fonts repository,
+https://github.com/google/fonts at commit `47d54ca1ebb14fd864695f1d39dc734f39017c33`, `ofl/unbounded/Unbounded[wght].ttf`
+(778,272 bytes, sha256 `323b511be380c8d474ef030686b71aedde501f8d9cd46da558b7c40454372c3f`; METADATA.pb `license: "OFL"`),
+downloaded over HTTPS on 2026-10-20. Chosen over Sora, Syne, Bricolage Grotesque and Outfit. Syne's old-style
+figures turn "H02" into "Ho2", and Sora reads as generic at display sizes. Unbounded's wide, even strokes hold up at
+720p on dark glass.
+
+`fonts/build-brand-font.sh [venv] [Unbounded[wght].ttf]` builds a static wght=500 instance (fontTools varLib.instancer)
+and subsets it with pyftsubset: space, `! & ' ( ) , - . / : 0-9 A-Z a-z · ’ – —`, kern only, no hinting.
+`SOURCE_DATE_EPOCH` is fixed, so rebuilds are byte-identical.
+
+| file | bytes | sha256 |
+|---|---|---|
+| assets/brand/brand_display.ttf | 15916 | 562aaee867f28f5981dea7e7ab926ef5c89ced36f6bf2ee3a1f90f2294a89273 |
+
+`OFL.txt` from the same commit (sha256 `31e5d4e83955e7103c34570dd49b0570ef490800bd65b42923c0dd02445263b3`) is
+`app/src/main/res/raw/brand_font_license_ofl.txt`, verbatim. `BrandFontTest` pins both hashes, the size limit (< 40 KB)
+and the notices (`FontNotices.BRAND`, `res/raw/third_party_notices.txt`). Use: `Theme.brand` / `BrandFont`, only for the
+splash "H02" and "HORIZON". The asset lives outside `assets/fonts/` so the Inter plan (`FontPlan`) is unchanged.
+
+Icon and banner: `fonts/brand_art.py` converts the same outlines to vector paths in `res/drawable/tv_banner.xml`,
+`ic_launcher_foreground.xml`, `ic_launcher_background.xml` and `res/mipmap-anydpi*/ic_launcher.xml`. The app loads no font
+for these.

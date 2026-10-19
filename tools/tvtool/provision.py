@@ -1,4 +1,4 @@
-"""One-command setup of TV Launcher and its companion apps on an Android TV over adb.
+"""One-command setup of Horizon (H02) and its companion apps on an Android TV over adb.
 
 Flow: probe the TV -> plan (pure, see `plan_steps`) -> print every command with a reason ->
 with --apply only: write an undo script, run each step and verify it. Nothing outside
@@ -21,8 +21,9 @@ LAUNCHER = "dev.tvlauncher"
 HELPER = "dev.tvlauncher.helper"
 STORE = "dev.tvlauncher.store"
 OUR_PACKAGES = (LAUNCHER, HELPER, "dev.tvlauncher.browser", STORE, "dev.tvlauncher.weather")
-TITLES = {LAUNCHER: "TV Launcher", HELPER: "Launcher Helper", "dev.tvlauncher.browser": "Browser",
-          STORE: "Get Apps", "dev.tvlauncher.weather": "Weather"}
+TITLES = {LAUNCHER: "H02 (Horizon launcher)", HELPER: "H02 Helper", "dev.tvlauncher.browser": "H02 Browser",
+          STORE: "H02 Store", "dev.tvlauncher.weather": "H02 Weather"}
+LEGACY_HELPER_LABEL = "Launcher Helper"  # app_name of Helper builds before the H02 rename
 # File-name stems (first token, lower case) that identify each APK, e.g. app-debug.apk, helper-release.apk.
 APK_STEMS = {LAUNCHER: ("app", "launcher", "tvlauncher"), HELPER: ("helper",), "dev.tvlauncher.browser": ("browser",),
              STORE: ("store", "getapps"), "dev.tvlauncher.weather": ("weather",)}
@@ -198,8 +199,9 @@ def parse_bound(dumpsys: str) -> bool:
     rest = dumpsys[i + len("Bound services:"):]
     j = rest.find("services:")
     section = rest if j < 0 else rest[:j]
+    # The label is the Helper's app_name: the current one, or the pre-rename one still on TVs with an older build.
     return (HELPER_SERVICE in section or f"{HELPER}/.HelperService" in section
-            or f"label={TITLES[HELPER]}" in section)
+            or any(f"label={label}" in section for label in (TITLES[HELPER], LEGACY_HELPER_LABEL)))
 
 
 def _appop(adb: Adb, pkg: str, op: str) -> str:
@@ -375,7 +377,7 @@ def plan_steps(p: Probe, apks: dict[str, str], profile: ProvisionProfile, take_o
                           "the launcher never draws over other apps).", undo=undo, verify="appop"))
     if STORE in after and (STORE not in p.installed or not p.store_install_allowed):
         steps.append(Step(("appops", "set", STORE, "REQUEST_INSTALL_PACKAGES", "allow"),
-                          "Lets Get Apps install the apps you pick (it still asks before each install).",
+                          "Lets H02 Store install the apps you pick (it still asks before each install).",
                           undo=(("appops", "set", STORE, "REQUEST_INSTALL_PACKAGES", "default"),), verify="store"))
     listeners = p.secure.get("enabled_notification_listeners")
     if not _contains(listeners, LISTENER):
@@ -418,12 +420,12 @@ def plan_steps(p: Probe, apks: dict[str, str], profile: ProvisionProfile, take_o
         else:
             argv = ("cmd", "package", "set-home-activity", HOME_ACTIVITY)
             undo = ()
-        steps.append(Step(argv, "Makes TV Launcher the home app.", undo=undo, verify="home", soft=True))
+        steps.append(Step(argv, "Makes H02 the home app.", undo=undo, verify="home", soft=True))
     if take_over_home:
         for pkg in profile.stock_launchers:
             if pkg in p.installed and pkg not in p.disabled and pkg not in OUR_PACKAGES:
                 steps.append(Step(("pm", "disable-user", "--user", "0", pkg),
-                                  f"Turns off the stock launcher {pkg} so the Home key opens TV Launcher (undo re-enables it).",
+                                  f"Turns off the stock launcher {pkg} so the Home key opens H02 (undo re-enables it).",
                                   undo=(("pm", "enable", pkg),), verify="disabled", takeover=True))
     if self_test or (self_test is None and steps):
         steps.extend(self_test_steps())
@@ -594,7 +596,7 @@ def run(a, adb: Adb, say) -> int:
     steps = plan_steps(p, {k: str(apk_dir / v) for k, v in apks.items()} if apk_dir else {}, profile, a.take_over_home,
                        self_test)
     if LAUNCHER not in p.installed and LAUNCHER not in apks:
-        say("TV Launcher is not installed and no launcher APK was found; pass --apks FOLDER.")
+        say("H02 is not installed and no launcher APK was found; pass --apks FOLDER.")
         return 2
     if not steps:
         say("Everything is already set up. Nothing to do.")
@@ -620,7 +622,7 @@ def run(a, adb: Adb, say) -> int:
             continue
         try:
             if s.takeover and f"{LAUNCHER}/" not in _resolvable_home(adb):
-                say(f"  [{i}] STOPPED: TV Launcher is not available as a home app, so the stock launcher stays on.")
+                say(f"  [{i}] STOPPED: H02 is not available as a home app, so the stock launcher stays on.")
                 return 1
             if s.wait_s:
                 say(f"  [{i}] waiting {s.wait_s} s...")

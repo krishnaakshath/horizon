@@ -1,5 +1,7 @@
 package dev.tvlauncher.setup
 
+import dev.tvlauncher.brand.Brand
+
 /**
  * The launcher's own out-of-box experience: one page at a time, Skip on every page, resumable,
  * re-runnable. [OobePlan] decides which pages THIS TV needs (pages already satisfied here are
@@ -78,7 +80,7 @@ object OobePlan {
 /** Page titles and one-line leads: plain words, no jargon. */
 object OobeCopy {
     fun title(p: OobePage) = when (p) {
-        OobePage.WELCOME -> "Welcome"
+        OobePage.WELCOME -> "Welcome to ${Brand.SHORT}"
         OobePage.RESTORE -> "Restore your setup"
         OobePage.NETWORK -> "Get connected"
         OobePage.TIME -> "Time and place"
@@ -87,20 +89,20 @@ object OobeCopy {
         OobePage.HOME -> "Home button"
         OobePage.APPS -> "Pick your apps"
         OobePage.LOOK -> "Look and feel"
-        OobePage.DONE -> "You're all set"
+        OobePage.DONE -> "${Brand.SHORT} is ready"
     }
 
     fun lead(p: OobePage) = when (p) {
-        OobePage.WELCOME -> "Let's set up TV Launcher. It takes about a minute, and every step can be skipped."
+        OobePage.WELCOME -> "Let's set up ${Brand.SHORT}. It takes about a minute, and every step can be skipped."
         OobePage.RESTORE -> "A saved setup was found. Restore it to get your apps, look and settings back."
         OobePage.NETWORK -> "Connect to Wi-Fi or a cable for apps, weather and updates."
         OobePage.TIME -> "Your clock and city, for weather and lighting that follows the sun."
         OobePage.ACCOUNT -> "Your account lives in the TV's own settings. Here is what the launcher can see."
         OobePage.PERMISSIONS -> "Each one is optional and explained in one line."
-        OobePage.HOME -> "Make the Home button open TV Launcher."
+        OobePage.HOME -> "Make the Home button open ${Brand.SHORT}."
         OobePage.APPS -> "Favorites go first on your home screen."
         OobePage.LOOK -> "Choose colors, tile size, lighting, screensaver and sounds."
-        OobePage.DONE -> "Here is what is ready. You can change anything later in Settings."
+        OobePage.DONE -> "Here is what is set up. You can change anything later in Settings."
     }
 
     fun account(state: AccountState, count: Int) = when (state) {

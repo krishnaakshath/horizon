@@ -1,11 +1,14 @@
 package dev.tvlauncher.safemode
 
 import dev.tvlauncher.apps.AppEntry
+import dev.tvlauncher.brand.Brand
 
 /** Pure model of the safe-mode list: fixed rows first, then apps (leanback first). */
 object SafeModeList {
     const val HEADER = "Safe mode — the main launcher crashed repeatedly"
-    const val TITLE = "Safe mode"
+    const val TITLE = "${Brand.SHORT} safe mode"
+    /** Quiet last line of both safe-mode screens. */
+    const val FOOTER = "${Brand.NAME} launcher, running in safe mode"
 
     /** One calm line under the title; the exception class name only, never a stack trace. */
     fun subtitle(lastError: String?, minimal: Boolean): String {

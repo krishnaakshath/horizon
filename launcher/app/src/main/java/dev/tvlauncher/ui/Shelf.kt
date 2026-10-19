@@ -8,7 +8,7 @@ import android.widget.FrameLayout
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
-/** The horizontal app row plus its first-load dots; [list] is the RecyclerView of tiles. */
+/** The horizontal app row plus its first-load loader (sun-disc on a line); [list] is the RecyclerView of tiles. */
 class Shelf(context: Context, private val shelfAdapter: ShelfAdapter, marginH: Int) : FrameLayout(context) {
     private val pad = context.dp(TileSpec.PAD_DP)
     val list = RecyclerView(context).apply {
@@ -24,7 +24,7 @@ class Shelf(context: Context, private val shelfAdapter: ShelfAdapter, marginH: I
             }
         })
     }
-    val loader = BouncingDots(context)
+    val loader = HorizonLoader(context)
 
     init {
         clipChildren = false

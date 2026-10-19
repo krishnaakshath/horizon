@@ -175,7 +175,8 @@ def test_parseAppopMode_andBound():
     assert pv.parse_appop_mode("Error: Unknown operation string: APP_AUTO_START\n", "APP_AUTO_START") == pv.UNSUPPORTED
     dump = ("User state[\n  Bound services:{Service[label=Launcher Helper, feedbackType[FEEDBACK_GENERIC]]}\n"
             "  Enabled services:{{dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService}}\n  Crashed services:{}\n")
-    assert pv.parse_bound(dump)
+    assert pv.parse_bound(dump)  # pre-rename label, still on TVs with an older Helper build
+    assert pv.parse_bound(dump.replace("label=Launcher Helper", "label=H02 Helper"))
     crashed = ("  Bound services:{}\n  Enabled services:{{dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService}}\n"
                "  Crashed services:{dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService}\n")
     assert not pv.parse_bound(crashed)
@@ -270,7 +271,7 @@ class FakeTv:
             return ""
         if a == ["dumpsys", "accessibility"]:
             if self.bound():
-                return "  Bound services:{Service[label=Launcher Helper]}\n  Enabled services:{}\n"
+                return "  Bound services:{Service[label=H02 Helper]}\n  Enabled services:{}\n"
             return "  Bound services:{}\n  Crashed services:{dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService}\n"
         if a == ["date", "+%s"]:
             return "1760950000\n"

@@ -12,6 +12,11 @@ Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter)
 Licensed under the SIL Open Font License, Version 1.1 (https://openfontlicense.org).
 Full text: font_license_ofl.txt.
 
+Unbounded typeface (Medium; wordmark subset: Latin letters, digits, basic punctuation)
+Copyright 2022 The Unbounded Project Authors (https://github.com/googlefonts/unbounded)
+Licensed under the SIL Open Font License, Version 1.1 (https://openfontlicense.org).
+Full text: brand_font_license_ofl.txt.
+
 Apache License, Version 2.0 - summary of the notice
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
@@ -26,6 +31,7 @@ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 License for the specific language governing permissions and limitations
 under the License.
 
-All icons, colors, animations and drawing code in TV Launcher are original
-work of the TV Launcher contributors. App names, icons and banners shown on
+All icons, colors, animations and drawing code in Horizon (H02) are original
+work of the Horizon contributors (the letters of the H02 icon and banner are
+Unbounded outlines converted to vector paths). App names, icons and banners shown on
 the home screen belong to their owners and are drawn from the installed apps.

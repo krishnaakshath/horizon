@@ -18,7 +18,7 @@ import android.widget.TextView
 import dev.tvlauncher.R
 import dev.tvlauncher.panel.PanelStyle.panelText
 import dev.tvlauncher.type.FontWeight
-import dev.tvlauncher.ui.BouncingDots
+import dev.tvlauncher.ui.HorizonLoader
 import dev.tvlauncher.ui.dp
 
 /**
@@ -90,7 +90,7 @@ class PanelRowView(context: Context, row: PanelEntry.Row) : LinearLayout(context
             is Trailing.Switch -> {
                 switch = PanelSwitch(context).also { it.on = t.on; end.addView(it) }
             }
-            Trailing.Busy -> end.addView(BouncingDots(context, PanelStyle.TEXT_2),
+            Trailing.Busy -> end.addView(HorizonLoader(context, PanelStyle.TEXT_2),
                 FrameLayout.LayoutParams(context.dp(PanelStyle.G3 + PanelStyle.G1), context.dp(PanelStyle.G2), Gravity.CENTER))
             Trailing.Check -> addEndIcon(R.drawable.ic_net_check, 20, PanelStyle.ACCENT)
             Trailing.Lock -> addEndIcon(R.drawable.ic_net_lock, 18, PanelStyle.TEXT_2)
@@ -162,7 +162,7 @@ class PanelMessageView(context: Context, message: PanelEntry.Message) : LinearLa
             text = message.text
         }, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
         if (message.busy) {
-            line.addView(BouncingDots(context, PanelStyle.TEXT_2),
+            line.addView(HorizonLoader(context, PanelStyle.TEXT_2),
                 LayoutParams(context.dp(PanelStyle.G3 + PanelStyle.G1), context.dp(PanelStyle.G2)).apply { marginStart = context.dp(PanelStyle.G1) })
         }
         addView(line, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))

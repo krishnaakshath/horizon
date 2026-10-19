@@ -1,5 +1,6 @@
 package dev.tvlauncher.ui
 
+import dev.tvlauncher.brand.Brand
 import dev.tvlauncher.R
 import dev.tvlauncher.spotlight.SpotlightConfig
 
@@ -31,7 +32,7 @@ object QuickActions {
         POWER("Power"),
         SLEEP_TIMER("Sleep timer"),
         RESTART("Restart launcher"),
-        GET_APPS("Get Apps"),
+        GET_APPS(Brand.STORE),
         DISCOVER("Discover")
     }
 
@@ -81,7 +82,7 @@ object QuickActions {
     /** Why [item] cannot show on this TV, or null when it can. */
     fun unavailableReason(item: Item, a: Availability): String? = when (item) {
         Item.BROWSER -> if (BROWSER_PACKAGE in a.installedPackages) null else "Shown once Browser is installed"
-        Item.GET_APPS -> if (GET_APPS_PACKAGE in a.installedPackages) null else "Shown once Get Apps is installed"
+        Item.GET_APPS -> if (GET_APPS_PACKAGE in a.installedPackages) null else "Shown once ${Brand.STORE} is installed"
         Item.SLEEP_TIMER -> if (a.sleepTimer) null else "The sleep timer isn't available"
         else -> null
     }

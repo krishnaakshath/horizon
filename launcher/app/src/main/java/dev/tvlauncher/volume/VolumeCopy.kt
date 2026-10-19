@@ -1,5 +1,6 @@
 package dev.tvlauncher.volume
 
+import dev.tvlauncher.brand.Brand
 import dev.tvlauncher.device.EffectsMode
 import dev.tvlauncher.volume.core.BarMotion
 
@@ -84,11 +85,11 @@ object VolumeCopy {
     /** Subtitle of the "Volume bar" row: calm, no setup jargon. */
     fun barSubtitle(on: Boolean, h: HelperState): String = when {
         !on -> "Off: the TV shows its own volume popup"
-        !h.installed -> "Shown on the home screen. Add Launcher Helper to see it in every app"
+        !h.installed -> "Shown on the home screen. Add ${Brand.HELPER} to see it in every app"
         !h.resolved -> "Shown when you change the volume"
         h.bound -> "Shown in every app when you change the volume"
-        h.serviceOn -> "Shown on the home screen. In other apps it returns once Launcher Helper is running again"
-        else -> "Shown on the home screen. Turn on Launcher Helper to see it in every app"
+        h.serviceOn -> "Shown on the home screen. In other apps it returns once ${Brand.HELPER} is running again"
+        else -> "Shown on the home screen. Turn on ${Brand.HELPER} to see it in every app"
     }
 
     /** Volume row value. */

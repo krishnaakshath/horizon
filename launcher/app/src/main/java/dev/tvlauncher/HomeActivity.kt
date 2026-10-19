@@ -117,11 +117,11 @@ class HomeActivity : Activity() {
         val wantsSpotlight = intent?.action == SpotlightKeys.ACTION
         if (wantsSpotlight) setIntent(Intent(intent).setAction(null)) // a recreation must not re-open it
         if (look.showSplash && !wantsSpotlight && !HomeLook.isRebuild(intent)) {
-            splash = SplashOverlay(this, look.profile.full).also {
+            splash = SplashOverlay(this, look.profile.full, look.accent { dev.tvlauncher.ui.SplashLook.DEFAULT_ACCENT }).also {
                 (content.parent as FrameLayout).addView(it, FrameLayout.LayoutParams(-1, -1))
                 it.prepare(content.revealTargets())
                 it.start()
-                shelfBox.loader.visibility = View.GONE // the splash shows its own dots
+                shelfBox.loader.visibility = View.GONE // the splash is the loading moment
             }
         }
         if (wantsSpotlight) openSpotlight() // deferred until the first app list arrives

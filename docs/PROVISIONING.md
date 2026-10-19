@@ -1,6 +1,6 @@
 # Provisioning a TV
 
-`tvtool provision` sets up TV Launcher and its companion apps on any Android TV, Google TV or
+`tvtool provision` sets up Horizon (the H02 launcher) and its companion apps on any Android TV, Google TV or
 Fire TV device you can reach with adb. One command does what would otherwise be a dozen
 manual steps, and it is a **dry run unless you add `--apply`**.
 
@@ -24,7 +24,7 @@ python3 -m tvtool provision --host 192.168.1.50 --apks ../launcher-apks
 # 2. Make the changes:
 python3 -m tvtool provision --host 192.168.1.50 --apks ../launcher-apks --apply
 
-# 3. Optional: also turn off the TV's stock launcher, so the Home key opens TV Launcher
+# 3. Optional: also turn off the TV's stock launcher, so the Home key opens H02
 #    on TVs where the stock launcher is hard-wired to Home:
 python3 -m tvtool provision --host 192.168.1.50 --apks ../launcher-apks --apply --take-over-home
 
@@ -46,7 +46,7 @@ already in place on the TV are left out, so running it twice is harmless.
 
 | Step | Why |
 | --- | --- |
-| Install or update the APKs (`adb install -r`, data kept): **Launcher Helper first, then TV Launcher**, then the other companions | The apps themselves. The launcher finds the Helper on its first start |
+| Install or update the APKs (`adb install -r`, data kept): **H02 Helper first, then H02**, then the other companions | The apps themselves. The launcher finds the Helper on its first start |
 | After **every** install: `appops set dev.tvlauncher APP_AUTO_START allow`, `appops set dev.tvlauncher.helper APP_AUTO_START allow`, and the same with `APP_ASSOC_START` | TCL's vendor switches that let the apps start by themselves and start each other. TCL resets them to `ignore` on every `install -r`, so they are re-applied after each install and read back (`appops get`). TVs without these switches skip them with a warning |
 | `pm grant dev.tvlauncher android.permission.WRITE_SECURE_SETTINGS` | Lets the launcher switch on Now Playing and the Helper by itself, also after updates and reboots |
 | `pm grant dev.tvlauncher.helper android.permission.WRITE_SECURE_SETTINGS` | Lets the Helper keep its own service on, on TVs without an accessibility screen |
@@ -59,8 +59,8 @@ already in place on the TV are left out, so running it twice is harmless.
 | The Helper's accessibility service, in exactly this order: `settings put secure accessibility_enabled 0`, `settings delete secure enabled_accessibility_services`, `settings put secure enabled_accessibility_services <existing>:dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService`, `settings put secure accessibility_enabled 1` | The Helper's remote shortcuts. Services already enabled stay enabled. The off / clear / put back / on order clears Android's "Crashed services" mark, which otherwise keeps a Helper that was stopped once from ever being bound again |
 | `dumpsys accessibility` | Checks that the Helper is listed under "Bound services". If not, the four steps above are repeated once; if it is still not bound the run ends with the warning *helper not running (TCL memory manager may stop it); launcher features still work* (a warning, not an error) |
 | `settings put secure tv_user_setup_complete 1`, only when the setting exists and is `0` | Some TVs leave it at 0 after their own setup, and then the Home key does nothing |
-| `cmd role add-role-holder android.app.role.HOME dev.tvlauncher` (Android 10+) or `cmd package set-home-activity` (older) | Makes TV Launcher the home app |
-| With `--take-over-home` only: `pm disable-user --user 0 <stock launcher>` | So a Home key wired to the stock launcher opens TV Launcher |
+| `cmd role add-role-holder android.app.role.HOME dev.tvlauncher` (Android 10+) or `cmd package set-home-activity` (older) | Makes H02 the home app |
+| With `--take-over-home` only: `pm disable-user --user 0 <stock launcher>` | So a Home key wired to the stock launcher opens H02 |
 | Self-test: `am start -a android.settings.SETTINGS`, a 15 s pause, `am broadcast -a tcl.sys.intent.action.STR_RESUME_COMPLETED -n dev.tvlauncher/.power.PowerOnReceiver` | Puts another app in front, then tells the launcher the TV just woke up (the same signal a TCL TV sends after standby). Expected in the log: `PowerOn: home in front via DIRECT` |
 | Self-test clean-up: `run-as dev.tvlauncher rm -f shared_prefs/power_on.xml`, `am force-stop dev.tvlauncher`, `am start -n dev.tvlauncher/dev.tvlauncher.HomeActivity` | Forgets the test wake-up so it does not count against the launcher's limit of home pushes per wake. Needs a debuggable build; on a release build this only warns (the counter clears itself within 10 minutes). The "Open home after power on" switch returns to its default, on |
 
@@ -73,10 +73,10 @@ switches the TV does not have, the Helper not being bound after the retry, and t
 ## Safety rules
 
 - Dry run by default. Nothing changes without `--apply`.
-- Only TV Launcher's own packages and the stock launchers listed in the matched profile are
+- Only H02's own packages and the stock launchers listed in the matched profile are
   ever touched. The plan is refused if any other package would be affected.
 - A stock launcher is disabled only with `--take-over-home`, only if it is installed and
-  enabled, and only after the TV confirms TV Launcher is available as a home app. It is
+  enabled, and only after the TV confirms H02 is available as a home app. It is
   disabled, never uninstalled.
 - Before the first change an undo script is written to `--out` (default `./scans-out/`),
   named `provision_undo_<model>_<time>.sh`. It reverses every planned step in reverse order
@@ -86,7 +86,7 @@ switches the TV does not have, the Helper not being bound after the retry, and t
   `REQUEST_INSTALL_PACKAGES`), revokes the grants and uninstalls apps that were not installed
   before).
 - The self-test only opens the TV's Settings (it changes nothing there) and sends the wake
-  signal to TV Launcher's own receiver.
+  signal to H02's own receiver.
 
 ## Undo
 
@@ -115,7 +115,7 @@ model, then manufacturer only, then the generic fallback.
 
 - `match.manufacturer` / `match.model`: `ro.product.manufacturer` / `ro.product.model`
   (case-insensitive). Use `"match": {"fallback": true}` for the generic profile.
-- `stock_launchers`: the only packages `--take-over-home` may disable. TV Launcher's own
+- `stock_launchers`: the only packages `--take-over-home` may disable. H02's own
   packages are rejected here.
 
 Shipped profiles: `tcl-32S5403AF.json` and `generic-android-tv.json` (Google TV, Android TV
@@ -129,7 +129,7 @@ and Fire TV stock launchers).
   by provisioning. `tv_user_setup_complete` can be left at `0`, which makes the Home key do
   nothing; provisioning sets it to `1`.
 - **TCL app ops:** `APP_AUTO_START` and `APP_ASSOC_START` are reset to `ignore` by every
-  `adb install -r`, for TV Launcher and for the Helper. Re-run provisioning (or at least
+  `adb install -r`, for H02 and for the Helper. Re-run provisioning (or at least
   re-apply both ops for both apps) after every update.
 - **TCL power-on:** a direct start of the home screen after standby works only with
   "Display over other apps" (`SYSTEM_ALERT_WINDOW`) allowed, so the launcher tries that
@@ -167,7 +167,7 @@ shortcut key that opens Spotlight is chosen in the Helper app.
 
 On TCL TVs the memory manager can stop the Helper. When it does, the Helper's extras in
 **other apps** drop out until it runs again: double-Back to Home, the launcher's volume bar
-over other apps, and the game controller's Guide button going to Home. **TV Launcher itself
+over other apps, and the game controller's Guide button going to Home. **H02 itself
 is not affected**: the home screen, power-on (which uses "Display over other apps", not the
 Helper) and everything inside the launcher keep working. Re-running provisioning switches the
 Helper back on. The Helper's own screen and the launcher's Settings say the same in plain

@@ -1,5 +1,7 @@
 package dev.tvlauncher.power
 
+import dev.tvlauncher.brand.Brand
+
 /** Pure wording for the Settings page: which way forward the TV has, in plain words. */
 object PowerOnStatus {
     enum class Readiness { HELPER, OVERLAY, ANDROID, NEEDS_PERMISSION }
@@ -21,9 +23,9 @@ object PowerOnStatus {
 
     fun subtitle(r: Readiness): String = when (r) {
         Readiness.HELPER -> "The Remote helper brings home forward"
-        Readiness.OVERLAY -> "Display over other apps is on for TV Launcher"
+        Readiness.OVERLAY -> "Display over other apps is on for ${Brand.SHORT}"
         Readiness.ANDROID -> "This Android version allows it"
-        Readiness.NEEDS_PERMISSION -> "Turn on Display over other apps for TV Launcher"
+        Readiness.NEEDS_PERMISSION -> "Turn on Display over other apps for ${Brand.SHORT}"
     }
 
     fun ready(r: Readiness): Boolean = r != Readiness.NEEDS_PERMISSION

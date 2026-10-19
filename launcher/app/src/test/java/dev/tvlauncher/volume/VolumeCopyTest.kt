@@ -4,6 +4,7 @@ import dev.tvlauncher.appsettings.ModulePlaceholderSection
 import dev.tvlauncher.appsettings.PageSpec
 import dev.tvlauncher.appsettings.SettingsGroup
 import dev.tvlauncher.appsettings.SettingsRegistry
+import dev.tvlauncher.brand.Brand
 import dev.tvlauncher.device.EffectsMode
 import dev.tvlauncher.volume.core.BarMotion
 import org.junit.Assert.assertEquals
@@ -47,11 +48,11 @@ class VolumeCopyTest {
         val s = VolumeCopy.HelperState.PENDING
         assertEquals("Off: the TV shows its own volume popup", VolumeCopy.barSubtitle(false, s))
         assertEquals("Shown when you change the volume", VolumeCopy.barSubtitle(true, s))
-        assertTrue(VolumeCopy.barSubtitle(true, VolumeCopy.HelperState.NOT_INSTALLED).contains("Add Launcher Helper"))
+        assertTrue(VolumeCopy.barSubtitle(true, VolumeCopy.HelperState.NOT_INSTALLED).contains("Add ${Brand.HELPER}"))
         assertEquals("Shown in every app when you change the volume",
             VolumeCopy.barSubtitle(true, VolumeCopy.HelperState(true, true, true, true)))
         assertTrue(VolumeCopy.barSubtitle(true, VolumeCopy.HelperState(true, true, false, true)).contains("running again"))
-        assertTrue(VolumeCopy.barSubtitle(true, VolumeCopy.HelperState.NOT_RUNNING).contains("Turn on Launcher Helper"))
+        assertTrue(VolumeCopy.barSubtitle(true, VolumeCopy.HelperState.NOT_RUNNING).contains("Turn on ${Brand.HELPER}"))
         for (st in listOf(s, VolumeCopy.HelperState.NOT_INSTALLED, VolumeCopy.HelperState.NOT_RUNNING)) {
             val t = VolumeCopy.barSubtitle(true, st).lowercase()
             assertFalse(t, t.contains("adb") || t.contains("accessibility") || t.contains("service"))

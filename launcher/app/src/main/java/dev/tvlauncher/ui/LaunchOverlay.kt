@@ -8,12 +8,12 @@ import android.view.View
 import android.widget.FrameLayout
 
 /**
- * Brief "opening…" feedback after a tile is clicked: a soft scrim with bouncing dots. Never
+ * Brief "opening…" feedback after a tile is clicked: a soft scrim with the brand loader (a sun-disc on a horizon line). Never
  * focusable or clickable, so it cannot block input. Hidden when the activity stops (the app's
  * window is up) or after [TIMEOUT_MS], whichever comes first.
  */
 class LaunchOverlay(context: Context) : FrameLayout(context) {
-    private val dots = BouncingDots(context)
+    private val loader = HorizonLoader(context)
     private val hideRunnable = Runnable { hide() }
 
     override fun hasOverlappingRendering() = false
@@ -24,7 +24,7 @@ class LaunchOverlay(context: Context) : FrameLayout(context) {
         isClickable = false
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
         setBackgroundColor(0x66000000)
-        addView(dots, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+        addView(loader, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER))
         visibility = View.GONE
     }
 
@@ -40,7 +40,7 @@ class LaunchOverlay(context: Context) : FrameLayout(context) {
     fun hide() {
         removeCallbacks(hideRunnable)
         animate().cancel()
-        visibility = View.GONE // also stops the dots' animator
+        visibility = View.GONE // also stops the loader's animator
     }
 
     private companion object {

@@ -1,5 +1,7 @@
 package dev.tvlauncher.spotlight
 
+import dev.tvlauncher.brand.Brand
+
 /**
  * How the launcher and the Launcher Helper app share Spotlight's extra key.
  *
@@ -116,7 +118,7 @@ object HelperStatus {
         report: HelperLink.Report?,
         keyName: (Int) -> String
     ): Display = when {
-        !installed -> Display("Not installed", "Add Launcher Helper to open Spotlight from other apps", Action.NONE)
+        !installed -> Display("Not installed", "Add ${Brand.HELPER} to open Spotlight from other apps", Action.NONE)
         !serviceOn -> Display(FINISH_SETUP, null, if (helperScreen) Action.OPEN_HELPER else Action.NONE)
         payload.key == 0 -> Display("Choose a key", "Pick an extra key under Keys that open Spotlight", Action.OPEN_KEYS)
         HelperLink.inSync(report, payload) -> {
