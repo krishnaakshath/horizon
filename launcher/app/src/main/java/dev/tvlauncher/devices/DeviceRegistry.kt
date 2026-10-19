@@ -47,3 +47,30 @@ class Debouncer(private val minGapMs: Long, private val clock: () -> Long) {
         return true
     }
 }
+
+/**
+ * Drops a Connected/Disconnected event when an equivalent one (same direction, same broad kind)
+ * from a different source was accepted within [gapMs] - e.g. a USB keyboard reported by both
+ * UsbManager and InputManager, or a BT gamepad reported by ACL and by InputManager.
+ */
+class CrossSourceDeduper(private val gapMs: Long, private val clock: () -> Long) {
+    private class Seen(val source: String, val at: Long)
+    private val seen = HashMap<String, Seen>()
+
+    fun accept(source: String, event: DeviceEvent): Boolean {
+        val key = (if (event is DeviceEvent.Connected) "c:" else "d:") + family(event.device.kind)
+        val now = clock()
+        val prev = seen[key]
+        if (prev != null && prev.source != source && now - prev.at < gapMs) return false
+        seen[key] = Seen(source, now)
+        return true
+    }
+
+    companion object {
+        fun family(kind: DeviceKind): String = when (kind) {
+            DeviceKind.GAMEPAD, DeviceKind.BT_GAMEPAD -> "pad"
+            DeviceKind.KEYBOARD, DeviceKind.MOUSE, DeviceKind.BT_KEYBOARD_MOUSE -> "kbm"
+            else -> kind.name
+        }
+    }
+}
