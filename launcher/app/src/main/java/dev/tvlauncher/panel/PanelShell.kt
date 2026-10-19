@@ -3,7 +3,6 @@ package dev.tvlauncher.panel
 import android.content.Context
 import android.view.Gravity
 import android.view.KeyEvent
-import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
@@ -49,8 +48,6 @@ class PanelShell(
     }
     private val card = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     val header = PanelHeaderView(context)
-    /** Optional free-form views between the header and the rows (e.g. a thumbnail grid). */
-    val extra = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
     private val list = PanelList(context)
     val scroll = MaxHeightScrollView(context)
     val lifecycle = PanelLifecycle()
@@ -80,7 +77,6 @@ class PanelShell(
         card.setPadding(pad, context.dp(PanelStyle.G2), pad, pad)
         card.isClickable = true // touches on the card never reach the scrim
         card.addView(header, LinearLayout.LayoutParams(-1, -2))
-        card.addView(extra, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(PanelStyle.G1) })
         scroll.addView(list, ViewGroup.LayoutParams(-1, -2))
         scroll.maxHeightPx = context.dp(PanelLimits.bodyMaxDp())
         card.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = context.dp(PanelStyle.G1) })
