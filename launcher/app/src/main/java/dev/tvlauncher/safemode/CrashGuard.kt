@@ -19,7 +19,10 @@ data class CrashHistory(
     val escapeBoot: Int = -1,
     /** SystemClock.elapsedRealtime() at the trip / escape (-1 unknown): a smaller value later means a reboot. */
     val tripElapsed: Long = -1L,
-    val escapeElapsed: Long = -1L
+    val escapeElapsed: Long = -1L,
+    /** /proc/sys/kernel/random/boot_id at the trip / escape; null when unknown. */
+    val tripBootId: String? = null,
+    val escapeBootId: String? = null
 ) {
     companion object {
         fun encodeTimes(times: List<Long>): String = times.joinToString(",")
@@ -45,7 +48,8 @@ class CrashGuard(
     private val store: CrashStore,
     private val now: () -> Long,
     private val bootCount: () -> Int = { -1 },
-    private val elapsedRealtime: () -> Long = { -1L }
+    private val elapsedRealtime: () -> Long = { -1L },
+    private val bootId: () -> String? = { null }
 ) {
     /** A crash that [CrashScope] attributes to the home screen (or to process start). */
     @Synchronized
@@ -62,7 +66,8 @@ class CrashGuard(
                     tripped = old.tripped || tripsNow,
                     trippedAt = if (tripsNow) t else old.trippedAt,
                     tripBoot = if (tripsNow) safeBoot() else old.tripBoot,
-                    tripElapsed = if (tripsNow) safeElapsed() else old.tripElapsed
+                    tripElapsed = if (tripsNow) safeElapsed() else old.tripElapsed,
+                    tripBootId = if (tripsNow) safeBootId() else old.tripBootId
                 )
             )
         } catch (e: Throwable) {
@@ -91,7 +96,7 @@ class CrashGuard(
     @Synchronized
     fun decide(): EscapePlan.Level = try {
         val h = read()
-        val out = EscapePlan.decide(h, now(), safeBoot(), safeElapsed())
+        val out = EscapePlan.decide(h, now(), safeBoot(), safeElapsed(), safeBootId())
         if (out.history != h) try { store.write(out.history) } catch (e: Throwable) { }
         out.level
     } catch (e: Throwable) {
@@ -120,6 +125,8 @@ class CrashGuard(
     private fun safeBoot(): Int = try { bootCount() } catch (e: Throwable) { -1 }
 
     private fun safeElapsed(): Long = try { elapsedRealtime() } catch (e: Throwable) { -1L }
+
+    private fun safeBootId(): String? = try { BootId.parse(bootId()) } catch (e: Throwable) { null }
 
     companion object {
         const val THRESHOLD = 3
@@ -168,30 +175,51 @@ object EscapePlan {
         if (stockLauncherAvailable) listOf(Terminal.STOCK_LAUNCHER, Terminal.SYSTEM_SETTINGS, Terminal.SAFE_MODE_MINIMAL)
         else listOf(Terminal.SYSTEM_SETTINGS, Terminal.SAFE_MODE_MINIMAL)
 
+    /** Boot-start times further apart than this mean a reboot (a clock step this big only expires early, which is safe). */
+    const val BOOT_START_DRIFT_MS = 60_000L
+
     /**
-     * A reboot since then (boot counts known and different, or uptime now below the uptime then,
-     * when both are known), the clock going back, or [CrashGuard.EXPIRY_MS] elapsed.
+     * Whether the trip/escape recorded at [sinceMs] is over. In order, using only values known on
+     * both sides (unknown: -1 / null, never "rebooted"):
+     * 1. BOOT_COUNT differs: rebooted.
+     * 2. boot_id differs: rebooted; the same boot_id: definitely not rebooted (skip step 3).
+     * 3. Arithmetic: uptime went down, or the boot start (wall clock minus uptime) moved by more
+     *    than [BOOT_START_DRIFT_MS]: rebooted. A big wall-clock step also lands here; expiring
+     *    then is safe because a real crash loop re-trips within seconds.
+     * 4. The clock went back, or [CrashGuard.EXPIRY_MS] passed.
      */
-    fun expired(sinceMs: Long, sinceBoot: Int, sinceElapsed: Long, nowMs: Long, bootCount: Int, elapsedNow: Long): Boolean {
+    fun expired(
+        sinceMs: Long, sinceBoot: Int, sinceElapsed: Long, nowMs: Long, bootCount: Int, elapsedNow: Long,
+        sinceBootId: String? = null, bootIdNow: String? = null
+    ): Boolean {
         if (bootCount >= 0 && sinceBoot >= 0 && bootCount != sinceBoot) return true
-        if (sinceElapsed >= 0 && elapsedNow >= 0 && elapsedNow < sinceElapsed) return true
+        val sameBootId = sinceBootId != null && bootIdNow != null
+        if (sameBootId && sinceBootId != bootIdNow) return true
+        if (!sameBootId && sinceElapsed >= 0 && elapsedNow >= 0) {
+            if (elapsedNow < sinceElapsed) return true
+            val drift = (nowMs - elapsedNow) - (sinceMs - sinceElapsed)
+            if (drift > BOOT_START_DRIFT_MS || drift < -BOOT_START_DRIFT_MS) return true
+        }
         val e = nowMs - sinceMs
         return e < 0 || e >= CrashGuard.EXPIRY_MS
     }
 
-    fun decide(h: CrashHistory, nowMs: Long, bootCount: Int, elapsedNow: Long = -1L): Outcome {
+    fun decide(h: CrashHistory, nowMs: Long, bootCount: Int, elapsedNow: Long = -1L, bootIdNow: String? = null): Outcome {
         val fresh = CrashHistory(lastException = h.lastException, retriedAt = nowMs)
         if (h.escapedToSettings) {
-            return if (expired(h.escapedAt, h.escapeBoot, h.escapeElapsed, nowMs, bootCount, elapsedNow)) Outcome(Level.HOME, fresh)
+            return if (expired(h.escapedAt, h.escapeBoot, h.escapeElapsed, nowMs, bootCount, elapsedNow, h.escapeBootId, bootIdNow)) Outcome(Level.HOME, fresh)
             else Outcome(Level.SYSTEM_SETTINGS, h)
         }
         if (!h.tripped) return Outcome(Level.HOME, h)
-        if (expired(h.trippedAt, h.tripBoot, h.tripElapsed, nowMs, bootCount, elapsedNow)) return Outcome(Level.HOME, fresh)
+        if (expired(h.trippedAt, h.tripBoot, h.tripElapsed, nowMs, bootCount, elapsedNow, h.tripBootId, bootIdNow)) return Outcome(Level.HOME, fresh)
         val safeCrashes = h.safeModeCrashTimes.count { val e = nowMs - it; e in 0 until SAFE_CRASH_WINDOW_MS }
         return when {
             safeCrashes >= 2 -> Outcome(
                 Level.SYSTEM_SETTINGS,
-                h.copy(escapedToSettings = true, escapedAt = nowMs, escapeBoot = bootCount, escapeElapsed = elapsedNow)
+                h.copy(
+                    escapedToSettings = true, escapedAt = nowMs, escapeBoot = bootCount,
+                    escapeElapsed = elapsedNow, escapeBootId = bootIdNow
+                )
             )
             safeCrashes == 1 -> Outcome(Level.SAFE_MODE_MINIMAL, h)
             else -> Outcome(Level.SAFE_MODE_FULL, h)
@@ -213,13 +241,22 @@ class CrashScope(private val homeClass: String, private val safeModeClass: Strin
     fun onStarted(name: String) { current = name }
     fun onResumed(name: String) { current = name }
     @Suppress("UNUSED_PARAMETER") fun onPaused(name: String) = Unit
-    @Suppress("UNUSED_PARAMETER") fun onStopped(name: String) = Unit
+    /**
+     * Safe mode stopped while still in charge: the user opened another app from it. A later crash
+     * in the background (a service, a receiver) is then nobody's: not home, not safe mode.
+     */
+    fun onStopped(name: String) { if (name == safeModeClass && current == safeModeClass) current = NOBODY }
     @Suppress("UNUSED_PARAMETER") fun onDestroyed(name: String) = Unit
 
     /** Process start, or the home screen in charge. Any other (also unknown) screen: not recorded. */
     fun shouldRecordCrash(): Boolean = current.let { it == null || it == homeClass }
 
     fun inSafeMode(): Boolean = current == safeModeClass
+
+    private companion object {
+        /** Not null (process start) and never an activity name: crashes are ignored. */
+        const val NOBODY = ""
+    }
 }
 
 /**
@@ -237,4 +274,19 @@ object CrashAttribution {
         scope.shouldRecordCrash() -> if (tripped) Kind.SAFE_MODE else Kind.HOME
         else -> Kind.IGNORE
     }
+}
+
+/** The kernel's per-boot random id, the most reliable reboot signal when readable. */
+object BootId {
+    private const val PATH = "/proc/sys/kernel/random/boot_id"
+
+    /** Trimmed id when it has the expected shape (8..64 hex digits and dashes), else null. */
+    fun parse(text: String?): String? {
+        val t = text?.trim() ?: return null
+        if (t.length !in 8..64) return null
+        return if (t.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' || it == '-' }) t else null
+    }
+
+    /** Never throws; null when unreadable. */
+    fun read(): String? = try { parse(java.io.File(PATH).readText()) } catch (e: Throwable) { null }
 }

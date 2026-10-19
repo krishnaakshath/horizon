@@ -27,7 +27,9 @@ class PrefsCrashStore(context: Context) : CrashStore {
         sp.getLong(KEY_ESCAPED_AT, 0L),
         sp.getInt(KEY_ESCAPE_BOOT, -1),
         sp.getLong(KEY_TRIP_ELAPSED, -1L),
-        sp.getLong(KEY_ESCAPE_ELAPSED, -1L)
+        sp.getLong(KEY_ESCAPE_ELAPSED, -1L),
+        sp.getString(KEY_TRIP_BOOT_ID, null),
+        sp.getString(KEY_ESCAPE_BOOT_ID, null)
     )
 
     override fun write(history: CrashHistory) {
@@ -44,6 +46,8 @@ class PrefsCrashStore(context: Context) : CrashStore {
             .putInt(KEY_ESCAPE_BOOT, history.escapeBoot)
             .putLong(KEY_TRIP_ELAPSED, history.tripElapsed)
             .putLong(KEY_ESCAPE_ELAPSED, history.escapeElapsed)
+            .putString(KEY_TRIP_BOOT_ID, history.tripBootId)
+            .putString(KEY_ESCAPE_BOOT_ID, history.escapeBootId)
             .remove("safe_mode_crashed") // older format
             .commit()
     }
@@ -61,6 +65,8 @@ class PrefsCrashStore(context: Context) : CrashStore {
         const val KEY_ESCAPE_BOOT = "escape_boot"
         const val KEY_TRIP_ELAPSED = "trip_elapsed"
         const val KEY_ESCAPE_ELAPSED = "escape_elapsed"
+        const val KEY_TRIP_BOOT_ID = "trip_boot_id"
+        const val KEY_ESCAPE_BOOT_ID = "escape_boot_id"
     }
 }
 
@@ -72,7 +78,8 @@ object SafeMode {
             PrefsCrashStore(context),
             { System.currentTimeMillis() },
             { try { Settings.Global.getInt(resolver, Settings.Global.BOOT_COUNT, -1) } catch (e: Throwable) { -1 } },
-            { SystemClock.elapsedRealtime() }
+            { SystemClock.elapsedRealtime() },
+            { BootId.read() }
         )
     }
 
