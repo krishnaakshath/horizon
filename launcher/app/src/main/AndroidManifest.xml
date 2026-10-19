@@ -55,7 +55,8 @@
              browser is installed; the Settings screen detects the helper and browser. -->
         <package android:name="dev.tvlauncher.helper" />
         <package android:name="dev.tvlauncher.browser" />
-        <!-- Get Apps companion store: listed on the Settings Add-ons page. -->
+        <!-- Get Apps companion store: listed on the Settings Add-ons page; Discover also
+             hands F-Droid/GitHub apps to it. -->
         <package android:name="dev.tvlauncher.store" />
         <!-- Safe mode offers the stock launcher only while it is installed and enabled. -->
         <package android:name="com.google.android.tvlauncher" />
@@ -65,7 +66,7 @@
         <package android:name="dev.tvlauncher.weather" />
         <provider android:authorities="dev.tvlauncher.weather" />
         <!-- Discover: Play Store detail pages (market://, then the https page in a browser)
-             and the Get Apps companion for F-Droid/GitHub apps. -->
+             (the Get Apps companion is declared above). -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="market" />
@@ -75,7 +76,6 @@
             <data android:scheme="https" />
         </intent>
         <package android:name="com.android.vending" />
-        <package android:name="dev.tvlauncher.store" />
     </queries>
 
     <application
