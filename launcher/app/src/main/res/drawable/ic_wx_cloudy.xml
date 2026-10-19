@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original weather glyph (24dp, pre-colored for dark ambient backgrounds). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <group android:translateX="-3" android:translateY="-3.5" android:scaleX="0.8" android:scaleY="0.8">
+    <path android:fillColor="#FFA7B0C0" android:fillAlpha="1" android:pathData="M5.5,13.5a3.5,3.5 0 1,0 7,0a3.5,3.5 0 1,0 -7,0z"/>
+    <path android:fillColor="#FFA7B0C0" android:fillAlpha="1" android:pathData="M8.5,11a4.5,4.5 0 1,0 9,0a4.5,4.5 0 1,0 -9,0z"/>
+    <path android:fillColor="#FFA7B0C0" android:fillAlpha="1" android:pathData="M13.5,14a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z"/>
+    <path android:fillColor="#FFA7B0C0" android:fillAlpha="1" android:pathData="M9,13.5V17H16.5V13.5Z"/>
+    </group>
+    <group android:translateX="0.5" android:translateY="1" android:scaleX="1" android:scaleY="1">
+    <path android:fillColor="#FFF5F7FA" android:fillAlpha="1" android:pathData="M5.5,13.5a3.5,3.5 0 1,0 7,0a3.5,3.5 0 1,0 -7,0z"/>
+    <path android:fillColor="#FFF5F7FA" android:fillAlpha="1" android:pathData="M8.5,11a4.5,4.5 0 1,0 9,0a4.5,4.5 0 1,0 -9,0z"/>
+    <path android:fillColor="#FFF5F7FA" android:fillAlpha="1" android:pathData="M13.5,14a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z"/>
+    <path android:fillColor="#FFF5F7FA" android:fillAlpha="1" android:pathData="M9,13.5V17H16.5V13.5Z"/>
+    </group>
+</vector>
