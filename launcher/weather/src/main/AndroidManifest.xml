@@ -12,7 +12,7 @@
         android:allowBackup="false"
         android:banner="@drawable/banner_weather"
         android:icon="@mipmap/ic_launcher"
-        android:label="Launcher Weather"
+        android:label="@string/app_name"
         android:theme="@style/WeatherTheme"
         android:usesCleartextTraffic="false">
 
@@ -50,12 +50,13 @@
             </intent-filter>
         </receiver>
 
-        <!-- Only the system sends BOOT_COMPLETED, so this stays unexported. -->
+        <!-- Only the system sends BOOT_COMPLETED / MY_PACKAGE_REPLACED, so this stays unexported. -->
         <receiver
             android:name=".BootReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 

@@ -26,9 +26,11 @@ object RefreshScheduler {
                 .setPersisted(true)
                 .setBackoffCriteria(30_000L, JobInfo.BACKOFF_POLICY_EXPONENTIAL)
                 .build()
-            js.schedule(job)
+            val ok = js.schedule(job) == JobScheduler.RESULT_SUCCESS
+            WeatherStore(context).setScheduleFailed(!ok)
         } catch (e: RuntimeException) {
-            // Scheduling is best effort; the settings screen and broadcast still refresh.
+            // Best effort, no logging; the settings screen shows "Background refresh unavailable".
+            try { WeatherStore(context).setScheduleFailed(true) } catch (e2: RuntimeException) {}
         }
     }
 

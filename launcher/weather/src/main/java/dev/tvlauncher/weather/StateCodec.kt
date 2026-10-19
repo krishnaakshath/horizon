@@ -21,7 +21,7 @@ object StateCodec {
             o.put("snapshot", JSONObject().apply {
                 put("tempC", n.tempC); put("feelsC", n.feelsC); put("code", n.code)
                 put("isDay", n.isDay); put("humidity", n.humidity); put("windKmh", n.windKmh)
-                put("highC", n.highC); put("lowC", n.lowC); put("updatedMs", n.updatedMs)
+                put("highC", n.highC ?: JSONObject.NULL); put("lowC", n.lowC ?: JSONObject.NULL); put("updatedMs", n.updatedMs)
                 put("daily", JSONArray().apply {
                     n.daily.forEach { d ->
                         put(JSONObject().apply {
@@ -37,13 +37,11 @@ object StateCodec {
 
     fun decode(json: String?): WeatherState {
         if (json.isNullOrBlank()) return DEFAULT
-        return try {
+        return JsonUtil.guarded {
             val o = JSONObject(json)
             WeatherState(decodePlace(o.optJSONObject("place")), Units.normalize(o.optString("unit")),
                 decodeSnapshot(o.optJSONObject("snapshot")))
-        } catch (e: Exception) {
-            DEFAULT
-        }
+        } ?: DEFAULT
     }
 
     private fun decodePlace(o: JSONObject?): Place? {
@@ -57,7 +55,7 @@ object StateCodec {
 
     private fun decodeSnapshot(o: JSONObject?): WeatherSnapshot? {
         if (o == null) return null
-        val temp = JsonUtil.num(o, "tempC") ?: return null
+        val temp = JsonUtil.temp(o.opt("tempC")) ?: return null
         val code = JsonUtil.num(o, "code")?.toInt() ?: return null
         val updated = (o.opt("updatedMs") as? Number)?.toLong() ?: return null
         val daily = ArrayList<DailyForecast>()
@@ -66,16 +64,16 @@ object StateCodec {
             val d = arr.optJSONObject(i) ?: continue
             val day = (d.opt("dayMs") as? Number)?.toLong() ?: continue
             val c = JsonUtil.num(d, "code")?.toInt() ?: continue
-            val hi = JsonUtil.num(d, "highC") ?: continue
-            val lo = JsonUtil.num(d, "lowC") ?: continue
+            val hi = JsonUtil.temp(d.opt("highC")) ?: continue
+            val lo = JsonUtil.temp(d.opt("lowC")) ?: continue
             daily += DailyForecast(day, c, hi, lo)
         }
         return WeatherSnapshot(
-            tempC = temp, feelsC = JsonUtil.num(o, "feelsC") ?: temp, code = code,
+            tempC = temp, feelsC = JsonUtil.temp(o.opt("feelsC")) ?: temp, code = code,
             isDay = o.optBoolean("isDay", true),
-            humidity = (JsonUtil.num(o, "humidity") ?: 0.0).toInt(),
-            windKmh = JsonUtil.num(o, "windKmh") ?: 0.0,
-            highC = JsonUtil.num(o, "highC") ?: temp, lowC = JsonUtil.num(o, "lowC") ?: temp,
+            humidity = JsonUtil.humidity(o.opt("humidity")),
+            windKmh = JsonUtil.wind(o.opt("windKmh")),
+            highC = JsonUtil.temp(o.opt("highC")), lowC = JsonUtil.temp(o.opt("lowC")),
             updatedMs = updated, daily = daily,
         )
     }

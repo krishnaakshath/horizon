@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 
-/** Handles the public REFRESH action (rate limited) and BOOT_COMPLETED (re-schedule). */
+/** Handles the public REFRESH action only; rate limited, then queues a one-off network job. Boot and update re-scheduling live in [BootReceiver]. */
 class RefreshReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         when (intent?.action) {

@@ -9,8 +9,9 @@ data class WeatherSnapshot(
     val isDay: Boolean,
     val humidity: Int,
     val windKmh: Double,
-    val highC: Double,
-    val lowC: Double,
+    /** Today's high/low; null when today's daily entry is missing or malformed. */
+    val highC: Double?,
+    val lowC: Double?,
     val updatedMs: Long,
     val daily: List<DailyForecast>,
 )

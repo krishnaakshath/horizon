@@ -3,7 +3,8 @@ package dev.tvlauncher.weather
 import org.json.JSONObject
 
 object GeocodingParser {
-    fun parse(json: String): List<Place> = try {
+    /** Never throws (except OutOfMemoryError); hostile input yields an empty list. */
+    fun parse(json: String): List<Place> = JsonUtil.guarded {
         val arr = JSONObject(json).optJSONArray("results")
         val out = ArrayList<Place>()
         if (arr != null) {
@@ -17,8 +18,6 @@ object GeocodingParser {
                 out += Place(name, JsonUtil.str(o, "admin1"), JsonUtil.str(o, "country"), lat, lon)
             }
         }
-        out
-    } catch (e: Exception) {
-        emptyList()
-    }
+        out as List<Place>
+    } ?: emptyList()
 }

@@ -21,8 +21,21 @@ object OpenMeteoClient {
             "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
             "&timezone=auto&forecast_days=5&wind_speed_unit=kmh"
 
+    const val MAX_QUERY_CHARS = 64
+
+    /** Trims and truncates a user query to [MAX_QUERY_CHARS] without splitting a surrogate pair. */
+    fun normalizeQuery(query: String): String {
+        var q = query.trim()
+        if (q.length > MAX_QUERY_CHARS) {
+            q = q.substring(0, MAX_QUERY_CHARS)
+            if (Character.isHighSurrogate(q.last())) q = q.dropLast(1)
+            q = q.trim()
+        }
+        return q
+    }
+
     internal fun searchUrl(query: String): String =
-        "https://geocoding-api.open-meteo.com/v1/search?name=${URLEncoder.encode(query.trim(), "UTF-8")}" +
+        "https://geocoding-api.open-meteo.com/v1/search?name=${URLEncoder.encode(normalizeQuery(query), "UTF-8")}" +
             "&count=8&language=en&format=json"
 
     private fun coord(v: Double) = String.format(Locale.US, "%.4f", v)
@@ -33,7 +46,7 @@ object OpenMeteoClient {
     }
 
     fun searchPlaces(query: String): Result<List<Place>> = runCatching {
-        if (query.isBlank()) emptyList() else GeocodingParser.parse(get(searchUrl(query)))
+        if (normalizeQuery(query).isEmpty()) emptyList() else GeocodingParser.parse(get(searchUrl(query)))
     }
 
     private fun get(url: String): String {

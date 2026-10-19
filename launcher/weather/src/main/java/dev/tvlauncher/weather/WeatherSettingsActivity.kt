@@ -27,7 +27,8 @@ import java.util.concurrent.Executors
 
 class WeatherSettingsActivity : Activity() {
     private val ui = Handler(Looper.getMainLooper())
-    private val io = Executors.newSingleThreadExecutor()
+    private val refreshIo = Executors.newSingleThreadExecutor()
+    private val searchIo = Executors.newSingleThreadExecutor()
     private lateinit var store: WeatherStore
 
     private lateinit var main: LinearLayout
@@ -38,6 +39,7 @@ class WeatherSettingsActivity : Activity() {
     private lateinit var rangeText: TextView
     private lateinit var updatedText: TextView
     private lateinit var statusText: TextView
+    private lateinit var bgText: TextView
     private lateinit var cityValue: TextView
     private lateinit var unitValue: TextView
     private lateinit var searchField: EditText
@@ -65,7 +67,8 @@ class WeatherSettingsActivity : Activity() {
     override fun onDestroy() {
         destroyed = true
         searchRunnable?.let { ui.removeCallbacks(it) }
-        io.shutdown()
+        refreshIo.shutdownNow()
+        searchIo.shutdownNow()
         super.onDestroy()
     }
 
@@ -126,7 +129,7 @@ class WeatherSettingsActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             addView(ImageView(context).apply { setImageResource(R.drawable.logo_mark) },
                 LinearLayout.LayoutParams(dp(44), dp(44)))
-            addView(text(26, WeatherBrand.TEXT, true).apply { text = WeatherBrand.APP_NAME; setPadding(dp(14), 0, 0, 0) })
+            addView(text(26, WeatherBrand.TEXT, true).apply { text = getString(R.string.app_name); setPadding(dp(14), 0, 0, 0) })
         }, lp())
 
         main = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -144,12 +147,14 @@ class WeatherSettingsActivity : Activity() {
         rangeText = text(16, WeatherBrand.TEXT_DIM)
         updatedText = text(14, WeatherBrand.TEXT_DIM)
         statusText = text(15, WeatherBrand.ERROR)
+        bgText = text(14, WeatherBrand.TEXT_DIM)
         card.addView(locationText)
         card.addView(tempText, lp(8))
         card.addView(conditionText, lp(4))
         card.addView(rangeText, lp(8))
         card.addView(updatedText, lp(12))
         card.addView(statusText, lp(6))
+        card.addView(bgText, lp(6))
         main.addView(card, lp())
 
         val (city, cityV) = row("Change city") { enterSearch() }
@@ -175,6 +180,7 @@ class WeatherSettingsActivity : Activity() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
             imeOptions = EditorInfo.IME_ACTION_SEARCH
             setSingleLine()
+            filters = arrayOf(android.text.InputFilter.LengthFilter(OpenMeteoClient.MAX_QUERY_CHARS))
             background = focusBg()
             setPadding(dp(24), dp(18), dp(24), dp(18))
             addTextChangedListener(object : TextWatcher {
@@ -206,6 +212,7 @@ class WeatherSettingsActivity : Activity() {
         val snap = s.snapshot
         cityValue.text = s.place?.label() ?: "Not set"
         unitValue.text = if (s.unit == Units.F) "°F" else "°C"
+        bgText.text = if (store.scheduleFailed()) "Background refresh unavailable" else ""
         locationText.text = s.place?.name ?: "No city selected"
         if (snap == null) {
             tempText.text = "--"
@@ -215,8 +222,9 @@ class WeatherSettingsActivity : Activity() {
         } else {
             tempText.text = Units.format(snap.tempC, s.unit)
             conditionText.text = WmoCodes.text(snap.code)
-            rangeText.text = "H ${Units.format(snap.highC, s.unit)}   L ${Units.format(snap.lowC, s.unit)}" +
-                "   Feels ${Units.format(snap.feelsC, s.unit)}"
+            val hl = if (snap.highC != null && snap.lowC != null)
+                "H ${Units.format(snap.highC, s.unit)}   L ${Units.format(snap.lowC, s.unit)}   " else ""
+            rangeText.text = hl + "Feels ${Units.format(snap.feelsC, s.unit)}"
             updatedText.text = "Updated " + TimeAgo.format(System.currentTimeMillis(), snap.updatedMs)
         }
     }
@@ -230,7 +238,7 @@ class WeatherSettingsActivity : Activity() {
     private fun refreshNow(silent: Boolean) {
         if (store.load().place == null) { statusText.text = "Choose a city first"; return }
         if (!silent) { statusText.setTextColor(WeatherBrand.TEXT_DIM); statusText.text = "Updating..." }
-        io.execute {
+        refreshIo.execute {
             val ok = try { Refresher.refresh(applicationContext) } catch (e: Exception) { false }
             if (!destroyed) ui.post {
                 statusText.setTextColor(WeatherBrand.ERROR)
@@ -266,7 +274,7 @@ class WeatherSettingsActivity : Activity() {
 
     private fun scheduleSearch(query: String, delayMs: Long) {
         searchRunnable?.let { ui.removeCallbacks(it) }
-        val q = query.trim()
+        val q = OpenMeteoClient.normalizeQuery(query)
         val seq = ++searchSeq
         if (q.length < 2) {
             results.removeAllViews()
@@ -275,7 +283,7 @@ class WeatherSettingsActivity : Activity() {
         }
         val r = Runnable {
             searchStatus.text = "Searching..."
-            io.execute {
+            searchIo.execute {
                 val res = OpenMeteoClient.searchPlaces(q)
                 if (!destroyed) ui.post { if (seq == searchSeq) showResults(res) }
             }

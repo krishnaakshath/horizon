@@ -12,7 +12,7 @@ object Refresher {
         val place = store.load().place ?: return true
         val result = OpenMeteoClient.fetchForecast(place)
         val snap = result.getOrNull() ?: return false
-        store.setSnapshot(place, snap)
+        store.setSnapshotIfPlace(place, snap)
         return true
     }
 }

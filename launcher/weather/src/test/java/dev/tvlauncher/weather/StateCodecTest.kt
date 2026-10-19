@@ -35,4 +35,17 @@ class StateCodecTest {
         assertNull(s.place)
         assertNull(s.snapshot)
     }
+
+    @Test fun nullHighLowRoundTrip() {
+        val s = WeatherState(place, "C", snap.copy(highC = null, lowC = null))
+        assertEquals(s, StateCodec.decode(StateCodec.encode(s)))
+    }
+
+    @Test fun implausibleValuesOnDecode() {
+        assertNull(StateCodec.decode("""{"snapshot":{"tempC":1e300,"code":1,"updatedMs":1}}""").snapshot)
+        val s = StateCodec.decode("""{"snapshot":{"tempC":5,"code":1,"updatedMs":1,"humidity":900,"windKmh":-1e300,"highC":-1e300}}""").snapshot!!
+        assertEquals(100, s.humidity)
+        assertEquals(0.0, s.windKmh, 0.0)
+        assertNull(s.highC)
+    }
 }

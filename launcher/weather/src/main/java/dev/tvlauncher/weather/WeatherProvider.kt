@@ -34,7 +34,7 @@ class WeatherProvider : ContentProvider() {
             val cursor = when (which) {
                 CURRENT -> MatrixCursor(WeatherContract.CURRENT_COLUMNS).also { c ->
                     if (snap != null && state.place != null) {
-                        c.addRow(arrayOf<Any>(
+                        c.addRow(arrayOf<Any?>(
                             state.place.name, snap.tempC, snap.feelsC, snap.code,
                             WmoCodes.text(snap.code), if (snap.isDay) 1 else 0, snap.highC, snap.lowC,
                             snap.humidity, snap.windKmh, snap.updatedMs, state.unit,
@@ -43,7 +43,7 @@ class WeatherProvider : ContentProvider() {
                 }
                 DAILY -> MatrixCursor(WeatherContract.DAILY_COLUMNS).also { c ->
                     snap?.daily?.sortedBy { it.dayMs }?.take(5)?.forEach {
-                        c.addRow(arrayOf<Any>(it.dayMs, it.code, WmoCodes.text(it.code), it.highC, it.lowC))
+                        c.addRow(arrayOf<Any?>(it.dayMs, it.code, WmoCodes.text(it.code), it.highC, it.lowC))
                     }
                 }
                 else -> MatrixCursor(WeatherContract.CURRENT_COLUMNS)
