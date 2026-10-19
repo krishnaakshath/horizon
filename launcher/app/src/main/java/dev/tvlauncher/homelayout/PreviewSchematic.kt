@@ -64,7 +64,7 @@ object PreviewSchematic {
         for (r in 0 until rows) {
             val top = y + r * plan.rowPitchDp + TileSpec.PAD_DP
             for (c in 0 until cols) {
-                val l = left + c * plan.pitchDp
+                val l = LayoutStyle.cardStartDp(plan.dims) + c * plan.pitchDp
                 add(if (r == 0 && c == 0) Part.TILE_FOCUSED else Part.TILE, l, top, l + plan.dims.widthDp, top + plan.dims.heightDp)
             }
         }

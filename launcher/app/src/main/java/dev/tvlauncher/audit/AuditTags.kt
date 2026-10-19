@@ -11,6 +11,8 @@ import dev.tvlauncher.R
  *   between any two of its descendants are not reported.
  * - [IGNORE]: skip this view and its subtree (decorations: focus rings, glows, ripples, pulses).
  * - [FULLBLEED]: may run to the screen edge (backdrops, hero art); exempt from safe-area/offscreen.
+ * - [PEEK]: a scroller that runs edge to edge so its items scroll in and peek past the end: the
+ *   scroller itself is exempt from safe-area/offscreen; its items are checked on the start edges only.
  * - [DENSE]: a dense label; exempt from the (opt-in) 18 sp body-text check, not from the 14 sp floor.
  * - [CONTENT]: treat a plain view as content for overlap/clipping checks.
  * - [SCRIM]: a deliberately translucent dimming layer; never reported as "content shows through".
@@ -28,6 +30,7 @@ object AuditTags {
     const val CONTENT = "audit:content"
     const val SCRIM = "audit:scrim"
     const val OPAQUE = "audit:opaque"
+    const val PEEK = "audit:peek"
 
     /** The key for [View.setTag]/[View.getTag]; frees the plain `view.tag` for app use. */
     val KEY: Int get() = R.id.audit_tag

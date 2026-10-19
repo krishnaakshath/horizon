@@ -8,7 +8,10 @@ import android.widget.FrameLayout
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import dev.tvlauncher.audit.AuditTags
+import dev.tvlauncher.audit.auditTag
 import dev.tvlauncher.homelayout.LayoutPlan
+import dev.tvlauncher.homelayout.LayoutStyle
 import dev.tvlauncher.homelayout.ListKind
 
 /**
@@ -24,10 +27,13 @@ class Shelf(context: Context, private val shelfAdapter: ShelfAdapter, marginH: I
         clipToPadding = false
         clipChildren = false
         itemAnimator = null
-        setPadding(marginH - pad, pad, marginH - pad, pad)
+        setPadding(context.dp(LayoutStyle.listPadStartDp(shelfAdapter.dims)), pad,
+            context.dp(LayoutStyle.listPadEndDp(shelfAdapter.dims)), pad)
+        // Runs edge to edge so tiles scroll in and peek past the end; tiles are checked on the start edge.
+        auditTag(AuditTags.PEEK)
         addItemDecoration(object : RecyclerView.ItemDecoration() {
             override fun getItemOffsets(out: Rect, v: View, p: RecyclerView, s: RecyclerView.State) {
-                out.right = context.dp(TileSpec.GAP_DP) - 2 * pad
+                out.right = context.dp(TileSpec.DECOR_DP)
             }
         })
     }
@@ -55,6 +61,7 @@ class Shelf(context: Context, private val shelfAdapter: ShelfAdapter, marginH: I
      */
     fun apply(plan: LayoutPlan, resized: Boolean) {
         heightDp = plan.listHeightDp
+        list.setPadding(context.dp(LayoutStyle.listPadStartDp(plan.dims)), pad, context.dp(LayoutStyle.listPadEndDp(plan.dims)), pad)
         val lp = list.layoutParams as LayoutParams
         val w = plan.listWidthDp?.let { context.dp(it) } ?: LayoutParams.MATCH_PARENT
         if (lp.width != w) { lp.width = w; list.layoutParams = lp }

@@ -105,7 +105,7 @@ class LayoutStyleTest {
                 HeroMode.NONE -> Unit
             }
             // The last whole card ends inside the right safe margin.
-            val lastCardRight = LayoutStyle.SAFE_H_DP + (p.columns - 1) * p.pitchDp + p.dims.widthDp
+            val lastCardRight = LayoutStyle.cardStartDp(p.dims) + (p.columns - 1) * p.pitchDp + p.dims.widthDp
             assertTrue(what, lastCardRight <= scr.widthDp - LayoutStyle.SAFE_H_DP)
             p.listWidthDp?.let { assertTrue(what, it <= scr.widthDp) }
             assertTrue(what, p.columns >= 1 && p.visibleRows >= 1 && p.tileScale >= LayoutStyle.MIN_SCALE)
@@ -133,7 +133,7 @@ class LayoutStyleTest {
     @Test fun gridWidth_makesEverySpanOneTilePitch() {
         for (sc in scales) for (scr in screens) {
             val p = plan(HomeStyle.GRID, sc, scr)
-            val inner = p.listWidthDp!! - 2 * (LayoutStyle.SAFE_H_DP - TileSpec.PAD_DP)
+            val inner = p.listWidthDp!! - LayoutStyle.listPadStartDp(p.dims) - LayoutStyle.listPadEndDp(p.dims)
             assertEquals(p.columns * p.pitchDp, inner)
         }
     }

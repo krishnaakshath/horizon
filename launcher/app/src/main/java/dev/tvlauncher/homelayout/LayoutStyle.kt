@@ -114,10 +114,27 @@ object LayoutStyle {
         HomeStyle.GRID, HomeStyle.MINIMAL -> HeroMode.NONE
     }
 
-    /** Whole tiles across [screen] with the left card edge on the safe margin. */
-    fun columns(screen: ScreenDp, cardWidthDp: Int): Int {
-        val room = screen.widthDp - 2 * (SAFE_H_DP - TileSpec.PAD_DP)
-        return maxOf(1, room / (cardWidthDp + TileSpec.GAP_DP))
+    /**
+     * List start padding: the first tile view rests [TileSpec.focusGrowDp] inside the safe margin,
+     * so the focused (scaled) tile, its ring and label never cross it.
+     */
+    fun listPadStartDp(d: TileDims): Int = SAFE_H_DP + TileSpec.focusGrowDp(d)
+
+    /** End padding: the last tile's decoration fills the rest, so the end mirrors the start. */
+    fun listPadEndDp(d: TileDims): Int = listPadStartDp(d) - TileSpec.DECOR_DP
+
+    /** Left edge of the first card. */
+    fun cardStartDp(d: TileDims): Int = listPadStartDp(d) + TileSpec.PAD_DP
+
+    /**
+     * Whole tiles across [screen]: a scrolling row counts the cards resting inside the safe area
+     * (the focused one scrolls in); a grid has every column on screen, focused ones included.
+     */
+    fun columns(screen: ScreenDp, d: TileDims, kind: ListKind = ListKind.ROW): Int {
+        val pitch = d.widthDp + TileSpec.GAP_DP
+        val room = if (kind == ListKind.GRID) screen.widthDp - listPadStartDp(d) - listPadEndDp(d)
+        else screen.widthDp - SAFE_H_DP - cardStartDp(d) + TileSpec.GAP_DP
+        return maxOf(1, room / pitch)
     }
 
     fun plan(settings: HomeLayoutSettings, userScale: Float, screen: ScreenDp): LayoutPlan {
@@ -162,9 +179,9 @@ object LayoutStyle {
         }
         rows = rows.coerceAtLeast(1)
         val listH = rows * dims.viewHeightDp + 2 * TileSpec.PAD_DP
-        val cols = columns(screen, dims.widthDp)
+        val cols = columns(screen, dims, kind)
         val heroH = (inner - listH).coerceAtLeast(0)
-        val listW = if (kind == ListKind.GRID) 2 * (SAFE_H_DP - TileSpec.PAD_DP) + cols * (dims.widthDp + TileSpec.GAP_DP) else null
+        val listW = if (kind == ListKind.GRID) listPadStartDp(dims) + listPadEndDp(dims) + cols * (dims.widthDp + TileSpec.GAP_DP) else null
         var artW = 0
         var artH = 0
         if (hero == HeroMode.ART) {
