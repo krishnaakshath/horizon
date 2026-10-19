@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+    <path android:name="outer" android:pathData="M37.86,16 A16,16 0 1,1 16,10.14" android:strokeWidth="5" android:strokeLineCap="round" android:fillColor="#00000000" android:trimPathEnd="0">
+        <aapt:attr name="android:strokeColor">
+                <gradient android:type="linear" android:startX="8" android:startY="40" android:endX="40" android:endY="8">
+                    <item android:offset="0" android:color="#FF5B8CFF"/>
+                    <item android:offset="0.55" android:color="#FF8B5CF6"/>
+                    <item android:offset="1" android:color="#FF22D3EE"/>
+                </gradient>
+            </aapt:attr>
+    </path>
+    <path android:name="inner" android:pathData="M20,30.93 A8,8 0 0,1 28,17.07" android:strokeWidth="4" android:strokeLineCap="round" android:fillColor="#00000000" android:strokeColor="#FFF5F7FA" android:strokeAlpha="0.92" android:trimPathEnd="0"/>
+    <group android:name="dotg" android:pivotX="28.14" android:pivotY="8.55" android:scaleX="0" android:scaleY="0">
+        <path android:pathData="M28.14,8.55 m-3.5,0 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0" android:fillColor="#FF22D3EE"/>
+    </group>
+</vector>

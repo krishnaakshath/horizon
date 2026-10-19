@@ -120,7 +120,7 @@ class BrowserActivity : Activity() {
         forwardBtn = RoundButton(this, R.drawable.ic_forward, "Forward") { web?.takeIf { it.canGoForward() }?.goForward() }
         reloadBtn = RoundButton(this, R.drawable.ic_reload, "Reload") { reload() }
         homeBtn = RoundButton(this, R.drawable.ic_home, "Home") { showStart() }
-        moreBtn = RoundButton(this, R.drawable.ic_more, "More") { openMenu() }
+        moreBtn = RoundButton(this, R.drawable.ic_menu, "More") { openMenu() }
         urlBar = UrlBar(this) { text -> navigate(UrlResolver.resolve(text)); refocusRoot() }
         val size = dp(BUTTON_DP)
         listOf(backBtn, forwardBtn, reloadBtn, homeBtn).forEachIndexed { i, b ->
@@ -449,7 +449,7 @@ class BrowserActivity : Activity() {
             else -> "Can't open this page" to "$host couldn't be loaded" + (raw?.let { " ($it)." } ?: ".")
         }
         message.show(
-            R.drawable.ic_globe, Theme.TEXT_2, title, body,
+            R.drawable.ic_warn, Theme.TEXT_2, title, body,
             "Try again" to { navigate(url) },
             "Start page" to { showStart() }
         )
@@ -461,7 +461,7 @@ class BrowserActivity : Activity() {
         startPage.visibility = View.GONE
         dots.visibility = View.GONE
         message.show(
-            R.drawable.ic_globe, Theme.TEXT_2, "Web browsing isn't available",
+            R.drawable.ic_warn, Theme.TEXT_2, "Web browsing isn't available",
             "This TV's Android System WebView is missing or turned off, so web pages can't be shown. " +
                 "Turn it on in Settings › Apps (show system apps), then open Browser again.",
             "Back to start" to { showStart() },
