@@ -50,6 +50,7 @@ import dev.tvlauncher.ui.TileMenu
 import dev.tvlauncher.ui.TopBar
 import dev.tvlauncher.ui.TopBarNav
 import dev.tvlauncher.ui.dp
+import dev.tvlauncher.watch.WatchHome
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -84,6 +85,10 @@ class HomeActivity : Activity() {
     private var firstLoad = true
     private var splash: SplashOverlay? = null
     @Volatile private var installed: List<AppEntry> = emptyList()
+    /** Apps hidden from Home (user-hidden and setup clutter); their titles never show in Continue watching. */
+    @Volatile private var hiddenPackages: Set<String> = emptySet()
+    /** Continue watching in the hero area (watch package); null if it could not be built. */
+    private var watch: WatchHome? = null
     /** Leading favorites in the arranged list (the top row of "Two rows"); written by the loader. */
     @Volatile private var favoriteCount = 0
     /** Where focus returns when Spotlight closes: a non-shelf view, else the tile at [restoreIndex]. */
@@ -159,7 +164,7 @@ class HomeActivity : Activity() {
         tileMenu = TileMenu(this, prefs) { reload() }.also(sounds::bind)
         adapter = ShelfAdapter(
             packageManager, look.profile,
-            onFocused = { pos, app, tile -> onAppFocused(app); onTileFocusedForStrip(pos, tile, app) },
+            onFocused = { pos, app, tile -> onAppFocused(app); onTileFocusedForStrip(pos, tile, app); if (splash == null) watch?.onTileFocused(app.packageName) },
             onClick = ::launch,
             onLongPress = { app -> tileMenu.show(app, visiblePackages()); sounds.menuOpen() },
             onDown = { onTileDown() },
@@ -194,8 +199,19 @@ class HomeActivity : Activity() {
             onDiscoverClosed = { focusPosition(adapter.footerPosition) || focusTile(adapter.lastFocused) }
         )
         root.viewTreeObserver.addOnGlobalFocusChangeListener { _, now -> strip.onGlobalFocus(now); sounds.onFocusChanged() }
+        watch = try { buildWatch() } catch (e: RuntimeException) { null }
         setContentView(root)
     }
+
+    private fun buildWatch(): WatchHome = WatchHome(
+        this, heroBox, lite = !look.profile.full,
+        iconFor = { pkg -> try { packageManager.getApplicationIcon(pkg) } catch (e: Exception) { null } },
+        accentFor = { pkg -> installed.firstOrNull { it.packageName == pkg }?.let { adapter.accentOf(it) }
+            ?: dev.tvlauncher.discover.PopularApps.brandColorFor(pkg) ?: Theme.SURFACE },
+        labelFor = { pkg -> installed.firstOrNull { it.packageName == pkg }?.label },
+        backToShelf = { focusTile(adapter.lastFocused) },
+        shelf = shelf
+    ).also { w -> w.onProgramsChanged = { spotlight.setWatchPrograms(w.programs) } }
 
     private fun launch(app: AppEntry, v: View) = launcher.launch(app, v).let {
         sounds.launch(it)
@@ -210,6 +226,7 @@ class HomeActivity : Activity() {
     /** The "Get more apps" tile: no app accent, a plain hero line, and no quick-strip. */
     private fun onFooterFocused() {
         strip.reset()
+        watch?.onTileFocused(null)
         heroBox.hero.showText(DiscoverTileSpec.LABEL, HERO_DISCOVER_SUBTITLE, backdrop.heroColor)
     }
 
@@ -226,7 +243,8 @@ class HomeActivity : Activity() {
     }
 
     /** Arrow and page keys on a tile: two rows and the grid move focus themselves; the single row passes. */
-    private fun onShelfKey(pos: Int, keyCode: Int): Boolean = applyNav(layout.navKey(pos, keyCode))
+    private fun onShelfKey(pos: Int, keyCode: Int): Boolean =
+        applyNav(layout.navKey(pos, keyCode)) || (keyCode == KeyEvent.KEYCODE_DPAD_UP && watch?.focusRow() == true)
 
     private fun applyNav(r: NavResult?): Boolean = when (r) {
         is NavResult.Move -> { if (stripHere) strip.onTileDpad(); focusPosition(r.position) }
@@ -290,6 +308,7 @@ class HomeActivity : Activity() {
                 val all = repo.load()
                 installed = all
                 val s = prefs.load()
+                hiddenPackages = s.hidden + all.map { it.packageName }.filter { AppFilter.isDefaultHidden(it, s) }
                 val shown = AppFilter.arrange(all, s).also { adapter.preload(it, ShelfAdapter.PRELOAD) }
                 val favs = s.favorites.toHashSet()
                 favoriteCount = shown.takeWhile { it.packageName in favs }.size
@@ -311,6 +330,7 @@ class HomeActivity : Activity() {
         adapter.submit(apps, footer, favoriteCount)
         layout.listChanged()
         spotlight.setApps(searchable, installed.mapTo(HashSet()) { it.packageName })
+        watch?.setApps(installed.mapTo(HashSet()) { it.packageName }, hiddenPackages)
         shelfBox.loader.visibility = View.GONE
         layout.setEmpty(apps.isEmpty())
         val wasFirst = firstLoad
@@ -464,6 +484,7 @@ class HomeActivity : Activity() {
         adapter.getItems().getOrNull(adapter.lastFocused)?.let(::onAppFocused)
         topBar.startStatus()
         modules.start()
+        watch?.start() // Continue watching: settings, provider observer, refresh
     }
 
     override fun onStop() {
@@ -476,6 +497,7 @@ class HomeActivity : Activity() {
         volume.release()
         topBar.stopStatus() // always paired with startStatus (TopBar tracks it)
         modules.stop() // panels closed; controllers, device monitor and idle timer stopped
+        watch?.stop()
         super.onStop()
     }
 
@@ -500,6 +522,7 @@ class HomeActivity : Activity() {
     override fun onDestroy() {
         if (redirected) return super.onDestroy()
         tileMenu.dismiss()
+        watch?.destroy()
         modules.destroy()
         repo.unregister()
         loader.shutdownNow()

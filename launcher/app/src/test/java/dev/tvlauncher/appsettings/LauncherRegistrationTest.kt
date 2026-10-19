@@ -24,6 +24,7 @@ class LauncherRegistrationTest {
         WaveTwoSections.registerAll(r)
         SetupSection.register(r)
         r.register(SpotlightSection)
+        dev.tvlauncher.watch.WatchSection.register(r)
         SystemSections.registerAll(r)
         return r
     }
@@ -51,6 +52,12 @@ class LauncherRegistrationTest {
         assertTrue(system.toString(), ControllersSection.ID in system)
         assertTrue(system.toString(), system.indexOf(SpeedSection.ID) < system.indexOf(ControllersSection.ID))
         assertTrue(ControllersSection.spec.primaryRows.size <= 7)
+    }
+
+    @Test fun continueWatching_sitsInHome_afterSpotlight() {
+        val home = all().sections().filter { it.group == SettingsGroup.HOME }.map { it.id }
+        assertTrue(home.toString(), dev.tvlauncher.watch.WatchPage.ID in home)
+        assertTrue(home.indexOf(SpotlightSection.id) < home.indexOf(dev.tvlauncher.watch.WatchPage.ID))
     }
 
     @Test fun everySpecifiedPage_isWithinThePrimaryRowBudget() {

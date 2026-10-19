@@ -37,6 +37,8 @@ import dev.tvlauncher.appsettings.SettingsRegistry
 import dev.tvlauncher.audit.AuditTags
 import dev.tvlauncher.audit.auditTag
 import dev.tvlauncher.panel.PanelStyle
+import dev.tvlauncher.search.EverythingResults
+import dev.tvlauncher.search.EverythingSearch
 import dev.tvlauncher.spotlight.SearchScope
 import dev.tvlauncher.spotlight.SettingsHit
 import dev.tvlauncher.spotlight.SpotlightConfig
@@ -45,6 +47,7 @@ import dev.tvlauncher.spotlight.SpotlightResult
 import dev.tvlauncher.spotlight.SpotlightResults
 import dev.tvlauncher.ui.QuickActions.Item
 import dev.tvlauncher.ui.Theme.style
+import dev.tvlauncher.watch.WatchProgram
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -56,7 +59,9 @@ import java.util.concurrent.Executors
  *
  * Settings > Home > Spotlight ([SpotlightConfig], re-read on every open) picks the actions and
  * their order, the search scope (apps only, or apps + Settings pages + recently opened apps),
- * the hints and whether an action closes the panel.
+ * the hints and whether an action closes the panel. The "Everything" scope hands the query to
+ * [EverythingSearch] (search package): grouped rows of apps, titles, settings, actions, popular
+ * apps, a calculator answer and web search.
  */
 class SpotlightPanel(
     context: Context,
@@ -78,6 +83,9 @@ class SpotlightPanel(
     private var config: SpotlightConfig = SpotlightConfig.DEFAULT
     private var settingsHits: List<SettingsHit> = emptyList()
     private var recent: List<String> = emptyList()
+    /** Continue watching titles (watch package), for the Everything scope. */
+    private var watchPrograms: List<WatchProgram> = emptyList()
+    private var everythingOn = false
 
     /**
      * Set when "Close after an action" is off and an action left the home screen: the panel is
@@ -203,9 +211,18 @@ class SpotlightPanel(
         auditTag(AuditTags.LAYER) // results or "No matching apps", never both visible
     }
 
+    private val everything = EverythingSearch(context, EverythingResults(context).apply { visibility = View.GONE }, object : EverythingSearch.Host {
+        override fun launchApp(app: AppEntry, from: View) = onLaunch(app, from)
+        override fun runAction(item: Item) = this@SpotlightPanel.runAction(item)
+        override fun closePanel() = close(animate = false)
+        override fun setQuery(text: String) { search.setText(text); search.setSelection(text.length) }
+        override fun bindAppIcon(app: AppEntry, view: ImageView) = bindIcon(app, view)
+    })
+
     override fun hasOverlappingRendering() = false
 
     init {
+        resultsBox.addView(everything.view, LayoutParams(-1, -2))
         visibility = View.GONE
         clipChildren = false
         addView(scrim, LayoutParams(-1, -1))
@@ -224,6 +241,7 @@ class SpotlightPanel(
         apps = list
         installedPackages = installed
         if (!isOpen) return
+        if (everythingOn) prepareEverything()
         scheduleRank()
         val items = currentItems()
         if (items != shownActions) {
@@ -232,6 +250,14 @@ class SpotlightPanel(
             if (hadFocus) actionsRow.getChildAt(0)?.requestFocus()
         }
     }
+
+    /** Titles for the Everything scope; refreshed whenever Home re-reads them. */
+    fun setWatchPrograms(list: List<WatchProgram>) {
+        watchPrograms = list
+        if (isOpen && everythingOn) { prepareEverything(); scheduleRank() }
+    }
+
+    private fun prepareEverything() = everything.prepare(apps, installedPackages, prefs.recent(), watchPrograms)
 
     fun open() {
         if (isOpen) return
@@ -290,8 +316,10 @@ class SpotlightPanel(
     private fun loadConfig() {
         config = try { prefs.load() } catch (e: RuntimeException) { SpotlightConfig.DEFAULT }
         val all = config.scope == SearchScope.ALL
-        search.hint = if (all) "Search apps and settings" else "Search apps"
-        noMatches.text = if (all) NO_MATCHES else NO_APPS
+        everythingOn = config.scope == SearchScope.EVERYTHING
+        if (everythingOn) prepareEverything()
+        search.hint = if (everythingOn) "Search apps, titles, settings and the web" else if (all) "Search apps and settings" else "Search apps"
+        noMatches.text = if (all || everythingOn) NO_MATCHES else NO_APPS
         settingsHits = if (all) settingsPages() else emptyList()
         recent = if (all) prefs.recent() else emptyList()
         hintLine.text = HINT
@@ -354,11 +382,15 @@ class SpotlightPanel(
         hideIme()
         removeCallbacks(rankRunnable)
         updateResults() // apply any pending keystrokes before moving focus
+        if (isOpen && everythingOn) { everything.view.firstRow()?.requestFocus(); return }
         if (results.childCount > 0) results.getChildAt(0).requestFocus()
     }
 
     private fun updateResults() {
         val q = if (isOpen) search.text?.toString().orEmpty() else ""
+        if (isOpen && everythingOn) return updateEverything(q)
+        everything.view.visibility = View.GONE
+        actionsRow.visibility = View.VISIBLE
         val shown = SpotlightResults.compute(q, if (isOpen) config.scope else SearchScope.APPS, apps, settingsHits, recent)
         val ranked = shown.results
         val keepFocus = results.hasFocus()
@@ -375,6 +407,26 @@ class SpotlightPanel(
         }
         resultsScroll.scrollTo(0, 0)
         if (keepFocus) (if (results.childCount > 0) results.getChildAt(0) else search).requestFocus()
+    }
+
+    /**
+     * Everything scope: grouped rows instead of the tile row. While typing, the quick-action
+     * buttons step aside (actions are results too), so the panel fits the screen.
+     */
+    private fun updateEverything(q: String) {
+        val keepFocus = everything.view.hasFocus()
+        results.removeAllViews()
+        iconViews.clear()
+        val r = everything.update(q)
+        val typing = q.isNotBlank()
+        actionsRow.visibility = if (typing) View.GONE else View.VISIBLE
+        actionLabel.visibility = if (!typing && config.showHints) View.VISIBLE else View.GONE
+        hintLine.visibility = if (!typing && config.showHints) View.VISIBLE else View.GONE
+        resultsBox.visibility = if (typing || !r.isEmpty) View.VISIBLE else View.GONE
+        resultsScroll.visibility = View.GONE
+        everything.view.visibility = if (r.isEmpty) View.GONE else View.VISIBLE
+        noMatches.visibility = if (r.isEmpty) View.VISIBLE else View.GONE
+        if (keepFocus) (everything.view.firstRow() ?: search).requestFocus()
     }
 
     private fun resultTile(app: AppEntry): View {
