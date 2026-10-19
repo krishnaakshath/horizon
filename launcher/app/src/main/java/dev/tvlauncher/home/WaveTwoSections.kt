@@ -3,6 +3,7 @@ package dev.tvlauncher.home
 import android.content.Context
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.ScrollView
 import dev.tvlauncher.R
 import dev.tvlauncher.ambient.AmbientDream
 import dev.tvlauncher.ambient.AmbientSettingsRows
@@ -80,9 +81,8 @@ object AmbientSection : SettingsSection {
         val store = WallpaperStore(context)
         val a = AppearancePrefs(context).load()
         val is24h = AppearanceFormat.is24h(a.clockFormat, android.text.format.DateFormat.is24HourFormat(context))
-        val stored = store.load()
-        val s = AmbientGate.withClock(stored, is24h)
-        if (s !== stored) store.save(s) // the ambient clock follows Appearance
+        // Display only: the stored clock format is synced when Home starts ambient (HomeAmbient.startNow).
+        val s = AmbientGate.withClock(store.load(), is24h)
         val save = { n: WallpaperSettings -> store.save(n); nav.refresh() }
         page.lead("A calm full-screen clock, weather and wallpaper when the home screen sits idle.")
         page.row("ambient.start", "Start ambient now", RowKind.Action {
@@ -115,19 +115,30 @@ object AmbientSection : SettingsSection {
         return page
     }
 
-    /** Hosts [WallpaperPickerPanel] in the content pane; its grid has a bounded height of its own. */
+    /**
+     * Hosts [WallpaperPickerPanel] in the content pane. The panel stacks taller than a 720p pane
+     * (title, grid, slideshow/interval/dim and notification rows, path text), so it sits in a
+     * ScrollView capped at the pane height; focus moves scroll it. The picker is shown once the
+     * host has its real width (the pane is narrower than the screen), and dismissed on detach.
+     */
     private fun pickerPage(context: Context, nav: SettingsNav): View {
         val picker = WallpaperPickerPanel(context, nav.profile, WallpaperStore(context)) { }
-        return object : FrameLayout(context) {
-            override fun onAttachedToWindow() {
-                super.onAttachedToWindow()
-                post { if (isAttachedToWindow && !picker.isShowing) picker.show(this) }
+        val host = object : FrameLayout(context) {
+            override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+                super.onSizeChanged(w, h, oldw, oldh)
+                if (w > 0 && !picker.isShowing) post { if (isAttachedToWindow && !picker.isShowing) picker.show(this) }
             }
 
             override fun onDetachedFromWindow() {
                 picker.dismiss() // cancels jobs and recycles thumbnails
                 super.onDetachedFromWindow()
             }
+        }
+        return ScrollView(context).apply {
+            isFillViewport = true
+            isVerticalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            addView(host, FrameLayout.LayoutParams(-1, -2))
         }
     }
 }

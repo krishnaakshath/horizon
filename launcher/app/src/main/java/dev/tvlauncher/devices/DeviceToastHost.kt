@@ -21,6 +21,9 @@ class DeviceToastHost(context: Context, private val mode: EffectsMode) : FrameLa
     private var exiting = false
     private val hold = Runnable { exit() }
 
+    /** Called (main thread) each time a card actually appears; the host plays its sound here. */
+    var onCardShown: ((DeviceEvent) -> Unit)? = null
+
     init {
         isFocusable = false
         isClickable = false
@@ -31,7 +34,7 @@ class DeviceToastHost(context: Context, private val mode: EffectsMode) : FrameLa
             context.dp(Theme.MARGIN_H) - context.dp(12), context.dp(Theme.MARGIN_V) - context.dp(12))
     }
 
-    /** Main thread. Returns true for a new card, false when it was ignored or coalesced (no sound then). */
+    /** Main thread. Returns true for a new card, false when it was ignored or coalesced. */
     fun show(event: DeviceEvent): Boolean {
         val prior = queue.eventFor(event.device.id)
         val offer = queue.offer(event)
@@ -53,6 +56,7 @@ class DeviceToastHost(context: Context, private val mode: EffectsMode) : FrameLa
         val connected = e !is DeviceEvent.Disconnected
         v.animateIn(connected) { main.postDelayed(hold, DeviceToastView.HOLD_MS) }
         v.announceForAccessibility(v.contentDescription)
+        onCardShown?.invoke(e)
     }
 
     private fun exit() {

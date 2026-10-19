@@ -249,7 +249,9 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
                 val kind = DeviceClassifier.fromInputDevice(d.sources, d.name, external, d.isVirtual)
                 if (kind == DeviceKind.UNKNOWN) continue
                 if (BuiltInDevices.isTvInternal(d.name)) {
-                    // The TV's own receiver: never listed; its id silences a re-enumeration under a new name.
+                    // The TV's own receiver: never listed. Seeding its key AND vendor:product is intended:
+                    // RemoteFilter then also silences any non-pad HID re-enumerating with the same ids
+                    // under another name (the remote waking up as "virtual-*" etc.).
                     RemoteFilter.vidPidOf(d.vendorId, d.productId)?.let { remoteFilter.seed("input:" + d.descriptor, it, kind) }
                     continue
                 }

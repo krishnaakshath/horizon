@@ -97,9 +97,9 @@ class StatusIcons(private val context: Context, private val onChange: (StatusMod
     fun refresh() {
         val wm = wifiManager()
         val kind = netKind()
-        val next = StatusModel.Status(
+        val next = StatusModel.status(
             kind = kind,
-            rssi = if (kind == WifiConnection.Kind.WIFI) wifiRssi(wm) else null,
+            rawRssi = if (kind == WifiConnection.Kind.WIFI) wifiRssi(wm) else null,
             wifiEnabled = try { wm?.isWifiEnabled == true } catch (e: RuntimeException) { false },
             bt = bluetooth()
         )
@@ -119,10 +119,10 @@ class StatusIcons(private val context: Context, private val onChange: (StatusMod
 
     private fun wifiManager() = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
 
-    /** Raw dBm, validated exactly like WifiController (the panel header) does. */
+    /** Raw dBm; StatusModel.status validates and buckets it exactly like the panel header. */
     @Suppress("DEPRECATION") // getConnectionInfo is the rssi source below API 31.
     private fun wifiRssi(wm: WifiManager?): Int? = try {
-        WifiConnection.rssiOrNull(wm?.connectionInfo?.rssi)
+        wm?.connectionInfo?.rssi
     } catch (e: RuntimeException) {
         null
     }

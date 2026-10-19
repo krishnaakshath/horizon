@@ -63,6 +63,10 @@ class WeatherChipModelTest {
         assertEquals(WxIcon.CLEAR_NIGHT, c.icon)
     }
 
+    @Test fun noTemperature_hidden() {
+        assertFalse(WeatherChipModel.from(snap(tempC = Double.NaN), now, true).visible)
+    }
+
     @Test fun weatherSettingsRow_installedOrNot() {
         assertEquals("Open", WaveTwoSections.weatherRowValue(installed = true))
         assertEquals("Not installed", WaveTwoSections.weatherRowValue(installed = false))

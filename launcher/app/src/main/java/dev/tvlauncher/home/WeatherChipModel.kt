@@ -11,7 +11,7 @@ data class WeatherChip(val visible: Boolean, val text: String, val icon: WxIcon?
 /**
  * Pure decision for the compact weather chip next to the clock: hidden when the user turned it off
  * (Settings > Home screen > "Weather in top bar"), the companion is missing (null snapshot) or the
- * data is older than 3 h; otherwise the condition icon and the rounded temperature in the
+ * data is older than 3 h or has no usable temperature; otherwise the condition icon and the rounded temperature in the
  * provider's unit (values are Celsius; high/low are not used, so null ones are fine).
  */
 object WeatherChipModel {
@@ -21,6 +21,7 @@ object WeatherChipModel {
         val c = snap?.current ?: return HIDDEN
         if (!enabled || !WeatherFreshness.isUsable(c.updatedMs, nowMs)) return HIDDEN
         val text = WeatherFormat.temp(c.tempC, c.unit)
+        if (!text.endsWith("°")) return HIDDEN // no usable temperature: no chip
         val description = if (c.condition.isBlank()) text else "$text, ${c.condition}"
         return WeatherChip(true, text, WeatherFormat.iconFor(c.code, c.isDay), description)
     }

@@ -2,6 +2,7 @@ package dev.tvlauncher.ui
 
 import dev.tvlauncher.network.NetIcons
 import dev.tvlauncher.network.WifiConnection
+import dev.tvlauncher.network.WifiNetworkModel
 
 /**
  * Pure status-bar rules. The top-bar pills use [Status] and the [networkPillIcon] /
@@ -10,8 +11,18 @@ import dev.tvlauncher.network.WifiConnection
  * network summary text; it never feeds the pills.
  */
 object StatusModel {
-    /** Live state read by StatusIcons. [bt] is null when the TV has no Bluetooth adapter. */
-    data class Status(val kind: WifiConnection.Kind, val rssi: Int?, val wifiEnabled: Boolean, val bt: NetIcons.BtState?)
+    /**
+     * Live state read by StatusIcons. [wifiLevel] is the 0..4 bucket (WifiNetworkModel.levelOf),
+     * null when not on Wi-Fi or the signal is unreadable, so RSSI jitter inside a bucket is no change.
+     * [bt] is null when the TV has no Bluetooth adapter. Build it with [status].
+     */
+    data class Status(val kind: WifiConnection.Kind, val wifiLevel: Int?, val wifiEnabled: Boolean, val bt: NetIcons.BtState?)
+
+    /** Validates [rawRssi] like WifiController and buckets it exactly like the panel header. */
+    fun status(kind: WifiConnection.Kind, rawRssi: Int?, wifiEnabled: Boolean, bt: NetIcons.BtState?): Status {
+        val rssi = if (kind == WifiConnection.Kind.WIFI) WifiConnection.rssiOrNull(rawRssi) else null
+        return Status(kind, rssi?.let { WifiNetworkModel.levelOf(it) }, wifiEnabled, bt)
+    }
 
     /** Same rule as WifiController: Ethernet wins over Wi-Fi; anything else is NONE. */
     fun connectionKind(hasNetwork: Boolean, ethernet: Boolean, wifi: Boolean): WifiConnection.Kind = when {
@@ -28,7 +39,7 @@ object StatusModel {
         else -> NetIcons.BtState.ON
     }
 
-    fun networkPillIcon(s: Status): Int = NetIcons.forConnection(s.kind, s.rssi)
+    fun networkPillIcon(s: Status): Int = NetIcons.forConnectionLevel(s.kind, s.wifiLevel)
 
     /** Null hides the Bluetooth pill (no adapter). */
     fun bluetoothPillIcon(s: Status): Int? = s.bt?.let { NetIcons.forBluetooth(it) }

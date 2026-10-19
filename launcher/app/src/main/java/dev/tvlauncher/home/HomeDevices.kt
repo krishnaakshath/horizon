@@ -19,7 +19,8 @@ import dev.tvlauncher.ui.dp
 /**
  * Device announcements and the Devices panel on the home screen. Owns one [DeviceMonitor] and
  * adds a [DeviceToastHost] on top of [root]. Cards follow [DeviceAnnouncePolicy] (no Wi-Fi, Ethernet
- * plug/unplug only, quiet during the splash and the first 5 s); sounds go through [HomeSounds].
+ * plug/unplug only, quiet during the splash and the first 5 s); each card's sound plays through
+ * [HomeSounds] when the card appears.
  * The panel is a focus-trapping overlay; BACK closes it and focus goes to [fallbackFocus].
  *
  * Lifecycle: [start] in onStart (monitor seeds silently, then listens); [stop] in onStop (monitor
@@ -34,7 +35,11 @@ class HomeDevices(
     private val fallbackFocus: () -> Unit,
     private val onOpenChanged: (Boolean) -> Unit
 ) {
-    private val toasts = DeviceToastHost(context, mode).also { root.addView(it, FrameLayout.LayoutParams(-1, -1)) }
+    private val toasts = DeviceToastHost(context, mode).also {
+        root.addView(it, FrameLayout.LayoutParams(-1, -1))
+        // The sound plays when a card really appears, so queued or coalesced offers stay silent.
+        it.onCardShown = { e -> sounds.device(DeviceAnnouncePolicy.sound(e, newCard = true)) }
+    }
     private val monitor = DeviceMonitor(context, ::onEvent)
     private var startedAt = 0L
     private var overlay: FrameLayout? = null
@@ -55,7 +60,7 @@ class HomeDevices(
     private fun onEvent(e: DeviceEvent) {
         val since = SystemClock.uptimeMillis() - startedAt
         if (!DeviceAnnouncePolicy.showCard(e, since, splashRunning())) return
-        sounds.device(DeviceAnnouncePolicy.sound(e, newCard = toasts.show(e)))
+        toasts.show(e)
     }
 
     /** Opens the panel over everything; false when it is already open. */
@@ -77,12 +82,16 @@ class HomeDevices(
             topMargin = context.dp(Theme.MARGIN_V); bottomMargin = context.dp(Theme.MARGIN_V); marginEnd = context.dp(Theme.MARGIN_H)
         })
         root.addView(o, FrameLayout.LayoutParams(-1, -1))
+        toastsToFront()
         overlay = o
         monitor.onChanged = { panel.setDevices(monitor.devices()) }
         o.requestFocus()
         onOpenChanged(true)
         return true
     }
+
+    /** Keeps device cards above any panel scrim added to the root later. */
+    fun toastsToFront() = toasts.bringToFront()
 
     /** BACK: true when the panel was open and is now closed. */
     fun onBack(): Boolean = closePanel()

@@ -11,7 +11,7 @@ import org.junit.Test
 
 /** The top-bar pills and the network panel header must go through the same icon functions. */
 class StatusPillsTest {
-    private fun wifi(rssi: Int) = StatusModel.Status(Kind.WIFI, WifiConnection.rssiOrNull(rssi), true, null)
+    private fun wifi(rssi: Int) = StatusModel.status(Kind.WIFI, rssi, true, null)
 
     @Test fun pillIcon_equalsPanelHeaderIcon_forEveryRssi() {
         for (rssi in -127..-30) {
@@ -39,7 +39,7 @@ class StatusPillsTest {
 
     @Test fun ethernet_and_none() {
         assertEquals(R.drawable.ic_net_ethernet, StatusModel.networkPillIcon(StatusModel.Status(Kind.ETHERNET, null, true, null)))
-        assertEquals(R.drawable.ic_net_ethernet, StatusModel.networkPillIcon(StatusModel.Status(Kind.ETHERNET, -40, true, null)))
+        assertEquals(R.drawable.ic_net_ethernet, StatusModel.networkPillIcon(StatusModel.status(Kind.ETHERNET, -40, true, null)))
         assertEquals(R.drawable.ic_net_wifi_off, StatusModel.networkPillIcon(StatusModel.Status(Kind.NONE, null, true, null)))
         assertEquals(R.drawable.ic_net_wifi_off, StatusModel.networkPillIcon(StatusModel.Status(Kind.NONE, null, false, null)))
         // Wi-Fi with unreadable signal: same as the panel header (lowest level, still connected).
@@ -72,6 +72,13 @@ class StatusPillsTest {
         for (s in NetIcons.BtState.values()) {
             assertEquals(NetIcons.forBluetooth(s), StatusModel.bluetoothPillIcon(StatusModel.Status(Kind.NONE, null, true, s)))
         }
+    }
+
+    @Test fun status_storesTheBucket_notTheRawRssi() {
+        assertEquals(StatusModel.status(Kind.WIFI, -60, true, null), StatusModel.status(Kind.WIFI, -58, true, null))
+        assertEquals(3, StatusModel.status(Kind.WIFI, -60, true, null).wifiLevel)
+        assertNull(StatusModel.status(Kind.WIFI, -127, true, null).wifiLevel)
+        assertNull(StatusModel.status(Kind.ETHERNET, -40, true, null).wifiLevel)
     }
 
     @Test fun networkLabel() {

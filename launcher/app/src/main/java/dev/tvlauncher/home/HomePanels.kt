@@ -56,13 +56,13 @@ class HomePanels(
             QuickActions.Route.WIFI_PANEL -> openWifi(null)
             QuickActions.Route.BLUETOOTH_PANEL -> openBluetooth(null)
             QuickActions.Route.DEVICES_PANEL -> open { devices.showPanel() }
-            QuickActions.Route.AMBIENT -> startAmbient().also { sounds.action(it) }
+            QuickActions.Route.AMBIENT -> { sounds.action(startAmbient()); true } // handled here, even on failure
             QuickActions.Route.SYSTEM -> false
         }
 
     private inline fun open(block: () -> Boolean): Boolean {
         if (isShowing) return false // one panel at a time
         closeSpotlight()
-        return block().also { if (it) sounds.panel(opened = true) }
+        return block().also { if (it) { sounds.panel(opened = true); devices.toastsToFront() } }
     }
 }
