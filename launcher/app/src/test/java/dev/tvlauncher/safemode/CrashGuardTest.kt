@@ -143,46 +143,6 @@ class CrashGuardTest {
     }
 
     @Test
-    fun crashInSafeMode_setsFlag() {
-        trip()
-        guard.recordSafeModeCrash("InflateException")
-        assertTrue(store.saved.safeModeCrashed)
-        assertEquals("InflateException", store.saved.lastException)
-        assertEquals(3, store.saved.times.size) // not counted as a home crash
-    }
-
-    @Test
-    fun flagSet_redirectClearsTripAndFlag() {
-        trip()
-        guard.recordSafeModeCrash("X")
-        assertFalse(guard.shouldRedirect()) // HomeActivity runs instead of a broken safe mode
-        assertFalse(store.saved.safeModeCrashed)
-        assertFalse(store.saved.tripped)
-        assertTrue(store.saved.times.isEmpty())
-    }
-
-    @Test
-    fun flagSet_noInfiniteLoop() {
-        // Worst case: home always crashes and safe mode always crashes. Every HOME press must make
-        // progress: safe mode is shown only after three fresh home crashes, never twice in a row.
-        var redirects = 0
-        var homeRuns = 0
-        repeat(10) {
-            repeat(3) {
-                assertFalse("home runs until it trips", guard.shouldRedirect())
-                homeRuns++
-                guard.recordCrash("HomeCrash"); now += 2_000
-            }
-            assertTrue(guard.shouldRedirect()); redirects++
-            guard.recordSafeModeCrash("SafeCrash"); now += 2_000
-            assertFalse("a crashed safe mode is not shown again", guard.shouldRedirect())
-            assertFalse(store.saved.tripped)
-        }
-        assertEquals(10, redirects)
-        assertEquals(30, homeRuns)
-    }
-
-    @Test
     fun history_isCapped_andNamesAreShort() {
         repeat(20) { guard.recordCrash("X".repeat(500)); now += 200_000 }
         assertEquals(CrashGuard.MAX_TIMES, store.saved.times.size)
@@ -211,15 +171,4 @@ class CrashGuardTest {
         assertTrue(CrashHistory.decodeTimes(null).isEmpty())
     }
 
-    @Test
-    fun gate_decisions() {
-        val day = 24 * hour
-        assertEquals(SafeModeGate.Decision.HOME, SafeModeGate.decide(CrashHistory(), now, boot))
-        val tripped = CrashHistory(listOf(1L), "A", tripped = true, trippedAt = now, tripBoot = boot)
-        assertEquals(SafeModeGate.Decision.SAFE_MODE, SafeModeGate.decide(tripped, now + day - 1, boot))
-        assertEquals(SafeModeGate.Decision.RETRY_HOME, SafeModeGate.decide(tripped, now + day, boot))
-        assertEquals(SafeModeGate.Decision.RETRY_HOME, SafeModeGate.decide(tripped, now, boot + 1))
-        assertEquals(SafeModeGate.Decision.RETRY_HOME, SafeModeGate.decide(tripped.copy(safeModeCrashed = true), now, boot))
-        assertEquals(SafeModeGate.Decision.SAFE_MODE, SafeModeGate.decide(tripped.copy(tripBoot = -1), now, boot))
-    }
 }

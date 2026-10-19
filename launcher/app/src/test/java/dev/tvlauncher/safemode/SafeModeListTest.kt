@@ -68,4 +68,34 @@ class SafeModeListTest {
         assertEquals(SafeModeList.Row.Notice(SafeModeList.APPS_FAILED), rows.last())
         assertEquals("Could not list apps", SafeModeList.label(rows.last()))
     }
+
+    @Test
+    fun minimalScreen_hasSettingsRow_evenWhenAppListFails() {
+        val rows = SafeModeList.minimal(stockLauncherAvailable = false)
+        assertEquals(SafeModeList.Row.SystemSettings, rows.first())
+        assertTrue(SafeModeList.Row.TryNormal in rows)
+        assertTrue(rows.none { it is SafeModeList.Row.App })
+        assertTrue(SafeModeList.Row.Notice(SafeModeList.ENABLE_STOCK_HINT) in rows)
+        assertFalse(SafeModeList.Row.StockLauncher in rows)
+        val full = SafeModeList.build(emptyList(), emptyList(), "dev.tvlauncher", false, appsFailed = true)
+        assertTrue(SafeModeList.Row.SystemSettings in full)
+    }
+
+    @Test
+    fun minimalScreen_offersStockLauncher_whenAvailable() {
+        val rows = SafeModeList.minimal(stockLauncherAvailable = true)
+        assertEquals(listOf(SafeModeList.Row.SystemSettings, SafeModeList.Row.StockLauncher, SafeModeList.Row.TryNormal), rows)
+    }
+
+    @Test
+    fun systemSettingsTargets_inOrder() {
+        assertEquals(
+            listOf(
+                SettingsEscape.Target.Action("android.settings.SETTINGS"),
+                SettingsEscape.Target.Action("android.settings.APPLICATION_SETTINGS"),
+                SettingsEscape.Target.Package("com.android.tv.settings")
+            ),
+            SettingsEscape.TARGETS
+        )
+    }
 }

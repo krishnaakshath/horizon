@@ -7,6 +7,7 @@ object SafeModeList {
     const val HEADER = "Safe mode — the main launcher crashed repeatedly"
     const val STOCK_LAUNCHER = "com.google.android.tvlauncher"
     const val APPS_FAILED = "Could not list apps"
+    const val ENABLE_STOCK_HINT = "To get the stock launcher back: Settings → Apps → TV launcher → Enable"
 
     sealed class Row {
         object TryNormal : Row()
@@ -36,6 +37,13 @@ object SafeModeList {
         }
         if (appsFailed) rows += Row.Notice(APPS_FAILED)
         return rows
+    }
+
+    /** The minimal screen (safe mode crashed once): no app list, system Settings first. */
+    fun minimal(stockLauncherAvailable: Boolean): List<Row> = buildList {
+        add(Row.SystemSettings)
+        if (stockLauncherAvailable) add(Row.StockLauncher) else add(Row.Notice(ENABLE_STOCK_HINT))
+        add(Row.TryNormal)
     }
 
     fun label(row: Row): String = when (row) {

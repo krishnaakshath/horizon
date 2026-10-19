@@ -1,9 +1,10 @@
 package dev.tvlauncher.safemode
 
 /**
- * What survives a crash: crash times, the last exception's short class name and the trip record.
- * No stack traces. [trippedAt] / [tripBoot] (Settings.Global.BOOT_COUNT, -1 when unknown) let a
- * trip expire; [retriedAt] is when it last expired; [safeModeCrashed] means safe mode itself crashed.
+ * What survives a crash: home crash times, the last exception's short class name and the trip
+ * record. No stack traces. [trippedAt] / [tripBoot] (Settings.Global.BOOT_COUNT, -1 when unknown)
+ * let a trip expire; [retriedAt] is when it last expired; [safeModeCrashTimes] are crashes of safe
+ * mode itself; [escapedToSettings] (since [escapedAt] / [escapeBoot]) is the ladder's last level.
  */
 data class CrashHistory(
     val times: List<Long> = emptyList(),
@@ -12,7 +13,10 @@ data class CrashHistory(
     val trippedAt: Long = 0L,
     val tripBoot: Int = -1,
     val retriedAt: Long = 0L,
-    val safeModeCrashed: Boolean = false
+    val safeModeCrashTimes: List<Long> = emptyList(),
+    val escapedToSettings: Boolean = false,
+    val escapedAt: Long = 0L,
+    val escapeBoot: Int = -1
 ) {
     companion object {
         fun encodeTimes(times: List<Long>): String = times.joinToString(",")
@@ -30,9 +34,9 @@ interface CrashStore {
 
 /**
  * Pure crash bookkeeping (spec section 6). [THRESHOLD] home-screen crashes within [WINDOW_MS] trip
- * safe mode. A trip ends on "Try normal launcher again" ([reset]) or by itself once (see
- * [SafeModeGate]): after a reboot, after [EXPIRY_MS], or when safe mode itself crashed. A real
- * crash loop re-trips within seconds, so an automatic retry is safe. Never throws.
+ * safe mode; what HomeActivity then does is the [EscapePlan] ladder. A trip ends on "Try normal
+ * launcher again" ([reset]) or by itself after a reboot or [EXPIRY_MS]. A real crash loop re-trips
+ * within seconds, so an automatic retry is safe. Never throws; a broken store fails open (home).
  */
 class CrashGuard(
     private val store: CrashStore,
@@ -61,11 +65,15 @@ class CrashGuard(
         }
     }
 
-    /** SafeModeActivity itself crashed: the next HOME press must not land in it again. */
+    /** SafeModeActivity itself crashed: the next HOME press climbs one rung of the [EscapePlan]. */
     @Synchronized
     fun recordSafeModeCrash(exceptionClass: String) {
         try {
-            store.write(read().copy(safeModeCrashed = true, lastException = exceptionClass.take(MAX_NAME)))
+            val old = read()
+            store.write(old.copy(
+                safeModeCrashTimes = (old.safeModeCrashTimes + now()).takeLast(MAX_TIMES),
+                lastException = exceptionClass.take(MAX_NAME)
+            ))
         } catch (e: Throwable) {
         }
     }
@@ -74,26 +82,26 @@ class CrashGuard(
 
     val history: CrashHistory get() = read()
 
-    /**
-     * HomeActivity's question on every start. On [SafeModeGate.Decision.RETRY_HOME] the trip, the
-     * crash times and the safe-mode flag are cleared once, so three fresh crashes are needed to trip again.
-     */
+    /** HomeActivity's question on every start; persists the ladder's bookkeeping. Fails open to HOME. */
     @Synchronized
-    fun shouldRedirect(): Boolean {
+    fun decide(): EscapePlan.Level = try {
         val h = read()
-        return when (SafeModeGate.decide(h, now(), safeBoot())) {
-            SafeModeGate.Decision.SAFE_MODE -> true
-            SafeModeGate.Decision.HOME -> false
-            SafeModeGate.Decision.RETRY_HOME -> {
-                try { store.write(CrashHistory(lastException = h.lastException, retriedAt = now())) } catch (e: Throwable) { }
-                false
-            }
-        }
+        val out = EscapePlan.decide(h, now(), safeBoot())
+        if (out.history != h) try { store.write(out.history) } catch (e: Throwable) { }
+        out.level
+    } catch (e: Throwable) {
+        EscapePlan.Level.HOME
     }
 
+    fun shouldRedirect(): Boolean = decide() != EscapePlan.Level.HOME
+
+    /**
+     * "Try normal launcher again": clears home crashes and the trip, but keeps recent safe-mode
+     * crashes so a stubborn loop still climbs to the system Settings end point.
+     */
     @Synchronized
     fun reset() {
-        try { store.write(CrashHistory()) } catch (e: Throwable) { }
+        try { store.write(CrashHistory(safeModeCrashTimes = read().safeModeCrashTimes)) } catch (e: Throwable) { }
     }
 
     private fun read(): CrashHistory = try { store.read() } catch (e: Throwable) { CrashHistory() }
@@ -117,16 +125,48 @@ class CrashGuard(
     }
 }
 
-/** The pure redirect decision HomeActivity makes before building anything. */
-object SafeModeGate {
-    enum class Decision { HOME, SAFE_MODE, RETRY_HOME }
+/**
+ * The escape ladder, pure. Every HOME press makes progress and ends in a state that is guaranteed
+ * usable: the TV's own Settings app, from which the stock launcher can be re-enabled.
+ *
+ * | Level             | When                                                        |
+ * |-------------------|-------------------------------------------------------------|
+ * | HOME              | not tripped, or a trip/escape expired (reboot or 24 h)      |
+ * | SAFE_MODE_FULL    | tripped, safe mode has not crashed in the last 10 minutes   |
+ * | SAFE_MODE_MINIMAL | tripped, safe mode crashed once in the last 10 minutes      |
+ * | SYSTEM_SETTINGS   | safe mode crashed twice within 10 minutes; sticky until expiry |
+ */
+object EscapePlan {
+    enum class Level { HOME, SAFE_MODE_FULL, SAFE_MODE_MINIMAL, SYSTEM_SETTINGS }
 
-    fun decide(h: CrashHistory, nowMs: Long, bootCount: Int): Decision = when {
-        h.safeModeCrashed -> Decision.RETRY_HOME // a broken safe mode must never trap the owner
-        !h.tripped -> Decision.HOME
-        bootCount >= 0 && h.tripBoot >= 0 && bootCount != h.tripBoot -> Decision.RETRY_HOME
-        nowMs - h.trippedAt >= CrashGuard.EXPIRY_MS -> Decision.RETRY_HOME
-        else -> Decision.SAFE_MODE
+    data class Outcome(val level: Level, val history: CrashHistory)
+
+    const val SAFE_CRASH_WINDOW_MS = 10 * 60_000L
+
+    /** A reboot (both boot counts known and different), the clock going back, or [CrashGuard.EXPIRY_MS] elapsed. */
+    fun expired(sinceMs: Long, sinceBoot: Int, nowMs: Long, bootCount: Int): Boolean {
+        if (bootCount >= 0 && sinceBoot >= 0 && bootCount != sinceBoot) return true
+        val e = nowMs - sinceMs
+        return e < 0 || e >= CrashGuard.EXPIRY_MS
+    }
+
+    fun decide(h: CrashHistory, nowMs: Long, bootCount: Int): Outcome {
+        val fresh = CrashHistory(lastException = h.lastException, retriedAt = nowMs)
+        if (h.escapedToSettings) {
+            return if (expired(h.escapedAt, h.escapeBoot, nowMs, bootCount)) Outcome(Level.HOME, fresh)
+            else Outcome(Level.SYSTEM_SETTINGS, h)
+        }
+        if (!h.tripped) return Outcome(Level.HOME, h)
+        if (expired(h.trippedAt, h.tripBoot, nowMs, bootCount)) return Outcome(Level.HOME, fresh)
+        val safeCrashes = h.safeModeCrashTimes.count { val e = nowMs - it; e in 0 until SAFE_CRASH_WINDOW_MS }
+        return when {
+            safeCrashes >= 2 -> Outcome(
+                Level.SYSTEM_SETTINGS,
+                h.copy(escapedToSettings = true, escapedAt = nowMs, escapeBoot = bootCount)
+            )
+            safeCrashes == 1 -> Outcome(Level.SAFE_MODE_MINIMAL, h)
+            else -> Outcome(Level.SAFE_MODE_FULL, h)
+        }
     }
 }
 
