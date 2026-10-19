@@ -12,7 +12,7 @@ import kotlin.math.sin
 /**
  * Three dots with a staggered vertical bounce and slight scale (~900 ms cycle). One ValueAnimator
  * drives a phase; onDraw only does arithmetic (no allocation per frame). The animator runs only
- * while the view is attached and visible.
+ * while the view is attached and visible, and never when [Motion] is off (the dots then rest).
  */
 class BouncingDots(context: Context, color: Int = Theme.TEXT) : View(context) {
     private val density = resources.displayMetrics.density
@@ -55,7 +55,7 @@ class BouncingDots(context: Context, color: Int = Theme.TEXT) : View(context) {
 
     override fun onVisibilityAggregated(isVisible: Boolean) {
         super.onVisibilityAggregated(isVisible)
-        if (isVisible && isAttachedToWindow) {
+        if (isVisible && isAttachedToWindow && Motion.enabled) {
             if (!animator.isStarted) animator.start()
         } else {
             animator.cancel()
@@ -64,7 +64,7 @@ class BouncingDots(context: Context, color: Int = Theme.TEXT) : View(context) {
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        if (isShown && !animator.isStarted) animator.start()
+        if (isShown && Motion.enabled && !animator.isStarted) animator.start()
     }
 
     override fun onDetachedFromWindow() {

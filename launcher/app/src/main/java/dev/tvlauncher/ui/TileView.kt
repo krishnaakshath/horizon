@@ -14,8 +14,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import dev.tvlauncher.apps.AppEntry
-import dev.tvlauncher.device.DeviceProfile
-import dev.tvlauncher.device.EffectsMode
+import dev.tvlauncher.home.EffectiveProfile
 import dev.tvlauncher.ui.Theme.style
 
 /**
@@ -23,7 +22,7 @@ import dev.tvlauncher.ui.Theme.style
  * centered on a card tinted with the brand [accent]. Focus: scale, ring, deeper shadow, full
  * alpha and a bright label, all via ViewPropertyAnimator.
  */
-class TileView(context: Context) : FrameLayout(context) {
+class TileView(context: Context, private val dims: TileDims = TileSpec.dims(1f)) : FrameLayout(context) {
     private val density = resources.displayMetrics.density
     private fun dp(v: Int) = v * density
     private fun dpi(v: Int) = (v * density + 0.5f).toInt()
@@ -75,30 +74,31 @@ class TileView(context: Context) : FrameLayout(context) {
 
     private var parallax = false
     private var effectsFull = false
+    private var focusMs = TileSpec.FOCUS_MS
 
     init {
         isFocusable = true
         isClickable = true
         clipChildren = false
         clipToPadding = false
-        layoutParams = LayoutParams(dpi(TileSpec.VIEW_WIDTH_DP), dpi(TileSpec.VIEW_HEIGHT_DP))
+        layoutParams = LayoutParams(dpi(dims.viewWidthDp), dpi(dims.viewHeightDp))
         val pad = dpi(TileSpec.PAD_DP)
-        val iconOuter = dpi(TileSpec.ICON_DP * 108 / 72)
+        val iconOuter = dpi(dims.iconDp * 108 / 72)
         iconBox.addView(bgView, LayoutParams(iconOuter, iconOuter, Gravity.CENTER))
         iconBox.addView(fgView, LayoutParams(iconOuter, iconOuter, Gravity.CENTER))
         card.addView(bannerView, LayoutParams(-1, -1))
-        card.addView(iconBox, LayoutParams(dpi(TileSpec.ICON_DP), dpi(TileSpec.ICON_DP), Gravity.CENTER))
-        card.addView(legacyView, LayoutParams(dpi(TileSpec.ICON_DP), dpi(TileSpec.ICON_DP), Gravity.CENTER))
+        card.addView(iconBox, LayoutParams(dpi(dims.iconDp), dpi(dims.iconDp), Gravity.CENTER))
+        card.addView(legacyView, LayoutParams(dpi(dims.iconDp), dpi(dims.iconDp), Gravity.CENTER))
         card.addView(letterView, LayoutParams(-1, -1))
-        content.addView(card, LayoutParams(dpi(TileSpec.WIDTH_DP), dpi(TileSpec.HEIGHT_DP)).apply {
+        content.addView(card, LayoutParams(dpi(dims.widthDp), dpi(dims.heightDp)).apply {
             leftMargin = pad; topMargin = pad
         })
         val ro = dpi(TileSpec.RING_OFFSET_DP)
-        content.addView(ring, LayoutParams(dpi(TileSpec.WIDTH_DP) + 2 * ro, dpi(TileSpec.HEIGHT_DP) + 2 * ro).apply {
+        content.addView(ring, LayoutParams(dpi(dims.widthDp) + 2 * ro, dpi(dims.heightDp) + 2 * ro).apply {
             leftMargin = pad - ro; topMargin = pad - ro
         })
-        content.addView(labelView, LayoutParams(dpi(TileSpec.WIDTH_DP), dpi(TileSpec.LABEL_HEIGHT_DP)).apply {
-            leftMargin = pad; topMargin = pad + dpi(TileSpec.HEIGHT_DP + TileSpec.LABEL_GAP_DP)
+        content.addView(labelView, LayoutParams(dpi(dims.widthDp), dpi(TileSpec.LABEL_HEIGHT_DP)).apply {
+            leftMargin = pad; topMargin = pad + dpi(dims.heightDp + TileSpec.LABEL_GAP_DP)
         })
         addView(content, LayoutParams(-1, -1))
         outlineProvider = null
@@ -108,10 +108,10 @@ class TileView(context: Context) : FrameLayout(context) {
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         pivotX = w / 2f
-        pivotY = dp(TileSpec.PAD_DP) + dp(TileSpec.HEIGHT_DP) / 2f
+        pivotY = dp(TileSpec.PAD_DP) + dp(dims.heightDp) / 2f
     }
 
-    fun bind(app: AppEntry, art: TileArt<Drawable>, profile: DeviceProfile, accent: Int) {
+    fun bind(app: AppEntry, art: TileArt<Drawable>, profile: EffectiveProfile, accent: Int) {
         animate().cancel()
         card.animate().cancel()
         ring.animate().cancel()
@@ -126,7 +126,8 @@ class TileView(context: Context) : FrameLayout(context) {
         labelView.setTextColor(Theme.TEXT_2)
         setLayerType(LAYER_TYPE_NONE, null)
         labelView.text = app.label
-        effectsFull = profile.effectsMode == EffectsMode.FULL
+        effectsFull = profile.full
+        focusMs = if (profile.animate) TileSpec.FOCUS_MS else 0L
         parallax = effectsFull || TileSpec.PARALLAX_IN_LITE
         bgView.translationX = 0f; fgView.translationX = 0f
         bgView.translationY = 0f; fgView.translationY = 0f
@@ -183,18 +184,18 @@ class TileView(context: Context) : FrameLayout(context) {
             .scaleX(s).scaleY(s)
             .translationZ(if (focused) z else 0f)
             .alpha(if (focused) TileSpec.FOCUS_ALPHA else TileSpec.REST_ALPHA)
-            .setDuration(TileSpec.FOCUS_MS)
+            .setDuration(focusMs)
             .withEndAction { if (effectsFull) setLayerType(LAYER_TYPE_NONE, null) }
             .start()
-        card.animate().translationZ(if (focused) z else 0f).setDuration(TileSpec.FOCUS_MS).start()
-        ring.animate().alpha(if (focused) 1f else 0f).setDuration(TileSpec.FOCUS_MS).start()
+        card.animate().translationZ(if (focused) z else 0f).setDuration(focusMs).start()
+        ring.animate().alpha(if (focused) 1f else 0f).setDuration(focusMs).start()
         if (parallax) {
             bgView.animate().cancel()
             fgView.animate().cancel()
             val bg = if (focused) dp(TileSpec.PARALLAX_BG_DP) else 0f
             val fg = if (focused) -dp(TileSpec.PARALLAX_FG_DP) else 0f
-            bgView.animate().translationX(bg).translationY(bg).setDuration(TileSpec.FOCUS_MS).start()
-            fgView.animate().translationX(fg).translationY(fg).setDuration(TileSpec.FOCUS_MS).start()
+            bgView.animate().translationX(bg).translationY(bg).setDuration(focusMs).start()
+            fgView.animate().translationX(fg).translationY(fg).setDuration(focusMs).start()
         }
     }
 }

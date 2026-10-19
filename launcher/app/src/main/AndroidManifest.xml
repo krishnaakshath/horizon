@@ -32,6 +32,7 @@
     </queries>
 
     <application
+        android:name=".LauncherApp"
         android:allowBackup="false"
         android:label="TV Launcher"
         android:theme="@style/HomeTheme">

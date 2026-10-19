@@ -1,0 +1,46 @@
+package dev.tvlauncher.appsettings
+
+import dev.tvlauncher.insights.UsageAccess
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class ModuleSectionsTest {
+    @Test
+    fun registerAll_replacesPlaceholdersInPlace() {
+        val r = SettingsRegistry.newDefault()
+        ModuleSections.registerAll(r)
+        val ids = r.sections().map { it.id }
+        assertEquals(SettingsRegistry.BUILT_IN_IDS, ids)
+        for (id in ModuleSections.IDS) {
+            assertFalse(id, r.sections().first { it.id == id } is ModulePlaceholderSection)
+        }
+    }
+
+    @Test
+    fun registerAll_isIdempotent() {
+        val r = SettingsRegistry.newDefault()
+        ModuleSections.registerAll(r)
+        val first = r.sections()
+        ModuleSections.registerAll(r)
+        assertEquals(first.map { it.id }, r.sections().map { it.id })
+    }
+
+    @Test
+    fun usageAccessStatus_showsAdbLineOnlyWhenMissing() {
+        val granted = ModuleSections.usageAccessStatus(granted = true)
+        assertEquals("Granted", granted.first)
+        assertNull(granted.second)
+        val missing = ModuleSections.usageAccessStatus(granted = false)
+        assertEquals("Not granted", missing.first)
+        assertTrue(missing.second!!.contains(UsageAccess.ADB_LINE))
+    }
+
+    @Test
+    fun installedStatus() {
+        assertEquals("Not installed", ModuleSections.installedValue(false))
+        assertEquals("Installed", ModuleSections.installedValue(true))
+    }
+}

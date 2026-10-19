@@ -11,9 +11,10 @@ import androidx.recyclerview.widget.RecyclerView
 import dev.tvlauncher.apps.AppEntry
 import dev.tvlauncher.apps.AppFilter
 import dev.tvlauncher.apps.AppRepository
-import dev.tvlauncher.device.DeviceProfile
 import dev.tvlauncher.device.DeviceProfileReader
-import dev.tvlauncher.device.EffectsMode
+import dev.tvlauncher.home.EffectiveProfile
+import dev.tvlauncher.home.HomeAppearance
+import dev.tvlauncher.home.HomeLook
 import dev.tvlauncher.home.HomeSounds
 import dev.tvlauncher.launch.AndroidLaunchBackend
 import dev.tvlauncher.launch.AppLauncher
@@ -42,7 +43,8 @@ import java.util.concurrent.atomic.AtomicInteger
 class HomeActivity : Activity() {
     private lateinit var repo: AppRepository
     private lateinit var prefs: Prefs
-    private lateinit var profile: DeviceProfile
+    private lateinit var look: HomeLook
+    private lateinit var profile: EffectiveProfile
     private lateinit var launcher: AppLauncher
     private lateinit var tileMenu: TileMenu
     private lateinit var adapter: ShelfAdapter
@@ -71,13 +73,14 @@ class HomeActivity : Activity() {
         super.onCreate(savedInstanceState)
         repo = AppRepository(applicationContext)
         prefs = Prefs(applicationContext)
-        profile = DeviceProfileReader.read(this)
+        look = HomeLook(this, DeviceProfileReader.read(this))
+        profile = look.profile
         sounds = HomeSounds(this)
         buildUi()
         val wantsSpotlight = intent?.action == SpotlightKeys.ACTION
         if (wantsSpotlight) setIntent(Intent(intent).setAction(null)) // a recreation must not re-open it
-        if (SplashOverlay.enabled(this) && !wantsSpotlight) {
-            splash = SplashOverlay(this, profile.effectsMode == EffectsMode.FULL).also {
+        if (look.showSplash && !wantsSpotlight && !HomeLook.isRebuild(intent)) {
+            splash = SplashOverlay(this, profile.full).also {
                 (content.parent as FrameLayout).addView(it, FrameLayout.LayoutParams(-1, -1))
                 it.prepare(content.revealTargets())
                 it.start()
@@ -90,9 +93,9 @@ class HomeActivity : Activity() {
     }
 
     private fun buildUi() {
-        val full = profile.effectsMode == EffectsMode.FULL
+        val full = profile.full
         val root = FrameLayout(this)
-        backdrop = BackdropView(this, if (full) 350L else 250L)
+        backdrop = BackdropView(this, look.backdropMs)
         root.addView(backdrop, FrameLayout.LayoutParams(-1, -1))
         topBar = TopBar(
             this,
@@ -102,7 +105,7 @@ class HomeActivity : Activity() {
             onDown = ::onTopBarDown
         )
         heroBox = HeroBox(this, packageManager)
-        launcher = AppLauncher(profile, AndroidLaunchBackend(this))
+        launcher = AppLauncher(profile.device, AndroidLaunchBackend(this))
         tileMenu = TileMenu(this, prefs) { reload() }.also(sounds::bind)
         adapter = ShelfAdapter(
             packageManager, profile,
@@ -139,7 +142,7 @@ class HomeActivity : Activity() {
     private fun visiblePackages() = adapter.getItems().map { it.packageName }
 
     private fun onAppFocused(app: AppEntry) {
-        backdrop.setAccent(adapter.accentOf(app))
+        backdrop.setAccent(look.accent { adapter.accentOf(app) })
         heroBox.hero.show(app, backdrop.heroColor)
     }
 
@@ -205,7 +208,7 @@ class HomeActivity : Activity() {
         val wasFirst = firstLoad
         firstLoad = false
         if (wasFirst) {
-            sounds.readyIn(if (splash != null) SplashReveal.totalMs(profile.effectsMode == EffectsMode.FULL) else 0L)
+            sounds.readyIn(if (splash != null) SplashReveal.totalMs(profile.full) else 0L)
             splash?.let { s -> shelf.post { s.reveal(content.revealTargets()) } }
             splash = null
             if (pendingSpotlight) shelf.post { pendingSpotlight = false; openSpotlight() }
@@ -264,8 +267,12 @@ class HomeActivity : Activity() {
         sounds.reload()
     }
 
+    /** Also picks up Settings > Appearance edits when coming back from Settings. */
     override fun onStart() {
         super.onStart()
+        if (look.reload() == HomeAppearance.Change.REBUILD) return HomeLook.rebuild(this)
+        topBar.applyAppearance(look.settings)
+        adapter.getItems().getOrNull(adapter.lastFocused)?.let(::onAppFocused)
         topBar.startStatus()
     }
 

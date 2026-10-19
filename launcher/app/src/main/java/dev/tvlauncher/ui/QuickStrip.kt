@@ -81,8 +81,8 @@ class QuickStrip(
                 if (has) {
                     label.text = b.title
                     label.animate().cancel()
-                    label.animate().alpha(1f).setDuration(TileSpec.FOCUS_MS).start()
-                } else post { if (!group.hasFocus()) label.animate().alpha(0f).setDuration(TileSpec.FOCUS_MS).start() }
+                    label.animate().alpha(1f).setDuration(Motion.ms(TileSpec.FOCUS_MS)).start()
+                } else post { if (!group.hasFocus()) label.animate().alpha(0f).setDuration(Motion.ms(TileSpec.FOCUS_MS)).start() }
             }
         }
         group.addView(pill, LinearLayout.LayoutParams(-2, -2))
@@ -163,13 +163,13 @@ class QuickStrip(
         group.translationY = -context.dp(6).toFloat()
         group.alpha = 0f
         group.visibility = View.VISIBLE
-        group.animate().alpha(1f).translationY(0f).setDuration(SHOW_MS).start()
+        group.animate().alpha(1f).translationY(0f).setDuration(Motion.ms(SHOW_MS)).start()
     }
 
     private fun hide() {
         if (group.visibility != View.VISIBLE) return
         group.animate().cancel()
-        group.animate().alpha(0f).setDuration(HIDE_MS).withEndAction { group.visibility = View.INVISIBLE }.start()
+        group.animate().alpha(0f).setDuration(Motion.ms(HIDE_MS)).withEndAction { group.visibility = View.INVISIBLE }.start()
     }
 
     private fun onButtonKey(i: Int, code: Int): Boolean = when (code) {

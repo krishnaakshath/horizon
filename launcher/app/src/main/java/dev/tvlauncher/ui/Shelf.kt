@@ -9,7 +9,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
 /** The horizontal app row plus its first-load dots; [list] is the RecyclerView of tiles. */
-class Shelf(context: Context, shelfAdapter: ShelfAdapter, marginH: Int) : FrameLayout(context) {
+class Shelf(context: Context, private val shelfAdapter: ShelfAdapter, marginH: Int) : FrameLayout(context) {
     private val pad = context.dp(TileSpec.PAD_DP)
     val list = RecyclerView(context).apply {
         layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
@@ -34,5 +34,5 @@ class Shelf(context: Context, shelfAdapter: ShelfAdapter, marginH: Int) : FrameL
     }
 
     /** Total row height: tile view plus the ring/shadow padding above and below. */
-    fun heightPx() = context.dp(TileSpec.VIEW_HEIGHT_DP) + 2 * pad
+    fun heightPx() = context.dp(shelfAdapter.dims.viewHeightDp) + 2 * pad
 }

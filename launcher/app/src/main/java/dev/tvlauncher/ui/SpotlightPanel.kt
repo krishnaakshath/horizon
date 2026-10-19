@@ -66,7 +66,7 @@ class SpotlightPanel(
     /** Fallback IME state for API < 30 (no insets query): set on show, cleared on hide/BACK. */
     private var imeShown = false
     private val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-    private val openMs = SpotlightKeys.openMs(full)
+    private val openMs = Motion.ms(SpotlightKeys.openMs(full))
 
     private val scrim = View(context).apply { setBackgroundColor(if (full) 0x73000000 else 0x8C000000.toInt()) }
     private val card = object : LinearLayout(context) {
@@ -326,7 +326,7 @@ class SpotlightPanel(
         tile.setOnFocusChangeListener { v, has ->
             val s = if (has) 1.06f else 1f
             v.animate().cancel()
-            v.animate().scaleX(s).scaleY(s).setDuration(TileSpec.FOCUS_MS).start()
+            v.animate().scaleX(s).scaleY(s).setDuration(Motion.ms(TileSpec.FOCUS_MS)).start()
         }
         tile.layoutParams = LinearLayout.LayoutParams(context.dp(RESULT_W_DP), -2).apply {
             marginEnd = context.dp(Theme.S2)

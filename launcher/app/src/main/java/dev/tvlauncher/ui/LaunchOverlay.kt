@@ -30,7 +30,7 @@ class LaunchOverlay(context: Context) : FrameLayout(context) {
         animate().cancel()
         alpha = 0f
         visibility = View.VISIBLE
-        animate().alpha(1f).setDuration(120).start()
+        animate().alpha(1f).setDuration(Motion.ms(120)).start()
         postDelayed(hideRunnable, TIMEOUT_MS)
     }
 

@@ -74,7 +74,7 @@ class RoundButton(context: Context, iconRes: Int, title: String, onClick: () -> 
         applyFocus(gainFocus)
         val s = if (gainFocus) 1.1f else 1f
         animate().cancel()
-        animate().scaleX(s).scaleY(s).setDuration(TileSpec.FOCUS_MS).start()
+        animate().scaleX(s).scaleY(s).setDuration(Motion.ms(TileSpec.FOCUS_MS)).start()
     }
 
     override fun onDetachedFromWindow() {

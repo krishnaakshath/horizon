@@ -12,6 +12,8 @@ import android.widget.LinearLayout
 import android.widget.TextClock
 import android.widget.TextView
 import dev.tvlauncher.R
+import dev.tvlauncher.settings.AppearanceFormat
+import dev.tvlauncher.settings.AppearanceSettings
 import dev.tvlauncher.ui.Theme.style
 
 /**
@@ -41,22 +43,24 @@ class TopBar(
     val settingsButton = PillButton(context, R.drawable.ic_settings, "Settings", onSettings).apply {
         setOnLongClickListener { onSettingsLongPress(); true }
     }
+    private var statusVisible = true
     private val status = StatusIcons(context) { net, bt ->
         network.setImageResource(StatusIcons.drawable(net))
         network.contentDescription = net.name
         bluetooth.setImageResource(StatusIcons.drawable(bt))
         bluetooth.contentDescription = bt.name
-        bluetooth.visibility = if (bt == StatusModel.BtIcon.HIDDEN) View.GONE else View.VISIBLE
+        bluetooth.visibility = if (!statusVisible || bt == StatusModel.BtIcon.HIDDEN) View.GONE else View.VISIBLE
+    }
+    private val dot = View(context).apply {
+        background = GradientDrawable().apply { setColor(Theme.TEXT_2); shape = GradientDrawable.OVAL }
+        alpha = 0.6f
     }
 
     init {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         addView(clock, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
-        addView(View(context).apply {
-            background = GradientDrawable().apply { setColor(Theme.TEXT_2); shape = GradientDrawable.OVAL }
-            alpha = 0.6f
-        }, LayoutParams(context.dp(4), context.dp(4)).apply {
+        addView(dot, LayoutParams(context.dp(4), context.dp(4)).apply {
             marginStart = context.dp(Theme.S3); marginEnd = context.dp(Theme.S3)
         })
         addView(date, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
@@ -81,6 +85,18 @@ class TopBar(
 
     private fun iconParams() = LayoutParams(context.dp(22), context.dp(22)).apply {
         marginStart = context.dp(Theme.S4)
+    }
+
+    /** Settings > Appearance: clock format, date and status icons. */
+    fun applyAppearance(a: AppearanceSettings) {
+        val pattern = if (a.clock24h) AppearanceFormat.PATTERN_24H else AppearanceFormat.PATTERN_12H
+        clock.format12Hour = pattern
+        clock.format24Hour = pattern // the user's choice wins over the system 12/24-hour setting
+        date.visibility = if (a.showDate) View.VISIBLE else View.INVISIBLE // keeps the weight-1 spacer
+        dot.visibility = if (a.showDate) View.VISIBLE else View.GONE
+        statusVisible = a.showStatusIcons
+        network.visibility = if (a.showStatusIcons) View.VISIBLE else View.GONE
+        if (!a.showStatusIcons) bluetooth.visibility = View.GONE
     }
 
     fun startStatus() = status.start()
@@ -124,7 +140,7 @@ class TopBar(
             super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
             applyFocus(gainFocus)
             animate().scaleX(if (gainFocus) 1.06f else 1f).scaleY(if (gainFocus) 1.06f else 1f)
-                .setDuration(TileSpec.FOCUS_MS).start()
+                .setDuration(Motion.ms(TileSpec.FOCUS_MS)).start()
         }
     }
 }

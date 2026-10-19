@@ -8,6 +8,7 @@ import android.net.Uri
 import android.media.tv.TvInputInfo
 import android.media.tv.TvInputManager
 import android.provider.Settings
+import dev.tvlauncher.appsettings.AppSettingsActivity
 
 /** System shortcuts. Every launch is guarded so a missing handler never crashes. */
 object SystemActions {
@@ -40,7 +41,7 @@ object SystemActions {
 
     fun quickAction(context: Context, item: QuickActions.Item): Boolean = when (item) {
         QuickActions.Item.INPUTS -> inputs(context)
-        QuickActions.Item.SETTINGS -> settings(context)
+        QuickActions.Item.SETTINGS -> launcherSettings(context) || settings(context)
         QuickActions.Item.NETWORK -> settingsPage(context, Settings.ACTION_WIFI_SETTINGS)
         QuickActions.Item.BLUETOOTH -> settingsPage(context, Settings.ACTION_BLUETOOTH_SETTINGS)
         QuickActions.Item.SOUND -> settingsPage(context, Settings.ACTION_SOUND_SETTINGS)
@@ -48,9 +49,9 @@ object SystemActions {
         QuickActions.Item.BROWSER -> launchPackage(context, QuickActions.BROWSER_PACKAGE)
     }
 
-    /** The launcher's own settings screen, if a build provides one (separate task). */
+    /** The launcher's own settings screen ([AppSettingsActivity]); false if it does not resolve. */
     fun launcherSettings(context: Context): Boolean {
-        val i = Intent(LAUNCHER_SETTINGS_ACTION).setPackage(context.packageName)
+        val i = AppSettingsActivity.intent(context)
         if (context.packageManager.resolveActivity(i, 0) == null) return false
         return start(context, i)
     }

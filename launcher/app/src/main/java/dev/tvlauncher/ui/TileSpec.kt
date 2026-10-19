@@ -34,4 +34,18 @@ object TileSpec {
     const val LABEL_SP = 13
 
     enum class Ellipsize { NONE, START, MIDDLE, END }
+
+    /** Card sizes for a tile-size multiplier (Settings > Appearance > Tile size); 1f is today's tile. */
+    fun dims(scale: Float): TileDims {
+        if (scale == 1f) return TileDims(WIDTH_DP, HEIGHT_DP, ICON_DP)
+        val w = Math.round(WIDTH_DP * scale / 2f) * 2
+        return TileDims(w, Math.round(w * 9f / 16f), Math.round(ICON_DP * scale))
+    }
+}
+
+/** Size of one tile's card and view in dp; padding, label and gaps do not scale. */
+data class TileDims(val widthDp: Int, val heightDp: Int, val iconDp: Int) {
+    val viewWidthDp: Int get() = widthDp + 2 * TileSpec.PAD_DP
+    val viewHeightDp: Int get() =
+        TileSpec.PAD_DP + heightDp + TileSpec.LABEL_GAP_DP + TileSpec.LABEL_HEIGHT_DP + TileSpec.PAD_DP
 }

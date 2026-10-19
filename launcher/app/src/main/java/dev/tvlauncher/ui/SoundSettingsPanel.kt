@@ -44,7 +44,12 @@ class SoundSettingsPanel(
     private val prefs: SoundPrefs,
     private val player: SoundPlayer?,
     private val folderPath: String,
-    private val onChanged: (SoundSettings) -> Unit = {}
+    private val onChanged: (SoundSettings) -> Unit = {},
+    /**
+     * Hosted inside the Settings screen's pane: no own title, background or overscan padding, and
+     * no focus grab on attach (the screen focuses the first row when the user enters the page).
+     */
+    private val embedded: Boolean = false
 ) : LinearLayout(context) {
 
     private var s = prefs.load()
@@ -56,7 +61,7 @@ class SoundSettingsPanel(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        post { firstRow?.requestFocus() }
+        if (!embedded) post { firstRow?.requestFocus() }
     }
 
     override fun onDetachedFromWindow() {
@@ -65,14 +70,20 @@ class SoundSettingsPanel(
         super.onDetachedFromWindow()
     }
 
+    /** Focuses the first row; for hosts that enter the panel themselves. */
+    fun focusFirstRow(): Boolean = firstRow?.requestFocus() ?: false
+
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     init {
         orientation = VERTICAL
-        setBackgroundColor(Theme.BASE)
-        setPadding(dp(Theme.MARGIN_H), dp(Theme.MARGIN_V), dp(Theme.MARGIN_H), dp(Theme.MARGIN_V))
-
-        addView(TextView(context).apply { text = "Sounds"; style(30f, Theme.medium) })
+        if (!embedded) {
+            setBackgroundColor(Theme.BASE)
+            setPadding(dp(Theme.MARGIN_H), dp(Theme.MARGIN_V), dp(Theme.MARGIN_H), dp(Theme.MARGIN_V))
+            addView(TextView(context).apply { text = "Sounds"; style(30f, Theme.medium) })
+        } else {
+            setPadding(dp(Theme.S5), dp(Theme.S2), dp(Theme.S5), dp(Theme.S3))
+        }
         scroll.isFocusable = false
         scroll.isVerticalScrollBarEnabled = false
         content.orientation = VERTICAL

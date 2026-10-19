@@ -8,12 +8,12 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import dev.tvlauncher.apps.AppEntry
-import dev.tvlauncher.device.DeviceProfile
 import dev.tvlauncher.device.EffectsMode
+import dev.tvlauncher.home.EffectiveProfile
 
 class ShelfAdapter(
     private val pm: PackageManager,
-    private val profile: DeviceProfile,
+    private val profile: EffectiveProfile,
     private val onFocused: (Int, AppEntry, View) -> Unit,
     private val onClick: (AppEntry, View) -> Unit,
     private val onLongPress: (AppEntry) -> Unit,
@@ -24,8 +24,10 @@ class ShelfAdapter(
     class Holder(val tile: TileView) : RecyclerView.ViewHolder(tile)
 
     private var items: List<AppEntry> = emptyList()
+    /** Card size for the user's tile-size setting. */
+    val dims = TileSpec.dims(profile.tileScale)
     private val artCache = LruCache<String, TileArt<Drawable>>(
-        if (profile.effectsMode == EffectsMode.FULL) 96 else 40
+        if (profile.device.effectsMode == EffectsMode.FULL) 96 else 40
     )
     private val accents = BrandColors.Cache()
     private var sampler: ArtSampler? = null
@@ -67,10 +69,8 @@ class ShelfAdapter(
     override fun getItemCount() = items.size
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
-        val tile = TileView(parent.context)
-        tile.layoutParams = RecyclerView.LayoutParams(
-            parent.context.dp(TileSpec.VIEW_WIDTH_DP), parent.context.dp(TileSpec.VIEW_HEIGHT_DP)
-        )
+        val tile = TileView(parent.context, dims)
+        tile.layoutParams = RecyclerView.LayoutParams(parent.context.dp(dims.viewWidthDp), parent.context.dp(dims.viewHeightDp))
         return Holder(tile)
     }
 
