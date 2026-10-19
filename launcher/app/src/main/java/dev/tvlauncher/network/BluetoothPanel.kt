@@ -44,6 +44,9 @@ class BluetoothPanel(
     /** True from [show] until the close animation has finished. */
     val isShowing: Boolean get() = shell.isVisible
 
+    /** True while open and accepting input (false once the close animation has started). */
+    val isOpen: Boolean get() = shell.isOpen
+
     fun show(host: ViewGroup) {
         if (shell.isOpen) return
         if (!controller.isStarted) { controller.start(); startedHere = true }

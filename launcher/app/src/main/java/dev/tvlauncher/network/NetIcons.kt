@@ -34,5 +34,19 @@ object NetIcons {
         BtState.CONNECTED -> R.drawable.ic_net_bt_connected
     }
 
+    /**
+     * The network icon for a connection kind and RSSI: used by BOTH the Wi-Fi panel header and the
+     * top-bar network pill. Unknown Wi-Fi signal shows the lowest connected level.
+     */
+    fun forConnection(kind: WifiConnection.Kind, rssi: Int?): Int =
+        forConnectionLevel(kind, rssi?.let { WifiNetworkModel.levelOf(it) })
+
+    /** Same as [forConnection] for an already bucketed 0..4 [level] (null = signal unknown). */
+    fun forConnectionLevel(kind: WifiConnection.Kind, level: Int?): Int = when (kind) {
+        WifiConnection.Kind.ETHERNET -> ETHERNET
+        WifiConnection.Kind.WIFI -> forWifiLevel(level ?: 0, true)
+        WifiConnection.Kind.NONE -> forWifiLevel(0, false)
+    }
+
     val ETHERNET = R.drawable.ic_net_ethernet
 }

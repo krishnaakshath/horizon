@@ -2,6 +2,7 @@ package dev.tvlauncher
 
 import android.app.Application
 import dev.tvlauncher.appsettings.ModuleSections
+import dev.tvlauncher.home.WaveTwoSections
 import dev.tvlauncher.safemode.SafeMode
 
 /**
@@ -20,6 +21,11 @@ class LauncherApp : Application() {
             ModuleSections.registerAll()
         } catch (e: Throwable) {
             // Settings then shows the placeholders; the home screen is unaffected.
+        }
+        try {
+            WaveTwoSections.registerAll()
+        } catch (e: Throwable) {
+            // Same: the wave-2 pages stay placeholders or absent.
         }
     }
 }

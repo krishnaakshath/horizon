@@ -9,6 +9,7 @@ import android.view.Gravity
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import dev.tvlauncher.ui.Motion
 import dev.tvlauncher.ui.Theme
 import dev.tvlauncher.ui.Theme.style
 import dev.tvlauncher.ui.TileSpec
@@ -69,6 +70,6 @@ class SelectableStatusPill(context: Context, iconRes: Int, label: String? = null
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
         applyFocus(gainFocus)
         animate().scaleX(if (gainFocus) 1.06f else 1f).scaleY(if (gainFocus) 1.06f else 1f)
-            .setDuration(TileSpec.FOCUS_MS).start()
+            .setDuration(Motion.ms(TileSpec.FOCUS_MS)).start()
     }
 }

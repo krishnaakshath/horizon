@@ -29,7 +29,12 @@ data class WifiConnection(
     val level: Int get() = rssi?.let { WifiNetworkModel.levelOf(it) } ?: 0
     val band: WifiBand get() = WifiNetworkModel.bandOf(frequencyMhz)
 
-    companion object { val NONE = WifiConnection(Kind.NONE, null, null, null, 0, 0, null) }
+    companion object {
+        val NONE = WifiConnection(Kind.NONE, null, null, null, 0, 0, null)
+
+        /** A plausible RSSI (-126..0 dBm) or null; shared by the controller and the top-bar status. */
+        fun rssiOrNull(raw: Int?): Int? = raw?.takeIf { it in -126..0 }
+    }
 }
 
 data class WifiSnapshot(
@@ -214,7 +219,7 @@ class WifiController(context: Context) {
                 val info = wm?.connectionInfo
                 val ssid = info?.ssid?.trim('"')?.takeUnless { it.isBlank() || it == "<unknown ssid>" }
                 val bssid = info?.bssid?.takeUnless { it == "02:00:00:00:00:00" }
-                val rssi = info?.rssi?.takeIf { it in -126..0 }
+                val rssi = WifiConnection.rssiOrNull(info?.rssi)
                 val legacyIp = info?.ipAddress?.takeIf { it != 0 }?.let {
                     "${it and 0xff}.${it shr 8 and 0xff}.${it shr 16 and 0xff}.${it shr 24 and 0xff}"
                 }

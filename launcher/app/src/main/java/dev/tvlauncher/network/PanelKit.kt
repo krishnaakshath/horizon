@@ -94,6 +94,8 @@ internal class PanelShell(private val context: Context, private val lite: Boolea
         root.animate().cancel(); card.animate().cancel()
         (root.parent as? ViewGroup)?.removeView(root)
         host.addView(root, ViewGroup.LayoutParams(-1, -1))
+        root.isFocusable = true
+        root.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         root.alpha = 0f
         card.translationY = -context.dp(14).toFloat()
         val ms = if (lite) LITE_MS else FULL_MS
@@ -106,6 +108,9 @@ internal class PanelShell(private val context: Context, private val lite: Boolea
 
     fun dismiss() {
         val gen = lifecycle.dismiss() ?: return
+        // While it fades out, nothing inside may keep or take focus (the host restores it elsewhere).
+        root.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        root.isFocusable = false
         val ms = if (lite) LITE_MS else FULL_MS
         card.animate().translationY(-context.dp(10).toFloat()).setDuration(ms).start()
         val a = root.animate().alpha(0f).setDuration(ms).withEndAction {

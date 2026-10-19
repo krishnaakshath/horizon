@@ -14,6 +14,7 @@ import dev.tvlauncher.apps.AppRepository
 import dev.tvlauncher.device.DeviceProfileReader
 import dev.tvlauncher.home.HomeAppearance
 import dev.tvlauncher.home.HomeLook
+import dev.tvlauncher.home.HomeModules
 import dev.tvlauncher.home.HomeSounds
 import dev.tvlauncher.home.ModeTracker
 import dev.tvlauncher.home.RecentMode
@@ -60,6 +61,8 @@ class HomeActivity : Activity() {
     private lateinit var launchOverlay: LaunchOverlay
     private lateinit var sounds: HomeSounds
     private lateinit var modes: ModeTracker
+    private lateinit var root: FrameLayout
+    private lateinit var modules: HomeModules
     private val loader = Executors.newSingleThreadExecutor()
     private val generation = AtomicInteger()
     private var firstLoad = true
@@ -97,11 +100,13 @@ class HomeActivity : Activity() {
 
     private fun buildUi() {
         val full = look.profile.full
-        val root = FrameLayout(this)
+        root = FrameLayout(this)
         backdrop = BackdropView(this, look.backdropMs)
         root.addView(backdrop, FrameLayout.LayoutParams(-1, -1))
         topBar = TopBar(
             this,
+            onNetwork = { v -> modules.openWifi(v) },
+            onBluetooth = { v -> modules.openBluetooth(v) },
             onInputs = { sounds.action(SystemActions.inputs(this)) },
             onSettings = { if (SystemActions.launcherSettings(this)) sounds.action(true) else openSpotlight() },
             onSettingsLongPress = { tileMenu.showDockMenu(visiblePackages(), installed); sounds.menuOpen() },
@@ -128,7 +133,7 @@ class HomeActivity : Activity() {
         root.addView(content, FrameLayout.LayoutParams(-1, -1))
         spotlight = SpotlightPanel(
             this, packageManager, full,
-            onAction = { sounds.action(SystemActions.quickAction(this, it)) },
+            onAction = { modules.quickAction(it) },
             onActionLongPress = { tileMenu.showDockMenu(visiblePackages(), installed); sounds.menuOpen() },
             onLaunch = ::launch,
             onClosed = ::onSpotlightClosed
@@ -136,6 +141,7 @@ class HomeActivity : Activity() {
         root.addView(spotlight, FrameLayout.LayoutParams(-1, -1))
         launchOverlay = LaunchOverlay(this)
         root.addView(launchOverlay, FrameLayout.LayoutParams(-1, -1))
+        modules = HomeModules(this, root, look, sounds, topBar, backdrop, spotlight, { splash != null }, ::focusHome)
         root.viewTreeObserver.addOnGlobalFocusChangeListener { _, now -> strip.onGlobalFocus(now); sounds.onFocusChanged() }
         setContentView(root)
     }
@@ -159,16 +165,19 @@ class HomeActivity : Activity() {
         TopBarNav.Action.OPEN_SPOTLIGHT -> { openSpotlight(); true }
     }
 
+    private fun focusHome() { if (!focusTile(adapter.lastFocused)) topBar.inputsButton.requestFocus() }
+
     private fun openSpotlight() {
         if (SpotlightKeys.onRequest(appsLoaded = !firstLoad) == SpotlightKeys.Request.DEFER) {
             pendingSpotlight = true
             return
         }
-        if (spotlight.isOpen || splash != null || isDestroyed) return // not under the cold-start splash
+        if (spotlight.isOpen || splash != null || isDestroyed || modules.isShowing) return // not under the splash or a panel
         val f = currentFocus
         restoreFocus = f?.takeIf { it.parent !== shelf && !strip.hasFocus() }
         restoreIndex = adapter.lastFocused
         strip.setSpotlightOpen(true)
+        modules.spotlightChanged(open = true)
         spotlight.open()
         sounds.panel(opened = true)
         content.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS // nothing leaks to the shelf
@@ -177,6 +186,7 @@ class HomeActivity : Activity() {
     private fun onSpotlightClosed() {
         content.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         strip.setSpotlightOpen(false)
+        modules.spotlightChanged(open = false)
         val back = restoreFocus?.takeIf { it.isAttachedToWindow }?.requestFocus() ?: false
         if (!back && !focusTile(restoreIndex)) topBar.inputsButton.requestFocus()
         restoreFocus = null
@@ -242,6 +252,7 @@ class HomeActivity : Activity() {
 
     /** MENU / SEARCH toggle Spotlight from anywhere on the home screen (including its search field). */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        modules.onUserActivity() // any key, repeats included, resets the ambient idle timer
         sounds.onKey(event)
         if (!SpotlightKeys.isToggleKey(event.keyCode)) return super.dispatchKeyEvent(event)
         if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
@@ -256,11 +267,18 @@ class HomeActivity : Activity() {
             openSpotlight()
         } else {
             spotlight.close(animate = false) // HOME press: back to a clean shelf
+            modules.closeAll()
             focusTile(0)
         }
     }
 
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        modules.onUserActivity()
+    }
+
     override fun onPause() {
+        modules.pause()
         launchOverlay.hide()
         super.onPause()
     }
@@ -270,6 +288,7 @@ class HomeActivity : Activity() {
         if (isChangingConfigurations || isFinishing) return // e.g. the appearance rebuild in onStart
         sounds.reload()
         modes.onResume()
+        modules.resume()
     }
 
     /** Also picks up Settings > Appearance edits when coming back from Settings. */
@@ -279,6 +298,7 @@ class HomeActivity : Activity() {
         topBar.applyAppearance(look.settings)
         adapter.getItems().getOrNull(adapter.lastFocused)?.let(::onAppFocused)
         topBar.startStatus()
+        modules.start()
     }
 
     override fun onStop() {
@@ -287,19 +307,25 @@ class HomeActivity : Activity() {
             spotlight.close(animate = false)
         }
         topBar.stopStatus() // always paired with startStatus (TopBar tracks it)
+        modules.stop() // panels closed; controllers, device monitor and idle timer stopped
         super.onStop()
     }
 
-    /** BACK closes Spotlight, or leaves the quick-strip for its tile. The launcher never finishes. */
+    /** BACK closes a panel or Spotlight, or leaves the quick-strip for its tile. The launcher never finishes. */
     @Deprecated("Home screen never exits on Back")
     override fun onBackPressed() {
-        val closed = if (spotlight.isOpen) { spotlight.close(); true } else strip.hasFocus() && strip.returnToTile()
+        val closed = when {
+            modules.onBack() -> true
+            spotlight.isOpen -> { spotlight.close(); true }
+            else -> strip.hasFocus() && strip.returnToTile()
+        }
         sounds.back(closed)
     }
 
     override fun onDestroy() {
         if (!::modes.isInitialized) return super.onDestroy() // redirected to safe mode
         tileMenu.dismiss()
+        modules.destroy()
         repo.unregister()
         loader.shutdownNow()
         sounds.release()
