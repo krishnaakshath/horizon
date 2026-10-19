@@ -1,8 +1,12 @@
 package dev.tvlauncher.ui
 
+import android.annotation.SuppressLint
+import android.content.Context
 import android.graphics.Typeface
 import android.util.TypedValue
 import android.widget.TextView
+import dev.tvlauncher.type.FontWeight
+import dev.tvlauncher.type.Fonts
 
 /** Visual system: palette, type scale, spacing (dp) and radii (dp). */
 object Theme {
@@ -53,9 +57,29 @@ object Theme {
     const val SP_LABEL = 13f
     const val SP_BUTTON = 15f
 
-    val medium: Typeface by lazy { Typeface.create("sans-serif-medium", Typeface.NORMAL) }
-    val light: Typeface by lazy { Typeface.create("sans-serif-light", Typeface.NORMAL) }
-    val regular: Typeface by lazy { Typeface.create("sans-serif", Typeface.NORMAL) }
+    // Faces: the bundled Manrope instances (dev.tvlauncher.type.Fonts) once [installFonts] ran at
+    // process start, else the system sans. Fonts caches each weight, so these getters are cheap.
+    @SuppressLint("StaticFieldLeak") // the application context only (see installFonts)
+    @Volatile private var fontContext: Context? = null
+
+    /** Process start (LauncherApp): every [medium]/[light]/[regular]/[semibold] after this is Manrope. */
+    fun installFonts(context: Context) {
+        fontContext = context.applicationContext
+        Fonts.warmUp(context)
+    }
+
+    private val sysMedium: Typeface by lazy { Typeface.create("sans-serif-medium", Typeface.NORMAL) }
+    private val sysLight: Typeface by lazy { Typeface.create("sans-serif-light", Typeface.NORMAL) }
+    private val sysRegular: Typeface by lazy { Typeface.create("sans-serif", Typeface.NORMAL) }
+
+    private fun face(weight: FontWeight, fallback: () -> Typeface): Typeface =
+        fontContext?.let { Fonts.typeface(it, weight) } ?: fallback()
+
+    val medium: Typeface get() = face(FontWeight.MEDIUM) { sysMedium }
+    val light: Typeface get() = face(FontWeight.LIGHT) { sysLight }
+    val regular: Typeface get() = face(FontWeight.REGULAR) { sysRegular }
+    /** Titles and the hero name. */
+    val semibold: Typeface get() = face(FontWeight.SEMIBOLD) { sysMedium }
 
     fun TextView.style(sp: Float, face: Typeface, color: Int = TEXT) {
         setTextSize(TypedValue.COMPLEX_UNIT_SP, sp)

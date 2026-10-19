@@ -4,6 +4,7 @@ import android.app.Application
 import dev.tvlauncher.appsettings.ModuleSections
 import dev.tvlauncher.home.WaveTwoSections
 import dev.tvlauncher.safemode.SafeMode
+import dev.tvlauncher.ui.Theme
 
 /**
  * Process start: installs the crash guard first, then registers the module Settings pages.
@@ -16,6 +17,11 @@ class LauncherApp : Application() {
             SafeMode.install(this)
         } catch (e: Throwable) {
             // No guard this run; the home screen still starts.
+        }
+        try {
+            Theme.installFonts(this) // Manrope everywhere; preloaded off the main thread
+        } catch (e: Throwable) {
+            // System sans instead.
         }
         try {
             ModuleSections.registerAll()
