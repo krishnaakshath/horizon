@@ -197,10 +197,6 @@ class HomeActivity : Activity() {
         val wasFirst = firstLoad
         firstLoad = false
         if (wasFirst) {
-            apps.firstOrNull()?.let { app ->
-                backdrop.setAccent(adapter.accentOf(app))
-                hero.show(app, backdrop.heroColor)
-            }
             splash?.let { s -> shelf.post { s.reveal(revealTargets()) } }
             splash = null
         }
@@ -214,7 +210,10 @@ class HomeActivity : Activity() {
             else -> apps.indexOfFirst { it.packageName == focusedPkg }.takeIf { it >= 0 }
                 ?: FocusRules.nextFocusIndexAfterRemoval(oldPos, apps.size)
         }
-        if (target != null) focusTile(target)
+        if (target != null && focusTile(target)) {
+            // A reload can reorder apps under the same index; keep hero/backdrop in sync.
+            apps.getOrNull(target.coerceIn(0, apps.size - 1))?.let { onAppFocused(it) }
+        }
     }
 
     private fun focusTile(index: Int): Boolean {
@@ -228,6 +227,11 @@ class HomeActivity : Activity() {
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         focusTile(0)
+    }
+
+    override fun onPause() {
+        launchOverlay.hide()
+        super.onPause()
     }
 
     override fun onStart() {

@@ -1,7 +1,6 @@
 package dev.tvlauncher.ui
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.text.TextUtils
@@ -33,30 +32,20 @@ class HeroView(context: Context, private val pm: PackageManager) : LinearLayout(
 
     fun show(app: AppEntry, backdrop: Int) {
         title.text = app.label
-        val cat = category(app.packageName)
-        subtitle.text = if (cat.isEmpty()) HINT else "$cat   ·   $HINT"
+        subtitle.text = HeroText.subtitle(category(app.packageName))
         val light = BrandColors.onColorTextIsLight(backdrop)
         title.setTextColor(if (light) Theme.TEXT else Theme.TEXT_DARK)
         subtitle.setTextColor(if (light) Theme.TEXT_2 else Theme.TEXT_DARK_2)
     }
 
-    private fun category(pkg: String): String = categories.getOrPut(pkg) {
-        if (Build.VERSION.SDK_INT < 26) return@getOrPut ""
+    /** Category word for media apps only (see [HeroText]); null for system/store/utility apps. */
+    private fun category(pkg: String): String? = categories.getOrPut(pkg) {
+        if (Build.VERSION.SDK_INT < 26) return@getOrPut NONE
         val c = try { pm.getApplicationInfo(pkg, 0).category } catch (e: PackageManager.NameNotFoundException) { -1 }
-        when (c) {
-            ApplicationInfo.CATEGORY_VIDEO -> "Movies & TV"
-            ApplicationInfo.CATEGORY_AUDIO -> "Music & Audio"
-            ApplicationInfo.CATEGORY_GAME -> "Games"
-            ApplicationInfo.CATEGORY_IMAGE -> "Photos"
-            ApplicationInfo.CATEGORY_NEWS -> "News"
-            ApplicationInfo.CATEGORY_SOCIAL -> "Social"
-            ApplicationInfo.CATEGORY_PRODUCTIVITY -> "Productivity"
-            ApplicationInfo.CATEGORY_MAPS -> "Maps"
-            else -> ""
-        }
-    }
+        HeroText.categoryWord(c) ?: NONE
+    }.takeIf { it != NONE }
 
     private companion object {
-        const val HINT = "Hold OK for options"
+        const val NONE = ""
     }
 }
