@@ -8,6 +8,8 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -21,7 +23,8 @@
 
     <application
         android:allowBackup="false"
-        android:label="TV Launcher">
+        android:label="TV Launcher"
+        android:theme="@android:style/Theme.Material.NoActionBar">
         <activity
             android:name=".HomeActivity"
             android:exported="true"
