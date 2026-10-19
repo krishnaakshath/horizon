@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 320x180 dp Android TV banner: logomark + "Get Apps" wordmark, all vector paths. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:pathData="M0,0 H320 V180 H0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="70" android:centerY="70"
+                android:gradientRadius="260"
+                android:startColor="#FF1C2638"
+                android:endColor="#FF0B0D12" />
+        </aapt:attr>
+    </path>
+    <group android:translateX="10" android:translateY="18">
+        <path
+            android:pathData="M24,47 L32,56 L32,72 Q32,78 38,78 L70,78 Q76,78 76,72 L76,56 L84,47"
+            android:strokeColor="#FFF5F7FA"
+            android:strokeWidth="6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M54,26 L54,62 M43,51 L54,62 L65,51"
+            android:strokeWidth="7"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="54" android:startY="24"
+                    android:endX="54" android:endY="64"
+                    android:startColor="#FF5B8CFF"
+                    android:endColor="#FF7CF2C8" />
+            </aapt:attr>
+        </path>
+    </group>
+    <group android:translateX="118" android:translateY="57" android:scaleX="0.74" android:scaleY="0.74">
+        <path android:pathData="M34.1,5.9 A20,20 0 1,0 40,20 L24,20 M48,27 L74,27 A13,13 0 1,0 70.2,36.2 M88,4 L88,34 Q88,40 94,40 L98,40 M82,14 L98,14" android:strokeColor="#FFF5F7FA" android:strokeWidth="6"
+            android:strokeLineCap="round" android:strokeLineJoin="round" />
+        <path android:pathData="M118,40 L135,0 L152,40 M125,26 L145,26 M160,14 L160,54 M160,27 A13,13 0 1,1 186,27 A13,13 0 1,1 160,27 M194,14 L194,54 M194,27 A13,13 0 1,1 220,27 A13,13 0 1,1 194,27 M249,17 Q245,14 239,14 Q230,14 230,20.5 Q230,26 239,27 Q249,28 249,33.5 Q249,40 239,40 Q232,40 228,37" android:strokeColor="#FF7CF2C8" android:strokeWidth="6"
+            android:strokeLineCap="round" android:strokeLineJoin="round" />
+    </group>
+</vector>

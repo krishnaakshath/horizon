@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Near-black window so the first frame matches the UI (no white flash). -->
+    <style name="StoreTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/base</item>
+        <item name="android:colorBackground">@color/base</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:textColorPrimary">@color/text</item>
+    </style>
+    <color name="base">#FF0B0D12</color>
+    <color name="text">#FFF5F7FA</color>
+    <color name="accent">#FF7CF2C8</color>
+    <string name="app_name">Get Apps</string>
+</resources>

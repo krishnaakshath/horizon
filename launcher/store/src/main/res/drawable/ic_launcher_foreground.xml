@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Get Apps logomark: an open tray with an arrow dropping into it. Original geometry. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M24,47 L32,56 L32,72 Q32,78 38,78 L70,78 Q76,78 76,72 L76,56 L84,47"
+        android:strokeColor="#FFF5F7FA"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M54,26 L54,62 M43,51 L54,62 L65,51"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="54" android:startY="24"
+                android:endX="54" android:endY="64"
+                android:startColor="#FF5B8CFF"
+                android:endColor="#FF7CF2C8" />
+        </aapt:attr>
+    </path>
+</vector>
