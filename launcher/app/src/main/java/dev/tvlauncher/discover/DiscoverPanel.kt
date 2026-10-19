@@ -3,11 +3,11 @@ package dev.tvlauncher.discover
 import android.content.Context
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
-import android.text.TextUtils
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
@@ -18,9 +18,14 @@ import dev.tvlauncher.R
 import dev.tvlauncher.device.DeviceProfile
 import dev.tvlauncher.device.EffectsMode
 import dev.tvlauncher.ui.BrandColors
-import dev.tvlauncher.ui.Motion
 import dev.tvlauncher.ui.Theme
-import dev.tvlauncher.ui.Theme.style
+import dev.tvlauncher.audit.AuditTags
+import dev.tvlauncher.audit.auditTag
+import dev.tvlauncher.panel.PanelHeader
+import dev.tvlauncher.panel.PanelHeaderView
+import dev.tvlauncher.panel.PanelStyle
+import dev.tvlauncher.panel.PanelStyle.panelText
+import dev.tvlauncher.type.FontWeight
 import java.util.Locale
 
 /**
@@ -60,18 +65,19 @@ class DiscoverPanel(
         if (root != null) return
         this.host = host
         val r = TrapLayout(context).apply {
-            setBackgroundColor(if (lite) 0xE6000000.toInt() else 0x99000000.toInt())
+            setBackgroundColor(PanelStyle.SCRIM)
+            auditTag(AuditTags.SCRIM)
             isClickable = true
         }
         val panel = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(px(32), px(28), px(32), px(20))
-            background = GradientDrawable().apply {
-                cornerRadius = px(24).toFloat()
-                setColor(if (lite) 0xFA151922.toInt() else 0xF2151922.toInt())
-            }
+            setPadding(px(PanelStyle.G3), px(PanelStyle.G2), px(PanelStyle.G3), px(PanelStyle.G2))
+            background = PanelStyle.surface(context, lite)
         }
-        panel.addView(header())
+        panel.addView(PanelHeaderView(context).apply {
+            bind(PanelHeader(R.drawable.ic_disc_bag, "Get more apps", "Popular on TV. Installs open the Play Store."))
+            setPadding(0, 0, 0, 0)
+        })
         val b = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val scroll = ScrollView(context).apply {
             isVerticalScrollBarEnabled = false
@@ -80,20 +86,21 @@ class DiscoverPanel(
             setPadding(0, px(8), 0, px(8))
             addView(b, ViewGroup.LayoutParams(-1, -2))
         }
-        panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = px(12) })
+        panel.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = px(PanelStyle.G1) })
         panel.addView(TextView(context).apply {
-            style(Theme.SP_LABEL - 1f, Theme.regular, Theme.TEXT_2)
+            panelText(PanelStyle.DETAIL_SP, FontWeight.REGULAR, PanelStyle.TEXT_2)
             text = "OK opens the store page · MENU hides a suggestion · BACK closes"
-        }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(10) })
+        }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(PanelStyle.G1) })
         r.addView(panel, FrameLayout.LayoutParams(-1, -1).apply {
             setMargins(px(Theme.MARGIN_H), px(Theme.MARGIN_V), px(Theme.MARGIN_H), px(Theme.MARGIN_V))
         })
         host.addView(r, ViewGroup.LayoutParams(-1, -1))
         root = r
         body = b
-        if (!lite && Motion.enabled) {
-            panel.alpha = 0f; panel.translationY = px(16).toFloat()
-            panel.animate().alpha(1f).translationY(0f).setDuration(Motion.ms(180L)).start()
+        val ms = PanelStyle.openMs(context, lite)
+        if (ms > 0) {
+            panel.alpha = 0f; panel.translationY = px(PanelStyle.G1).toFloat()
+            panel.animate().alpha(1f).translationY(0f).setDuration(ms).setInterpolator(DecelerateInterpolator(2f)).start()
         }
         rebuild()
     }
@@ -128,19 +135,6 @@ class DiscoverPanel(
 
     // --- content ----------------------------------------------------------------------------------
 
-    private fun header(): View = LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        addView(ImageView(context).apply { setImageResource(R.drawable.ic_disc_bag); alpha = 0.9f }, LinearLayout.LayoutParams(px(28), px(28)))
-        val texts = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        texts.addView(TextView(context).apply { style(26f, Theme.medium); text = "Get more apps" })
-        texts.addView(TextView(context).apply {
-            style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
-            text = "Popular on TV. Installs happen in the Play Store; nothing is downloaded by the launcher."
-        }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(4) })
-        addView(texts, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = px(14) })
-    }
-
     private fun rebuild() {
         val b = body ?: return
         settings = store.load()
@@ -157,9 +151,9 @@ class DiscoverPanel(
         var restore: View? = null
         state.sections.forEach { sec ->
             b.addView(TextView(context).apply {
-                style(Theme.SP_BUTTON + 1f, Theme.medium, Theme.TEXT_2)
+                panelText(PanelStyle.ROW_SP - 1f, FontWeight.SEMIBOLD, PanelStyle.TEXT_2)
                 text = sec.title
-            }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(if (b.childCount == 0) 0 else 20); bottomMargin = px(8) })
+            }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(if (b.childCount == 0) 0 else PanelStyle.G3); bottomMargin = px(PanelStyle.G1) })
             val grid = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 clipChildren = false
@@ -196,12 +190,12 @@ class DiscoverPanel(
         gravity = Gravity.CENTER_HORIZONTAL
         addView(ImageView(context).apply { setImageResource(R.drawable.ic_disc_bag); alpha = 0.6f }, LinearLayout.LayoutParams(px(48), px(48)))
         addView(TextView(context).apply {
-            style(20f, Theme.medium)
+            panelText(PanelStyle.TITLE_SP - 2f, FontWeight.SEMIBOLD, singleLine = false)
             gravity = Gravity.CENTER
             text = "You have everything popular here"
-        }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(14) })
+        }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(PanelStyle.G2) })
         addView(TextView(context).apply {
-            style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
+            panelText(PanelStyle.MESSAGE_SP, FontWeight.REGULAR, PanelStyle.TEXT_2, singleLine = false)
             gravity = Gravity.CENTER
             text = if (settings.hiddenCatalogIds.isNotEmpty()) {
                 "${settings.hiddenCatalogIds.size} hidden suggestion(s) can be shown again in Settings."
@@ -251,24 +245,20 @@ class DiscoverPanel(
             card.setPadding(px(16), px(14), px(16), px(12))
             card.background = restBg
             card.addView(TextView(context).apply {
-                style(30f, Theme.medium, fg)
+                panelText(30f, FontWeight.SEMIBOLD, fg)
                 text = DiscoverGrid.initials(item.app.label)
             }, LinearLayout.LayoutParams(-2, 0, 1f))
             card.addView(TextView(context).apply {
-                style(17f, Theme.medium, fg)
-                isSingleLine = true
-                ellipsize = TextUtils.TruncateAt.END
+                panelText(PanelStyle.ROW_SP, FontWeight.SEMIBOLD, fg)
                 text = item.app.label
             })
             val line = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
             line.addView(TextView(context).apply {
-                style(Theme.SP_LABEL - 1f, Theme.regular, fg2)
-                isSingleLine = true
-                ellipsize = TextUtils.TruncateAt.END
+                panelText(PanelStyle.DETAIL_SP, FontWeight.REGULAR, fg2)
                 text = DiscoverModel.subtitle(item.app)
             }, LinearLayout.LayoutParams(0, -2, 1f))
             line.addView(TextView(context).apply {
-                style(Theme.SP_LABEL - 1f, Theme.medium, if (light) Theme.TEXT_DARK else Theme.TEXT)
+                panelText(PanelStyle.DETAIL_SP, FontWeight.SEMIBOLD, if (light) Theme.TEXT_DARK else Theme.TEXT)
                 text = DiscoverActions.label(item.action)
                 setPadding(px(10), px(3), px(10), px(3))
                 background = GradientDrawable().apply {
@@ -286,7 +276,7 @@ class DiscoverPanel(
         override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
             super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
             if (gainFocus) lastFocusedId = item.app.id
-            val ms = if (lite) 0L else Motion.ms(160L)
+            val ms = if (lite) 0L else PanelStyle.openMs(context, lite = true)
             val s = if (gainFocus) 1.06f else 1f
             animate().cancel()
             card.background = if (gainFocus) focusBg else restBg
