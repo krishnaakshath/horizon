@@ -1,0 +1,38 @@
+{
+  "description": "Open the Inputs/devices, Network, Bluetooth and Sound panels from Spotlight quick actions (order: Inputs, Settings, Network, Bluetooth, Sound, Insights).",
+  "package": "dev.tvlauncher",
+  "start": {"action": "android.intent.action.MAIN", "category": "android.intent.category.LEANBACK_LAUNCHER"},
+  "steps": [
+    {"wait": 2},
+    {"key": "MENU", "wait": 2},
+    {"key": "DPAD_DOWN", "wait": 1},
+    {"key": "DPAD_CENTER", "wait": 2.5},
+    {"audit": "panel-inputs-devices"},
+    {"screenshot": "panel-inputs-devices"},
+    {"key": "BACK", "wait": 1.5},
+
+    {"key": "MENU", "wait": 2},
+    {"key": "DPAD_DOWN", "wait": 1},
+    {"key": "DPAD_RIGHT", "repeat": 2, "wait": 1},
+    {"key": "DPAD_CENTER", "wait": 2.5},
+    {"audit": "panel-network"},
+    {"screenshot": "panel-network"},
+    {"key": "BACK", "wait": 1.5},
+
+    {"key": "MENU", "wait": 2},
+    {"key": "DPAD_DOWN", "wait": 1},
+    {"key": "DPAD_RIGHT", "repeat": 3, "wait": 1},
+    {"key": "DPAD_CENTER", "wait": 2.5},
+    {"audit": "panel-bluetooth"},
+    {"screenshot": "panel-bluetooth"},
+    {"key": "BACK", "wait": 1.5},
+
+    {"key": "MENU", "wait": 2},
+    {"key": "DPAD_DOWN", "wait": 1},
+    {"key": "DPAD_RIGHT", "repeat": 4, "wait": 1},
+    {"key": "DPAD_CENTER", "wait": 2.5},
+    {"audit": "panel-sound"},
+    {"key": "BACK", "wait": 1.5},
+    {"audit": "panels-home-after"}
+  ]
+}
