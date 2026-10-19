@@ -82,4 +82,12 @@ class AppFilterTest {
         val out = AppFilter.unhideAll(s, listOf("a"), installed)
         assertEquals(LauncherSettings(), out)
     }
+
+    @Test fun searchable_isShelfThenUserHidden_neverClutter() {
+        val all = listOf(app("a"), app("com.tcl.initsetup"), app("b"), app("c"))
+        val s = LauncherSettings(hidden = setOf("b"))
+        val shown = AppFilter.arrange(all, s)
+        assertEquals(listOf("a", "c"), pkgs(shown))
+        assertEquals(listOf("a", "c", "b"), pkgs(AppFilter.searchable(all, shown, s)))
+    }
 }

@@ -51,4 +51,13 @@ object AppFilter {
         val order = (visible + restore).distinct()
         return s.copy(hidden = emptySet(), order = order)
     }
+
+    /**
+     * What Spotlight searches: the [shown] shelf (in shelf order) followed by apps the user hid.
+     * Default-hidden setup clutter is never searchable.
+     */
+    fun searchable(all: List<AppEntry>, shown: List<AppEntry>, s: LauncherSettings): List<AppEntry> {
+        val shownPkgs = shown.mapTo(HashSet()) { it.packageName }
+        return shown + all.filter { it.packageName !in shownPkgs && !isDefaultHidden(it.packageName, s) }
+    }
 }
