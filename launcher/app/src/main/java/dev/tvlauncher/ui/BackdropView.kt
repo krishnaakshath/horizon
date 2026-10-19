@@ -7,6 +7,8 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.view.View
@@ -60,6 +62,13 @@ object RoomBackdrop {
  * [GlassBackdrop]; with [glassBlur] (FULL) a 1/8-scale copy is drawn once on the main thread and
  * box-blurred on the glass thread. The copy is rebuilt only on a size, room, accent or base-layer
  * change, and dropped on detach.
+ *
+ * Media layer (Now Playing, see dev.tvlauncher.nowplaying.MediaBackdrop): [setMedia] hands over a
+ * small, already blurred and darkened picture of the playing item's art, drawn scaled to cover over
+ * the brand gradient (under the bottom scrim) whenever [showMedia] is on. A new picture crossfades
+ * over the old one in [mediaFadeMs]; showing or hiding the layer fades the same way. The view owns
+ * those bitmaps: one that is no longer drawn is recycled right after the next frame that no longer
+ * draws it (never while a display list may still hold it), or dropped for the GC when not visible.
  */
 class BackdropView(context: Context, durationMs: Long) : View(context) {
     private val evaluator = ArgbEvaluator()
@@ -88,6 +97,45 @@ class BackdropView(context: Context, durationMs: Long) : View(context) {
     private var blurToken = 0
     private var baseDirty = false
     private val sampleRunnable = Runnable { sample() }
+    // --- media layer ---
+    private val mediaPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
+    private val mediaSrc = Rect()
+    private val mediaDst = Rect()
+    private var media: Bitmap? = null
+    private var mediaOld: Bitmap? = null
+    private val mediaStops = IntArray(STOPS)
+    private var trackFade = 1f
+    private var mediaShow = 0f
+    private var mediaFrom = 0f
+    private var mediaTarget = false
+    private val retired = ArrayList<Bitmap>(2)
+    /** Retired pictures that a recorded frame no longer draws: safe to recycle. */
+    private val undrawn = ArrayList<Bitmap>(2)
+    private val recycleRetired = Runnable { recycleRetiredNow() }
+    /** Crossfade of the media layer (track change, show/hide); 0 = instant. */
+    var mediaFadeMs: Long = 350L
+    private val trackAnim = ValueAnimator.ofFloat(0f, 1f).apply {
+        interpolator = DecelerateInterpolator(1.5f)
+        addUpdateListener { a -> trackFade = a.animatedFraction; invalidate() }
+        addListener(object : android.animation.AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: android.animation.Animator) { retireOld() }
+        })
+    }
+    private val showAnim = ValueAnimator.ofFloat(0f, 1f).apply {
+        interpolator = DecelerateInterpolator(1.5f)
+        addUpdateListener { a ->
+            val t = a.animatedFraction
+            mediaShow = mediaFrom + ((if (mediaTarget) 1f else 0f) - mediaFrom) * t
+            invalidate()
+        }
+        addListener(object : android.animation.AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: android.animation.Animator) {
+                if (!mediaTarget && mediaShow <= 0f) dropMediaIfHidden()
+            }
+        })
+    }
+    /** setMedia(null) while shown: the picture fades out first, then goes. */
+    private var dropWhenHidden = false
     private val animator = ValueAnimator.ofFloat(0f, 1f).apply {
         duration = durationMs
         interpolator = DecelerateInterpolator(1.5f)
@@ -104,8 +152,97 @@ class BackdropView(context: Context, durationMs: Long) : View(context) {
         auditTag(AuditTags.FULLBLEED)
     }
 
-    /** Color the hero text sits on (top-left of the gradient). */
-    val heroColor: Int get() = to[0]
+    /** Color the hero text sits on (top-left of the gradient, or of the media picture when shown). */
+    val heroColor: Int get() = if (mediaTarget && media != null) mediaStops[0] else to[0]
+
+    /** True while the media layer is (or is fading) on. */
+    val isShowingMedia: Boolean get() = mediaTarget && media != null
+
+    /**
+     * The media picture ([bmp], owned by this view from now on; null = none) and its three
+     * representative colours ([stops]: top-left, middle, bottom-right) for the hero and glass.
+     * Main thread. A different picture crossfades over the current one when [animate].
+     */
+    fun setMedia(bmp: Bitmap?, stops: IntArray?, animate: Boolean = true) {
+        if (bmp === media) return
+        if (bmp == null) {
+            if (mediaShow > 0f && mediaTarget && animate && mediaFadeMs > 0 && isShown) {
+                dropWhenHidden = true
+                showMedia(false, animate = true)
+            } else {
+                showAnim.cancel(); trackAnim.cancel()
+                mediaTarget = false; mediaShow = 0f
+                retire(mediaOld); mediaOld = null
+                retire(media); media = null
+                invalidate()
+                scheduleSample()
+            }
+            return
+        }
+        dropWhenHidden = false
+        if (stops != null && stops.size >= STOPS) System.arraycopy(stops, 0, mediaStops, 0, STOPS)
+        trackAnim.cancel() // ends the previous fade: its old picture is retired
+        val old = media
+        media = bmp
+        if (old != null && mediaShow > 0f && animate && mediaFadeMs > 0 && isShown) {
+            mediaOld = old
+            trackFade = 0f
+            trackAnim.duration = mediaFadeMs
+            trackAnim.start()
+        } else {
+            retire(old)
+            trackFade = 1f
+        }
+        invalidate()
+        scheduleSample()
+    }
+
+    /** Shows (art over the brand colours) or hides the media layer, fading in [mediaFadeMs]. */
+    fun showMedia(show: Boolean, animate: Boolean = true) {
+        if (show == mediaTarget && (showAnim.isRunning || mediaShow == (if (show) 1f else 0f))) return
+        if (show) dropWhenHidden = false
+        mediaTarget = show
+        showAnim.cancel()
+        mediaFrom = mediaShow
+        if (animate && mediaFadeMs > 0 && isShown) {
+            showAnim.duration = mediaFadeMs
+            showAnim.start()
+        } else {
+            mediaShow = if (show) 1f else 0f
+            if (!show) dropMediaIfHidden()
+            invalidate()
+        }
+        scheduleSample()
+    }
+
+    private fun dropMediaIfHidden() {
+        if (!dropWhenHidden || mediaTarget) return
+        dropWhenHidden = false
+        trackAnim.cancel()
+        retire(mediaOld); mediaOld = null
+        retire(media); media = null
+        invalidate()
+    }
+
+    private fun retireOld() {
+        val o = mediaOld ?: return
+        mediaOld = null
+        retire(o)
+        invalidate()
+    }
+
+    /** No longer drawn: recycled after the next frame (or left to the GC when nothing will draw). */
+    private fun retire(b: Bitmap?) {
+        if (b == null) return
+        retired.add(b)
+        if (!isAttachedToWindow || !isShown) { retired.clear(); return } // GC; a stale display list may hold it
+        invalidate()
+    }
+
+    private fun recycleRetiredNow() {
+        for (b in undrawn) if (b !== media && b !== mediaOld && !b.isRecycled) b.recycle()
+        undrawn.clear()
+    }
 
     fun setAccent(color: Int, animate: Boolean = true) {
         if (hasAccent && color == accent) return
@@ -194,8 +331,9 @@ class BackdropView(context: Context, durationMs: Long) : View(context) {
         val w = width
         val h = height
         if (w <= 0 || h <= 0 || !isAttachedToWindow) return
-        if (animator.isRunning) return scheduleSample()
-        val changed = GlassBackdrop.publish(this, to, scrimAlpha, w, h)
+        if (animator.isRunning || showAnim.isRunning || trackAnim.isRunning) return scheduleSample()
+        val stops = if (mediaTarget && media != null) mediaStops else to
+        val changed = GlassBackdrop.publish(this, stops, scrimAlpha, w, h)
         if (glassBlur && (changed || baseDirty || GlassBackdrop.blur == null)) blurCopy(w, h)
         baseDirty = false
     }
@@ -218,6 +356,7 @@ class BackdropView(context: Context, durationMs: Long) : View(context) {
             c.scale(sw / w.toFloat(), sh / h.toFloat())
             base?.draw(c)
             glow.draw(c)
+            drawMedia(c)
             scrim.draw(c)
             c.restore()
             bmp.getPixels(px, 0, sw, 0, 0, sw, sh)
@@ -241,11 +380,50 @@ class BackdropView(context: Context, durationMs: Long) : View(context) {
     override fun onDraw(canvas: Canvas) {
         base?.draw(canvas)
         glow.draw(canvas)
+        drawMedia(canvas)
         scrim.draw(canvas)
+        // This frame no longer draws the retired pictures; once it is synced they can go.
+        if (retired.isNotEmpty()) {
+            undrawn.addAll(retired)
+            retired.clear()
+            removeCallbacks(recycleRetired)
+            post(recycleRetired)
+        }
+    }
+
+    private fun drawMedia(canvas: Canvas) {
+        if (mediaShow <= 0f) return
+        val cur = media ?: return
+        val a = (255 * mediaShow).toInt().coerceIn(0, 255)
+        val old = mediaOld
+        if (old != null && trackFade < 1f) {
+            drawCover(canvas, old, a)
+            drawCover(canvas, cur, (a * trackFade).toInt())
+        } else {
+            drawCover(canvas, cur, a)
+        }
+    }
+
+    /** The picture already has the screen's aspect ratio (MediaBackdrop renders it so): stretch to fill. */
+    private fun drawCover(canvas: Canvas, b: Bitmap, alpha: Int) {
+        if (b.isRecycled || alpha <= 0) return
+        mediaSrc.set(0, 0, b.width, b.height)
+        mediaDst.set(0, 0, width, height)
+        mediaPaint.alpha = alpha
+        canvas.drawBitmap(b, mediaSrc, mediaDst, mediaPaint)
     }
 
     override fun onDetachedFromWindow() {
         animator.cancel()
+        showAnim.cancel()
+        trackAnim.cancel()
+        removeCallbacks(recycleRetired)
+        retired.clear() // left to the GC: a display list may still hold them
+        undrawn.clear()
+        media = null
+        mediaOld = null
+        mediaShow = 0f
+        mediaTarget = false
         removeCallbacks(sampleRunnable)
         blurToken++
         GlassBackdrop.release(this)

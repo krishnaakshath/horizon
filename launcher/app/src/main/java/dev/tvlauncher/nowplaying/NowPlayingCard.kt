@@ -21,19 +21,25 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import dev.tvlauncher.R
+import dev.tvlauncher.ui.Glass
 import dev.tvlauncher.ui.RoundButton
 import dev.tvlauncher.ui.Theme
 import dev.tvlauncher.ui.Theme.style
 
 /**
- * Compact glass "Now Playing" card: 72 dp rounded album art (brand-colour tile with a note when
- * there is no art), title and artist on one line each, a thin progress bar and Prev / Play-Pause /
- * Next round buttons (each hidden when the session does not support it). No border, soft
- * translucent fill, one accent: the playing app's brand colour.
+ * The home mini player: a compact frosted-glass card with the cover (brand-colour tile with a note
+ * when there is no art), title, "artist · app" with the app's icon, a thin progress thread and
+ * Prev / Play-Pause / Next round buttons (each hidden when the session does not support it).
+ * The cover-and-text area is focusable: OK opens the playing app ([onOpen]; the tracker uses the
+ * session's own activity). [openTarget] is what UP from the shelf focuses.
  *
- * [ambient] = the ambient variant ([NowPlayingAmbientModel]): no buttons, no progress, not
- * focusable. The progress bar ticks once per second only while the card is started, attached,
- * shown and PLAYING ([NowPlayingCardModel.shouldTick]).
+ * [ambient] = the ambient variant ([NowPlayingAmbientModel]): large and calm, no buttons, no
+ * progress, not focusable, translucent. The progress thread ticks once per second only while the
+ * card is started, attached, shown and PLAYING ([NowPlayingCardModel.shouldTick]).
+ *
+ * Visibility: shown while the item is fresh ([NowPlayingChipModel.isFresh]: playing, or paused for
+ * under 10 minutes); a paused card hides itself when that runs out ([NowPlayingExpiry]) and calls
+ * [onShownChanged].
  *
  * Host: `card.bind(tracker.current, tracker.currentArt)` from the tracker callbacks;
  * `card.tracker = tracker`; [start]/[stop] from onStart/onStop (after `tracker.start()`);
@@ -42,6 +48,8 @@ import dev.tvlauncher.ui.Theme.style
 class NowPlayingCard(
     context: Context,
     private val ambient: Boolean = false,
+    private val full: Boolean = false,
+    private val onOpen: () -> Unit = {},
     private val onAction: (TransportAction) -> Unit = {}
 ) : LinearLayout(context) {
     private val density = resources.displayMetrics.density
@@ -52,11 +60,15 @@ class NowPlayingCard(
     private var bitmap: Bitmap? = null
     private var started = false
     private var ticking = false
+    private var iconPkg: String? = null
+
+    /** Called after the card showed or hid itself (e.g. a paused item expired). */
+    var onShownChanged: (() -> Unit)? = null
 
     private val artBox = FrameLayout(context).apply {
         outlineProvider = object : ViewOutlineProvider() {
             override fun getOutline(view: View, outline: Outline) {
-                outline.setRoundRect(0, 0, view.width, view.height, px(14).toFloat())
+                outline.setRoundRect(0, 0, view.width, view.height, px(if (ambient) 18 else 12).toFloat())
             }
         }
         clipToOutline = true
@@ -68,8 +80,12 @@ class NowPlayingCard(
         scaleType = ImageView.ScaleType.FIT_CENTER
     }
     private val artView = ImageView(context).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
+    private val appIcon = ImageView(context).apply {
+        scaleType = ImageView.ScaleType.FIT_CENTER
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
     private val title = TextView(context).apply {
-        style(if (ambient) NowPlayingAmbientModel.LINE1_SP else 17f, Theme.medium)
+        style(if (ambient) NowPlayingAmbientModel.LINE1_SP else 16f, Theme.medium)
         isSingleLine = true
         ellipsize = TextUtils.TruncateAt.END
     }
@@ -82,6 +98,15 @@ class NowPlayingCard(
     private val prev = RoundButton(context, R.drawable.ic_np_prev, "Previous") { onAction(TransportAction.PREV) }
     private val playPause = RoundButton(context, R.drawable.ic_np_pause, "Pause") { onAction(TransportAction.PLAY_PAUSE) }
     private val next = RoundButton(context, R.drawable.ic_np_next, "Next") { onAction(TransportAction.NEXT) }
+    private val openRing = GradientDrawable().apply { cornerRadius = px(16).toFloat() }
+
+    /** Cover + texts: focusable on Home, OK opens the app. */
+    val openTarget = LinearLayout(context).apply {
+        id = View.generateViewId()
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        background = openRing
+    }
 
     private val tick = object : Runnable {
         override fun run() {
@@ -90,48 +115,76 @@ class NowPlayingCard(
             scheduleTick()
         }
     }
+    private val expire = Runnable { bind(item, bitmap) }
 
     init {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(px(14), px(12), px(16), px(12))
-        background = GradientDrawable().apply {
-            cornerRadius = px(22).toFloat()
-            setColor(if (ambient) 0x14FFFFFF else 0x1AFFFFFF)
+        if (ambient) {
+            setPadding(px(18), px(16), px(24), px(16))
+            background = GradientDrawable().apply { cornerRadius = px(28).toFloat(); setColor(0x14FFFFFF) }
+        } else {
+            setPadding(px(8), px(8), px(12), px(8))
+            Glass.frost(this, full, 20)
         }
         val artDp = if (ambient) NowPlayingAmbientModel.ART_DP else NowPlayingCardModel.ART_DP
         artBox.background = fallbackBg
         val noteSize = px(artDp * 4 / 9)
         artBox.addView(note, FrameLayout.LayoutParams(noteSize, noteSize, Gravity.CENTER))
         artBox.addView(artView, FrameLayout.LayoutParams(-1, -1))
-        addView(artBox, LayoutParams(px(artDp), px(artDp)))
+        openTarget.setPadding(px(6), px(6), px(6), px(6))
+        openTarget.addView(artBox, LayoutParams(px(artDp), px(artDp)))
         val texts = LinearLayout(context).apply { orientation = VERTICAL }
         texts.addView(title)
-        texts.addView(subtitle, LayoutParams(-1, -2).apply { topMargin = px(2) })
-        if (!ambient) texts.addView(progress, LayoutParams(-1, px(3)).apply { topMargin = px(10) })
-        addView(texts, LayoutParams(0, -2, 1f).apply { leftMargin = px(14); rightMargin = px(8) })
+        val line2 = LinearLayout(context).apply { orientation = HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val iconDp = if (ambient) 22 else 16
+        line2.addView(appIcon, LayoutParams(px(iconDp), px(iconDp)).apply { rightMargin = px(6) })
+        line2.addView(subtitle, LayoutParams(0, -2, 1f))
+        texts.addView(line2, LayoutParams(-1, -2).apply { topMargin = px(if (ambient) 4 else 2) })
+        if (!ambient) texts.addView(progress, LayoutParams(-1, px(3)).apply { topMargin = px(8) })
+        openTarget.addView(texts, LayoutParams(0, -2, 1f).apply { leftMargin = px(if (ambient) 18 else 12) })
+        addView(openTarget, LayoutParams(0, -2, 1f))
         if (!ambient) {
             val b = px(NowPlayingCardModel.BUTTON_DP)
             val pad = px(9)
             listOf(prev, playPause, next).forEachIndexed { i, btn ->
                 btn.setPadding(pad, pad, pad, pad)
-                addView(btn, LayoutParams(b, b).apply { if (i > 0) leftMargin = px(8) })
+                addView(btn, LayoutParams(b, b).apply { leftMargin = px(if (i == 0) 8 else 6) })
             }
+            openTarget.isFocusable = true
+            openTarget.isClickable = true
+            openTarget.setOnClickListener { onOpen() }
+            openTarget.setOnFocusChangeListener { _, f -> paintOpenFocus(f) }
+            paintOpenFocus(false)
         }
         isFocusable = false
         descendantFocusability = if (ambient) FOCUS_BLOCK_DESCENDANTS else FOCUS_AFTER_DESCENDANTS
         bind(null, null)
     }
 
+    private fun paintOpenFocus(focused: Boolean) {
+        openRing.setColor(if (focused) 0x2EFFFFFF else 0x00000000)
+        openRing.setStroke(px(2), if (focused) dev.tvlauncher.room.RoomTheme.palette.focusRingColor else 0)
+    }
+
+    /** True while the card is showing an item. */
+    val isShowing: Boolean get() = visibility == VISIBLE
+
     /** Shows [n] (null hides the card) with [art] (null = brand tile). Main thread. */
     fun bind(n: NowPlaying?, art: Bitmap?) {
         item = n
-        visibility = if (n == null) GONE else VISIBLE
-        if (n == null) {
+        main.removeCallbacks(expire)
+        val now = SystemClock.elapsedRealtime()
+        val show = NowPlayingChipModel.isFresh(n, now)
+        val was = visibility
+        visibility = if (show) VISIBLE else GONE
+        if (n == null || !show) {
             setArt(null)
             stopTick()
+            if (was != visibility) onShownChanged?.invoke()
             return
         }
+        NowPlayingExpiry.delayUntilHidden(n, now)?.let { main.postDelayed(expire, it + 50) }
         val accent = NowPlayingAccent.forPackage(n.pkg)
         fallbackBg.setColor(accent)
         progress.accent = dev.tvlauncher.ui.BrandColors.backdropAccent(accent)
@@ -139,10 +192,12 @@ class NowPlayingCard(
         val a = NowPlayingText.artist(n)
         title.text = t.ifEmpty { a }
         subtitle.text = if (ambient) {
-            NowPlayingAmbientModel.from(n, SystemClock.elapsedRealtime(), true).line2
+            NowPlayingAmbientModel.from(n, now, true).line2
         } else {
             listOf(if (t.isEmpty()) "" else a, n.appLabel).filter { it.isNotBlank() }.joinToString(" · ")
         }
+        openTarget.contentDescription = "Open ${n.appLabel}: ${title.text}"
+        setAppIcon(n.pkg)
         setArt(art)
         if (!ambient) {
             val hadFocus = hasFocus()
@@ -153,10 +208,20 @@ class NowPlayingCard(
             if (icon == NowPlayingCardModel.Icon.PAUSE) playPause.setIcon(R.drawable.ic_np_pause, "Pause")
             else playPause.setIcon(R.drawable.ic_np_play, "Play")
             // Keep focus inside the card when the focused button disappears.
-            if (hadFocus && !hasFocus()) listOf(playPause, next, prev).firstOrNull { it.visibility == VISIBLE }?.requestFocus()
+            if (hadFocus && !hasFocus()) openTarget.requestFocus()
         }
         updateProgress()
         scheduleTick()
+        if (was != visibility) onShownChanged?.invoke()
+    }
+
+    /** The playing app's icon, loaded once per package (main thread, from the package manager's cache). */
+    private fun setAppIcon(pkg: String) {
+        if (pkg == iconPkg) return
+        iconPkg = pkg
+        val d = try { context.packageManager.getApplicationIcon(pkg) } catch (e: Exception) { null }
+        appIcon.setImageDrawable(d)
+        appIcon.visibility = if (d != null) VISIBLE else GONE
     }
 
     /** Swaps the art: the view lets go of the old bitmap first (it is never recycled here). */
@@ -185,6 +250,7 @@ class NowPlayingCard(
     fun stop() {
         started = false
         stopTick()
+        main.removeCallbacks(expire)
     }
 
     private fun visibleNow() = started && isAttachedToWindow && isShown
@@ -215,6 +281,7 @@ class NowPlayingCard(
 
     override fun onDetachedFromWindow() {
         stopTick()
+        main.removeCallbacks(expire)
         artView.setImageDrawable(null)
         bitmap = null
         super.onDetachedFromWindow()

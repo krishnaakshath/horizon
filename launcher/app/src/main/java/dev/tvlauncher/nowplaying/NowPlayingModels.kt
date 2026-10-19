@@ -89,9 +89,10 @@ object NowPlayingChipModel {
  * controls there (static content for burn-in and because ambient takes no D-pad focus).
  */
 object NowPlayingAmbientModel {
-    const val ART_DP = 56
-    const val LINE1_SP = 18f
-    const val LINE2_SP = 14f
+    /** Large and calm: the card sits under the ambient clock. */
+    const val ART_DP = 96
+    const val LINE1_SP = 24f
+    const val LINE2_SP = 17f
 
     data class Spec(
         val visible: Boolean,
@@ -118,7 +119,7 @@ object NowPlayingAmbientModel {
 /** Pure decisions for [NowPlayingCard]. */
 object NowPlayingCardModel {
     const val TICK_MS = 1_000L
-    const val ART_DP = 72
+    const val ART_DP = 56
     const val BUTTON_DP = 40
 
     enum class Icon { PLAY, PAUSE }
@@ -237,8 +238,11 @@ class PositionClock {
 data class NowPlayingSettings(
     /** On for new installs; nothing shows until notification access exists ([effective]). */
     val nowPlayingEnabled: Boolean = true,
+    /** The home mini player (Settings: "Show mini player"). */
     val showOnHome: Boolean = true,
-    val showOnAmbient: Boolean = true
+    val showOnAmbient: Boolean = true,
+    /** The home backdrop shows the playing item's art ([MediaBackdropPolicy]). */
+    val backdropFollows: Boolean = true
 ) {
     fun effective(accessGranted: Boolean): NowPlayingSettings =
         if (accessGranted) this else copy(nowPlayingEnabled = false)
@@ -247,11 +251,14 @@ data class NowPlayingSettings(
 
     fun showAmbient(accessGranted: Boolean) = effective(accessGranted).nowPlayingEnabled && showOnAmbient
 
+    fun followBackdrop(accessGranted: Boolean) = effective(accessGranted).nowPlayingEnabled && backdropFollows
+
     fun toJson(): String = JSONObject()
         .put("version", 1)
         .put("enabled", nowPlayingEnabled)
         .put("showOnHome", showOnHome)
         .put("showOnAmbient", showOnAmbient)
+        .put("backdropFollows", backdropFollows)
         .toString()
 
     companion object {
@@ -260,7 +267,8 @@ data class NowPlayingSettings(
             val json = try { JSONObject(s) } catch (e: Exception) { return NowPlayingSettings() }
             val d = NowPlayingSettings()
             fun b(key: String, def: Boolean) = json.opt(key) as? Boolean ?: def
-            return NowPlayingSettings(b("enabled", d.nowPlayingEnabled), b("showOnHome", d.showOnHome), b("showOnAmbient", d.showOnAmbient))
+            return NowPlayingSettings(b("enabled", d.nowPlayingEnabled), b("showOnHome", d.showOnHome), b("showOnAmbient", d.showOnAmbient),
+                b("backdropFollows", d.backdropFollows))
         }
     }
 }

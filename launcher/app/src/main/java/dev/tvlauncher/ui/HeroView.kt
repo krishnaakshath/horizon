@@ -62,6 +62,14 @@ class HeroView(context: Context, private val pm: PackageManager) : LinearLayout(
         modeChip.setTextColor(if (light) Theme.TEXT else Theme.TEXT_DARK)
     }
 
+    /** Re-picks the text colours for a new backdrop colour (e.g. Now Playing art faded in under it). */
+    fun recolor(backdrop: Int) {
+        val light = BrandColors.onColorTextIsLight(backdrop)
+        title.setTextColor(if (light) Theme.TEXT else Theme.TEXT_DARK)
+        subtitle.setTextColor(if (light) Theme.TEXT_2 else Theme.TEXT_DARK_2)
+        modeChip.setTextColor(if (light) Theme.TEXT else Theme.TEXT_DARK)
+    }
+
     /** A non-app entry (the "Get more apps" tile): plain title and subtitle, no mode chip. */
     fun showText(titleText: String, subtitleText: String, backdrop: Int) {
         title.text = titleText

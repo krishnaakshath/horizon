@@ -25,7 +25,6 @@ import dev.tvlauncher.discover.DiscoverStore
 import dev.tvlauncher.discover.GetAppsLink
 import dev.tvlauncher.discover.StoreLauncher
 import dev.tvlauncher.discover.RegionGuess
-import dev.tvlauncher.nowplaying.NowPlayingAccess
 import java.util.Locale
 import dev.tvlauncher.settings.AppearanceFormat
 import dev.tvlauncher.settings.AppearancePrefs
@@ -82,9 +81,9 @@ object WaveTwoSections {
     )
 
     /**
-     * Rows of the Home screen page in order, as (key, advanced). The notification-access card is a
-     * plain view shown under "home.nowPlaying" when [accessCardShown]; "home.restoreHidden" only
-     * appears while suggestions are hidden.
+     * Rows of the Home screen page in order, as (key, advanced). "home.nowPlaying" opens
+     * [NowPlayingPage] (which shows the notification-access card when [accessCardShown]);
+     * "home.restoreHidden" only appears while suggestions are hidden.
      */
     fun homeExtrasRows(hiddenSuggestions: Int): List<Pair<String, Boolean>> =
         listOf("home.weatherTopBar", "home.weather", "home.getMoreAppsTile", "home.nowPlaying").map { it to false } +
@@ -175,7 +174,8 @@ object AmbientSection : SettingsSection, SpecifiedPage {
 
 /**
  * Settings > Home screen: the top-bar weather chip, the weather companion's settings, the shelf's
- * "Get more apps" tile and the Now Playing card (with the notification-access card when needed).
+ * "Get more apps" tile and the Now Playing page ([NowPlayingPage]: mini player, art backdrop,
+ * ambient card, notification access).
  */
 object HomeExtrasSection : SettingsSection, SpecifiedPage {
     override val id = WaveTwoSections.HOME_EXTRAS_ID
@@ -212,14 +212,9 @@ object HomeExtrasSection : SettingsSection, SpecifiedPage {
             store.save(DiscoverSettingsRows.toggle(store.load(), "showGetMoreAppsTile"))
         }, subtitle = "At the end of the shelf: popular apps, installed from the Play Store")
         val np = store.loadNowPlaying()
-        val granted = NowPlayingAccess.isGranted(context)
-        page.row("home.nowPlaying", "Now Playing", RowKind.Toggle(np.nowPlayingEnabled) { _ ->
-            store.saveNowPlaying(DiscoverSettingsRows.toggleNowPlaying(store.loadNowPlaying(), "nowPlayingEnabled"))
-            nav.refresh()
-        }, subtitle = "What's playing, with play and skip, next to the app name")
-        if (WaveTwoSections.accessCardShown(np.nowPlayingEnabled, granted)) {
-            page.add(NotificationAccessCard(context, NotificationAccessCard.NOW_PLAYING_TITLE, NotificationAccessCard.NOW_PLAYING_BODY))
-        }
+        page.row("home.nowPlaying", "Now Playing", RowKind.Action(dev.tvlauncher.nowplaying.NowPlayingPageRows.summary(np)) {
+            nav.push("Now Playing") { c, n -> NowPlayingPage.build(c, n) }
+        }, subtitle = "Mini player, album-art background and ambient card")
         page.advanced(nav, "home.advanced", "Suggestion region and hidden suggestions") { adv ->
             val detected = RegionGuess.fromLocale(Locale.getDefault(), null)
             val regions = DiscoverSettingsRows.REGIONS
