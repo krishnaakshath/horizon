@@ -180,6 +180,7 @@ class AmbientView(
         wxFresh.ambient(model.metaSp - 2f, Theme.regular, 0x99A7B0C0.toInt())
         for (t in listOf(wxCondition, wxHighLow, wxLocation, wxFresh)) {
             t.gravity = Gravity.END
+            t.maxWidth = model.weatherBlockWidthPx
             weatherBlock.addView(t, LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(3f) })
         }
         forecast.orientation = LinearLayout.HORIZONTAL

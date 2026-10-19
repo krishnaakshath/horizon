@@ -21,6 +21,9 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- Weather companion app (the launcher has no INTERNET permission). -->
+        <package android:name="dev.tvlauncher.weather" />
+        <provider android:authorities="dev.tvlauncher.weather" />
     </queries>
 
     <application
@@ -40,5 +43,41 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".ambient.AmbientActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:noHistory="true"
+            android:theme="@style/AmbientTheme">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.action.AMBIENT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- System screensaver; select with `settings put secure screensaver_components`. -->
+        <service
+            android:name=".ambient.AmbientDream"
+            android:exported="true"
+            android:label="TV Launcher Ambient"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+
+        <!-- Opt-in notification chips; bound only by the system after the user grants access. -->
+        <service
+            android:name=".ambient.AmbientNotificationService"
+            android:exported="true"
+            android:label="TV Launcher ambient notifications"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>
