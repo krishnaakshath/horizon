@@ -116,6 +116,15 @@ class HelperSettingsActivity : Activity() {
         )
         content.addView(spacer())
 
+        val vol = dev.tvlauncher.helper.volume.VolumePrefs(this)
+        content.addView(
+            row("Use launcher volume bar", dev.tvlauncher.helper.volume.VolumeStatus.line(vol.enabled, vol.keysSeen, vol.keysTaken)) {
+                vol.enabled = !vol.enabled
+                render()
+            },
+        )
+        content.addView(spacer())
+
         content.addView(label("Apps where Double-Back is ignored", 16f, text, true))
         content.addView(label(ExclusionList.format(s.exclusions), 14f, muted, false).apply { setPadding(dp(4), dp(6), 0, 0) })
         content.addView(spacer())

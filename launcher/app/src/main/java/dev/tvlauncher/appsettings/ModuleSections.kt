@@ -38,7 +38,7 @@ object ModuleSections {
 /** Hosts [SoundsPage]: SettingsRow-based, with choosers and an Advanced block. */
 object SoundsSection : SettingsSection, SpecifiedPage {
     override val id = ModulePlaceholderSection.SOUNDS
-    override val title = "Sounds"
+    override val title = "UI sounds"
     override val iconRes = R.drawable.ic_set_sounds
     override val group = SettingsGroup.SOUND
     override val description = "Navigation and launch sounds on the home screen."

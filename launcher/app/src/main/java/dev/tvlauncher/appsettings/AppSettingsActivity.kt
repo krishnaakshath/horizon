@@ -41,6 +41,7 @@ import java.util.concurrent.Executors
  * one level: sub-page, then sidebar, then closes. The last page is remembered.
  */
 class AppSettingsActivity : Activity(), SettingsNav {
+    private val volume by lazy { dev.tvlauncher.volume.LauncherVolume(this) }
     private class Level(val title: String, val build: (Context, SettingsNav) -> View, val returnKey: String?)
     private class FocusTarget(val key: String?, val index: Int)
 
@@ -137,6 +138,11 @@ class AppSettingsActivity : Activity(), SettingsNav {
         sectionsById.clear()
         SettingsRegistry.shared.sections().forEach { sectionsById[it.id] = it }
         return groups.map { g -> g.group to g.sections.map { it.id } }
+    }
+
+    override fun onStop() {
+        volume.release()
+        super.onStop()
     }
 
     override fun onDestroy() {
@@ -578,6 +584,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (volume.dispatch(event)) return true // our volume bar; false = the TV handles the key
         if (super.dispatchKeyEvent(event)) return true
         if (event.action != KeyEvent.ACTION_DOWN) return false
         val f = currentFocus ?: return false

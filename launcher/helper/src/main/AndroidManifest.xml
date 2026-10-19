@@ -13,6 +13,10 @@
     <permission
         android:name="dev.tvlauncher.permission.POWER_ON_HOME"
         android:protectionLevel="signature" />
+    <!-- Same signer only: the launcher's Settings > Volume & output reads and sets the volume bar switch. -->
+    <permission
+        android:name="dev.tvlauncher.permission.VOLUME_BAR"
+        android:protectionLevel="signature" />
 
     <application
         android:allowBackup="false"
@@ -51,6 +55,16 @@
             android:permission="dev.tvlauncher.permission.POWER_ON_HOME">
             <intent-filter>
                 <action android:name="dev.tvlauncher.helper.action.HOME_AFTER_POWER_ON" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Volume bar switch and status for the launcher (volume/VolumeBarReceiver). -->
+        <receiver
+            android:name=".volume.VolumeBarReceiver"
+            android:exported="true"
+            android:permission="dev.tvlauncher.permission.VOLUME_BAR">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.helper.action.VOLUME_BAR" />
             </intent-filter>
         </receiver>
     </application>

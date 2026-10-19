@@ -19,6 +19,8 @@ android {
             isMinifyEnabled = false
         }
     }
+    // Shared volume bar and volume control (also built into the other app).
+    sourceSets.getByName("main").kotlin.srcDir("../volumecore/src/main/java")
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

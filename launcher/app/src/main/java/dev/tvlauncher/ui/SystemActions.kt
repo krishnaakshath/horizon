@@ -45,7 +45,8 @@ object SystemActions {
         QuickActions.Item.SETTINGS -> launcherSettings(context) || settings(context)
         QuickActions.Item.NETWORK -> settingsPage(context, Settings.ACTION_WIFI_SETTINGS)
         QuickActions.Item.BLUETOOTH -> settingsPage(context, Settings.ACTION_BLUETOOTH_SETTINGS)
-        QuickActions.Item.SOUND -> settingsPage(context, Settings.ACTION_SOUND_SETTINGS)
+        // Our own volume page, never the TV's sound menu.
+        QuickActions.Item.SOUND -> launcherSettings(context, dev.tvlauncher.volume.VolumeSection.ID)
         // Fallbacks only: the home screen opens its Devices panel / AmbientActivity itself.
         QuickActions.Item.DEVICES -> launcherSettings(context) || settings(context)
         QuickActions.Item.AMBIENT -> ambient(context)
@@ -55,8 +56,8 @@ object SystemActions {
     }
 
     /** The launcher's own settings screen ([AppSettingsActivity]); false if it does not resolve. */
-    fun launcherSettings(context: Context): Boolean {
-        val i = AppSettingsActivity.intent(context)
+    fun launcherSettings(context: Context, sectionId: String? = null): Boolean {
+        val i = AppSettingsActivity.intent(context, sectionId)
         if (context.packageManager.resolveActivity(i, 0) == null) return false
         return start(context, i)
     }

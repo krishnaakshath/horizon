@@ -5,11 +5,13 @@ import android.content.Intent
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import dev.tvlauncher.helper.volume.HelperVolume
 
 class HelperService : AccessibilityService() {
     private var machine: KeyStateMachine? = null
     private var foreground: String? = null
     @Volatile private var lastUserKeyAt = -1L
+    private var volume: HelperVolume? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -21,6 +23,7 @@ class HelperService : AccessibilityService() {
             goHome = { performGlobalAction(GLOBAL_ACTION_HOME) },
             openSpotlight = { openSpotlight() },
         )
+        volume = try { HelperVolume(this) } catch (e: Throwable) { null } // our volume bar (volume/*)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -33,11 +36,15 @@ class HelperService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     override fun onUnbind(intent: Intent?): Boolean {
+        volume?.release()
+        volume = null
         if (current === this) current = null
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
+        volume?.release()
+        volume = null
         if (current === this) current = null
         super.onDestroy()
     }
@@ -53,6 +60,7 @@ class HelperService : AccessibilityService() {
             if (event.action == KeyEvent.ACTION_DOWN && PowerOnGate.countsAsNavigation(event.keyCode)) {
                 lastUserKeyAt = SystemClock.uptimeMillis()
             }
+            if (volume?.onKey(event) == true) return true // false: the TV handles the volume key itself
             val machine = machine ?: return false
             val action = when (event.action) {
                 KeyEvent.ACTION_DOWN -> KeyAction.DOWN

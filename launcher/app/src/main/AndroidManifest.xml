@@ -36,6 +36,11 @@
         android:name="dev.tvlauncher.permission.POWER_ON_HOME"
         android:protectionLevel="signature" />
     <uses-permission android:name="dev.tvlauncher.permission.POWER_ON_HOME" />
+    <!-- Settings > Volume & output reads and sets Launcher Helper's volume bar switch (same signer only). -->
+    <permission
+        android:name="dev.tvlauncher.permission.VOLUME_BAR"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="dev.tvlauncher.permission.VOLUME_BAR" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />

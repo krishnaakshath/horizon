@@ -46,6 +46,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 class HomeActivity : Activity() {
+    private val volume by lazy { dev.tvlauncher.volume.LauncherVolume(this) }
     private lateinit var repo: AppRepository
     private lateinit var prefs: Prefs
     private lateinit var look: HomeLook
@@ -280,6 +281,7 @@ class HomeActivity : Activity() {
     /** MENU / SEARCH toggle Spotlight from anywhere on the home screen (including its search field), not over the tile menu. */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (redirected) return super.dispatchKeyEvent(event)
+        if (volume.dispatch(event)) return true // our volume bar; false = the TV handles the key
         modules.onUserActivity() // any key, repeats included, resets the ambient idle timer
         sounds.onKey(event)
         if (!SpotlightKeys.togglesSpotlight(event.keyCode, tileMenu.isVisible)) return super.dispatchKeyEvent(event)
@@ -341,6 +343,7 @@ class HomeActivity : Activity() {
             launchOverlay.hide()
             spotlight.close(animate = false)
         }
+        volume.release()
         topBar.stopStatus() // always paired with startStatus (TopBar tracks it)
         modules.stop() // panels closed; controllers, device monitor and idle timer stopped
         super.onStop()
