@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- View tag key for the PanelEntry a panel message view was built from. -->
+    <item name="panel_entry" type="id" />
+</resources>

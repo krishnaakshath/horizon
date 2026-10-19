@@ -39,7 +39,7 @@ class SelectableStatusPill(context: Context, iconRes: Int, label: String? = null
         }
         background = StateListDrawable().apply {
             addState(intArrayOf(android.R.attr.state_focused), pill(Theme.TEXT, 0))
-            addState(intArrayOf(), pill(NetColors.PILL_FILL, Theme.STROKE))
+            addState(intArrayOf(), pill(PILL_FILL, Theme.STROKE))
         }
         setOnClickListener { onClick() }
         applyFocus(false)
@@ -71,5 +71,10 @@ class SelectableStatusPill(context: Context, iconRes: Int, label: String? = null
         applyFocus(gainFocus)
         animate().scaleX(if (gainFocus) 1.06f else 1f).scaleY(if (gainFocus) 1.06f else 1f)
             .setDuration(Motion.ms(TileSpec.FOCUS_MS)).start()
+    }
+
+    private companion object {
+        /** Quiet glass fill, the same as the top-bar pills. */
+        const val PILL_FILL = 0x1AF5F7FA
     }
 }
