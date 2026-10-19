@@ -81,7 +81,6 @@ class RemoteFilter(private val clock: () -> Long = { 0L }) {
         if (vp != null && kind != null && isHid(kind) && !isPad(kind) && seededVidPid.size < MAX_TRACKED) seededVidPid.add(vp)
     }
 
-    fun isSeeded(key: String) = key in seeded
     fun reset() { seeded.clear(); seededVidPid.clear(); lastEvent.clear() }
 
     fun shouldAnnounce(c: Candidate, connected: Boolean = true): Boolean {

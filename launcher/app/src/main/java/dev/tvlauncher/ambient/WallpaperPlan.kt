@@ -61,8 +61,6 @@ object WallpaperPlan {
     fun tileColumns(innerPx: Int, cellPx: Int, max: Int): Int =
         if (cellPx <= 0) max else (innerPx / cellPx).coerceIn(2, max)
 
-    fun bitmapBytes(w: Int, h: Int): Long = w.toLong() * h * 4
-
     fun crossfadeMs(lite: Boolean): Long = if (lite) 400L else 800L
 
     fun clampInterval(sec: Int): Int = sec.coerceIn(MIN_INTERVAL_SEC, MAX_INTERVAL_SEC)

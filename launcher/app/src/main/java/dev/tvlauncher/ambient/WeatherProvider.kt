@@ -61,9 +61,6 @@ object WeatherCompanion {
             shared ?: TimeoutWeatherSource(ContentProviderWeatherSource(context.applicationContext)).also { shared = it }
         }
 
-    /** Shared across ambient instances so re-showing ambient never spams the companion. */
-    val refreshThrottle = RefreshThrottle(15 * 60_000L)
-
     /** At most one stale-data request per 5 min, shared by Home and Ambient. */
     val staleThrottle = RefreshThrottle(5 * 60_000L)
 
@@ -96,15 +93,6 @@ object WeatherCompanion {
             return {}
         }
         return { try { app.contentResolver.unregisterContentObserver(o) } catch (e: RuntimeException) { } }
-    }
-
-    /** Explicit broadcast to the companion package; no-op when absent. */
-    fun requestRefresh(context: Context, nowMs: Long = System.currentTimeMillis()) {
-        if (!refreshThrottle.tryAcquire(nowMs)) return
-        try {
-            context.sendBroadcast(Intent(WeatherContract.ACTION_REFRESH).setPackage(WeatherContract.PACKAGE))
-        } catch (e: Exception) {
-        }
     }
 
     /** The companion's settings screen (location/units), or null when it is not installed. */

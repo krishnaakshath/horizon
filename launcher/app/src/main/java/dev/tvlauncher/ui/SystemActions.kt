@@ -78,7 +78,6 @@ object SystemActions {
     /** Our ambient screen (explicit component, so nothing else can answer the action). */
     fun ambient(context: Context) = start(context, AmbientActivity.intent(context).setPackage(context.packageName))
 
-    const val LAUNCHER_SETTINGS_ACTION = "dev.tvlauncher.action.SETTINGS"
     const val INSIGHTS_CLASS = "dev.tvlauncher.insights.InsightsActivity"
 
     fun inputs(context: Context): Boolean {

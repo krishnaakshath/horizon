@@ -155,9 +155,6 @@ class BackdropView(context: Context, durationMs: Long) : View(context) {
     /** Color the hero text sits on (top-left of the gradient, or of the media picture when shown). */
     val heroColor: Int get() = if (mediaTarget && media != null) mediaStops[0] else to[0]
 
-    /** True while the media layer is (or is fading) on. */
-    val isShowingMedia: Boolean get() = mediaTarget && media != null
-
     /**
      * The media picture ([bmp], owned by this view from now on; null = none) and its three
      * representative colours ([stops]: top-left, middle, bottom-right) for the hero and glass.

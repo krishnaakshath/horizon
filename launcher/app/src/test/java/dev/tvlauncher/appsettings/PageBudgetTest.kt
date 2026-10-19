@@ -9,7 +9,8 @@ class PageBudgetTest {
     private fun builtIns(): List<SettingsSection> {
         val r = SettingsRegistry.newDefault()
         ModuleSections.registerAll(r)
-        return r.sections().filter { it !is ModulePlaceholderSection }
+        dev.tvlauncher.setup.SetupSection.register(r)
+        return r.sections().filter { it !is Slot }
     }
 
     @Test

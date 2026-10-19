@@ -35,10 +35,6 @@ object LocationState {
      */
     fun requiredForBluetoothDiscovery(sdkInt: Int): Boolean = sdkInt >= Build.VERSION_CODES.P
 
-    /** Wi-Fi getScanResults needs Location services on every API level this app supports (24+). */
-    @Suppress("UNUSED_PARAMETER")
-    fun requiredForWifiScan(sdkInt: Int): Boolean = true
-
     /** True when Bluetooth discovery is not blocked by the Location toggle on this API level. */
     fun bluetoothLocationOk(sdkInt: Int, toggleOn: Boolean): Boolean =
         !requiredForBluetoothDiscovery(sdkInt) || toggleOn

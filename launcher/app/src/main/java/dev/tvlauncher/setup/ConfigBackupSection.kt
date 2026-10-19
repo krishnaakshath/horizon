@@ -3,9 +3,9 @@ package dev.tvlauncher.setup
 import android.content.Context
 import android.view.View
 import dev.tvlauncher.R
-import dev.tvlauncher.appsettings.BackupSection
 import dev.tvlauncher.appsettings.PageSpec
 import dev.tvlauncher.appsettings.RowKind
+import dev.tvlauncher.appsettings.SectionIds
 import dev.tvlauncher.appsettings.SettingsGroup
 import dev.tvlauncher.appsettings.SettingsNav
 import dev.tvlauncher.appsettings.SettingsPage
@@ -17,12 +17,12 @@ import dev.tvlauncher.settings.SettingsBackup
 import java.io.File
 
 /**
- * Settings > System > Backup & restore of the whole configuration (takes the built-in page's
- * slot by id). Saves to a USB stick when one is plugged in, so a second TV can restore it,
+ * Settings > System > Backup & restore of the whole configuration (fills the built-in "backup"
+ * slot). Saves to a USB stick when one is plugged in, so a second TV can restore it,
  * also from the first-run setup.
  */
 object ConfigBackupSection : SettingsSection, SpecifiedPage {
-    override val id = BackupSection.ID
+    override val id = SectionIds.BACKUP
     override val title = "Backup & restore"
     override val iconRes = R.drawable.ic_set_backup
     override val group = SettingsGroup.SYSTEM

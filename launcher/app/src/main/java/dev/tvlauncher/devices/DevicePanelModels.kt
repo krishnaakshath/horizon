@@ -126,12 +126,6 @@ object InputsModel {
         return Regex("""hdmi\s*-?\s*\d*""", RegexOption.IGNORE_CASE).matches(n)
     }
 
-    fun stateWord(state: Int) = when (state) {
-        STATE_CONNECTED -> "Connected"
-        STATE_STANDBY -> "Standby"
-        else -> "No signal"
-    }
-
     /** True for port types whose connection state the TV really detects (HDMI hotplug / CEC). */
     fun detects(type: Int) = type == TYPE_HDMI
 

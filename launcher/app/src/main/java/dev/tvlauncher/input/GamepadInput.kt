@@ -417,12 +417,6 @@ object PadVibration {
     private const val MS = 14L
     private const val AMPLITUDE = 50
 
-    fun canVibrate(deviceId: Int): Boolean = try {
-        InputDevice.getDevice(deviceId)?.vibrator?.hasVibrator() == true
-    } catch (t: Throwable) {
-        false
-    }
-
     @Suppress("DEPRECATION")
     fun pulse(deviceId: Int) {
         try {

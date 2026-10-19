@@ -15,7 +15,7 @@ import dev.tvlauncher.appsettings.SettingsRow
 import dev.tvlauncher.appsettings.SettingsSection
 import dev.tvlauncher.appsettings.SpecifiedPage
 import dev.tvlauncher.insights.UsageAccess
-import dev.tvlauncher.ui.BouncingDots
+import dev.tvlauncher.ui.HorizonLoader
 import dev.tvlauncher.ui.dp
 import java.text.DateFormat
 import java.util.Date
@@ -132,7 +132,7 @@ object SpeedSection : SettingsSection, SpecifiedPage {
 
     private fun loading(context: Context, nav: SettingsNav, work: () -> Any?, fill: (SettingsPage, Any?) -> Unit): View {
         val page = SettingsPage(context, nav.style)
-        val dots = BouncingDots(context)
+        val dots = HorizonLoader(context)
         page.column.addView(dots, LinearLayout.LayoutParams(-2, -2).apply { topMargin = context.dp(24); marginStart = context.dp(8) })
         nav.background(work) { data ->
             page.column.removeView(dots)

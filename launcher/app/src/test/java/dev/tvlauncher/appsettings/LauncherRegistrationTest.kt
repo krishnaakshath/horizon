@@ -36,7 +36,7 @@ class LauncherRegistrationTest {
 
     @Test fun soundGroup_listsVolumeAndOutputAboveUiSounds() {
         val sound = all().sections().filter { it.group == SettingsGroup.SOUND }.map { it.id }
-        assertEquals(listOf(VolumeSection.ID, ModulePlaceholderSection.SOUNDS), sound)
+        assertEquals(listOf(VolumeSection.ID, SectionIds.SOUNDS), sound)
     }
 
     @Test fun speedAndPrivateDns_sitInTheirGroups() {

@@ -14,8 +14,8 @@ class HomePolishTest {
     }
 
     @Test fun spotlightPanel_isNearOpaque_andTheScrimDimsTheShelf() {
-        assertTrue((Glass.PANEL_FULL ushr 24) >= 0xF0)
-        assertTrue((Glass.PANEL_LITE ushr 24) >= 0xF0)
+        assertTrue((dev.tvlauncher.panel.PanelStyle.SURFACE ushr 24) >= 0xF0)
+        assertTrue((dev.tvlauncher.panel.PanelStyle.SURFACE_LITE ushr 24) >= 0xF0)
         for (full in listOf(true, false)) {
             val a = SpotlightKeys.scrimColor(full) ushr 24
             assertTrue("scrim alpha $a", a >= 0xB0)

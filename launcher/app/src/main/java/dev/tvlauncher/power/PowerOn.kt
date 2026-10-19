@@ -44,7 +44,6 @@ object PowerOn {
     const val HELPER_SERVICE = "dev.tvlauncher.helper.HelperService"
     const val HELPER_RECEIVER = "dev.tvlauncher.helper.PowerOnHomeReceiver"
     const val ACTION_HELPER_HOME = "dev.tvlauncher.helper.action.HOME_AFTER_POWER_ON"
-    const val PERMISSION_POWER_HOME = "dev.tvlauncher.permission.POWER_ON_HOME"
 
     /** Let the top activity settle (TCL restores its source a moment after the wake signal). */
     const val WAKE_DELAY_MS = 1_500L

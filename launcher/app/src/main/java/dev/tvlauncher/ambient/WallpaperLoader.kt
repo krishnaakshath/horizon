@@ -153,9 +153,7 @@ object BitmapRecycler {
  * TVLauncher or Pictures/TVLauncher on a USB stick (see [CollectionScanner]).
  */
 object UserWallpapers {
-    const val DEVICE_PATH = "/sdcard/Android/data/dev.tvlauncher/files/wallpapers/"
     const val COLLECTIONS_DIR = "TVLauncher"
-    const val SHARED_PATH = "/sdcard/Pictures/TVLauncher/"
     const val PERMISSION = android.Manifest.permission.READ_EXTERNAL_STORAGE
 
     fun canReadShared(context: Context): Boolean = try {

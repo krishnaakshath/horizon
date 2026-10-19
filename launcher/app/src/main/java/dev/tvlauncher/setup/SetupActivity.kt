@@ -128,7 +128,7 @@ class SetupActivity : Activity() {
         val scroll = ScrollView(this).apply {
             isVerticalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_NEVER
-            background = Glass.surface(this@SetupActivity, full, 24)
+            background = Glass.clear(this@SetupActivity, full, 24)
             addView(list, FrameLayout.LayoutParams(-1, -2))
         }
         row.addView(scroll, LinearLayout.LayoutParams(0, -2, 1.15f))

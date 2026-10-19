@@ -35,7 +35,7 @@ class LauncherApp : Application() {
         try {
             ModuleSections.registerAll()
         } catch (e: Throwable) {
-            // Settings then shows the placeholders; the home screen is unaffected.
+            // Their slots stay hidden in Settings; the home screen is unaffected.
         }
         try {
             Speed.install(this) // Settings > System > Speed and Connections > Private DNS; nightly cleanup
@@ -60,7 +60,7 @@ class LauncherApp : Application() {
         try {
             WaveTwoSections.registerAll()
         } catch (e: Throwable) {
-            // Same: the wave-2 pages stay placeholders or absent.
+            // Same: the wave-2 pages are absent.
         }
         try {
             dev.tvlauncher.setup.SetupSection.register()
@@ -79,10 +79,10 @@ class LauncherApp : Application() {
         }
         try {
             // Launcher-owned system pages that are not built in (Devices, Accessibility,
-            // Parental controls, Apps); last, so they take their placeholders' slots.
+            // Parental controls, Apps); last, so Devices fills its built-in slot.
             dev.tvlauncher.system.SystemSections.registerAll()
         } catch (e: Throwable) {
-            // Devices keeps its placeholder; the other pages are missing this run.
+            // Devices stays a hidden slot; the other pages are missing this run.
         }
     }
 }

@@ -1,5 +1,7 @@
 package dev.tvlauncher.appsettings
 
+import android.content.Context
+import android.view.View
 import dev.tvlauncher.system.BluetoothSettingsSection
 import dev.tvlauncher.system.SystemHubSection
 import dev.tvlauncher.system.SystemSpecs
@@ -7,8 +9,8 @@ import dev.tvlauncher.system.WifiSettingsSection
 
 /**
  * Ordered settings sections. Built-ins come first in a fixed order; [register] appends new ids
- * after them, replaces a same-id entry in place (so a module's real page takes its placeholder's
- * slot) and is idempotent per id. [shared] is the process-wide instance the activity reads.
+ * after them, replaces a same-id entry in place (so a module's real page takes its [Slot]) and is
+ * idempotent per id. [shared] is the process-wide instance the activity reads.
  *
  * The sidebar shows these grouped ([GroupedRegistry]): by [SettingsSection.group] in
  * [SettingsGroup] order, and within a group in this registry order, so a section registered
@@ -48,11 +50,11 @@ class SettingsRegistry(builtIns: List<SettingsSection>) {
         /** Ids of the built-in sections, in registry order. */
         val BUILT_IN_IDS = listOf(
             AppearanceSection.ID, HomeLayoutSection.ID,
-            SystemSpecs.NETWORK, SystemSpecs.BLUETOOTH, ModulePlaceholderSection.DEVICES,
-            ModulePlaceholderSection.SOUNDS,
-            ModulePlaceholderSection.BROWSER, GetAppsSection.ID, ModulePlaceholderSection.HELPER,
-            ModulePlaceholderSection.INSIGHTS, AddOnsSection.ID,
-            SystemSpecs.SYSTEM, BackupSection.ID, AboutSection.ID
+            SystemSpecs.NETWORK, SystemSpecs.BLUETOOTH, SectionIds.DEVICES,
+            SectionIds.SOUNDS,
+            SectionIds.BROWSER, GetAppsSection.ID, SectionIds.HELPER,
+            SectionIds.INSIGHTS, AddOnsSection.ID,
+            SystemSpecs.SYSTEM, SectionIds.BACKUP, AboutSection.ID
         )
 
         fun newDefault(): SettingsRegistry = SettingsRegistry(
@@ -61,15 +63,15 @@ class SettingsRegistry(builtIns: List<SettingsSection>) {
                 HomeLayoutSection,
                 WifiSettingsSection,
                 BluetoothSettingsSection,
-                ModulePlaceholderSection.devices(),
-                ModulePlaceholderSection.sounds(),
-                ModulePlaceholderSection.browser(),
+                Slot(SectionIds.DEVICES),
+                Slot(SectionIds.SOUNDS),
+                Slot(SectionIds.BROWSER),
                 GetAppsSection,
-                ModulePlaceholderSection.helper(),
-                ModulePlaceholderSection.insights(),
+                Slot(SectionIds.HELPER),
+                Slot(SectionIds.INSIGHTS),
                 AddOnsSection,
                 SystemHubSection,
-                BackupSection,
+                Slot(SectionIds.BACKUP),
                 AboutSection
             )
         )
@@ -79,4 +81,25 @@ class SettingsRegistry(builtIns: List<SettingsSection>) {
         /** Hook for other modules: add (or replace) a section in the shared registry. */
         fun register(section: SettingsSection) = shared.register(section)
     }
+}
+
+/**
+ * Keeps a built-in id's place until its page registers (LauncherApp: ModuleSections, SetupSection,
+ * SystemSections). Never listed in the sidebar or Spotlight ([SectionAvailability.Never]).
+ */
+class Slot(override val id: String) : SettingsSection {
+    override val title: String get() = id
+    override val iconRes: Int get() = 0
+    override val availability: SectionAvailability get() = SectionAvailability.Never
+    override fun buildPage(context: Context, nav: SettingsNav): View = SettingsPage(context, nav.style)
+}
+
+/** Ids of the built-in slots that a module's page fills ([SettingsRegistry.BUILT_IN_IDS]). */
+object SectionIds {
+    const val DEVICES = "devices"
+    const val SOUNDS = "sounds"
+    const val BROWSER = "browser"
+    const val HELPER = "helper"
+    const val INSIGHTS = "insights"
+    const val BACKUP = "backup"
 }

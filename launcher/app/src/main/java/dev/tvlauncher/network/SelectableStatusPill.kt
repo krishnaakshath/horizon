@@ -49,13 +49,6 @@ class SelectableStatusPill(context: Context, iconRes: Int, label: String? = null
 
     fun setIcon(res: Int) = iconView.setImageResource(res)
 
-    fun setLabel(text: String) {
-        if (labelView.parent == null) {
-            addView(labelView, LayoutParams(-2, -2).apply { marginStart = context.dp(8) })
-        }
-        labelView.text = text
-    }
-
     private fun pill(fill: Int, stroke: Int) = GradientDrawable().apply {
         setColor(fill)
         cornerRadius = context.dp(Theme.RADIUS_PILL).toFloat()

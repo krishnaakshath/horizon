@@ -25,9 +25,6 @@ object NetIcons {
     fun forWifiRssi(rssiDbm: Int, connected: Boolean): Int =
         forWifiLevel(WifiNetworkModel.levelOf(rssiDbm), connected)
 
-    /** Kept for existing callers; same as [forWifiLevel]. */
-    fun forWifi(level: Int, connected: Boolean): Int = forWifiLevel(level, connected)
-
     fun forBluetooth(state: BtState): Int = when (state) {
         BtState.OFF -> R.drawable.ic_net_bt_off
         BtState.ON -> R.drawable.ic_net_bt_on

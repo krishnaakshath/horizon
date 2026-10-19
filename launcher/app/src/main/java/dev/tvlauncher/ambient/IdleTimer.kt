@@ -23,8 +23,6 @@ class IdleTimer(timeoutMs: Long, private val clock: () -> Long) {
         if (before != 0 && pauses == 0) last = clock()
     }
 
-    fun isPaused(): Boolean = pauses != 0
-
     fun start() {
         running = true
         fired = false
@@ -56,6 +54,5 @@ class IdleTimer(timeoutMs: Long, private val clock: () -> Long) {
         const val PAUSE_SPOTLIGHT = 1
         const val PAUSE_DIALOG = 2
         const val PAUSE_PANEL = 4
-        const val PAUSE_MEDIA = 8
     }
 }

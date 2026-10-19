@@ -1,6 +1,6 @@
 package dev.tvlauncher.volume
 
-import dev.tvlauncher.appsettings.ModulePlaceholderSection
+import dev.tvlauncher.appsettings.SectionIds
 import dev.tvlauncher.appsettings.PageSpec
 import dev.tvlauncher.appsettings.SettingsGroup
 import dev.tvlauncher.appsettings.SettingsRegistry
@@ -74,7 +74,7 @@ class VolumeCopyTest {
         VolumeSection.register(r)
         VolumeSection.register(r) // idempotent
         val ids = r.sections().map { it.id }
-        assertEquals(ids.indexOf(ModulePlaceholderSection.SOUNDS) - 1, ids.indexOf(VolumeSection.ID))
+        assertEquals(ids.indexOf(SectionIds.SOUNDS) - 1, ids.indexOf(VolumeSection.ID))
         assertEquals(1, ids.count { it == VolumeSection.ID })
     }
 

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The font licenses ship verbatim with the fonts (OFL 1.1 requires it) even though no code
+     opens them; About shows third_party_notices.txt, which names both files. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@raw/font_license_ofl,@raw/brand_font_license_ofl" />

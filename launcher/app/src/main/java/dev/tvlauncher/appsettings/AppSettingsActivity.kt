@@ -145,7 +145,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
 
     private fun uiPrefs() = getSharedPreferences(PREFS_UI, Context.MODE_PRIVATE)
 
-    /** Registered sections grouped for the sidebar, without uninstalled companions and placeholders. */
+    /** Registered sections grouped for the sidebar, without uninstalled companions and unfilled slots. */
     private fun loadGroups(): List<Pair<SettingsGroup, List<String>>> {
         val probe = object : SectionAvailability.Probe {
             override fun appInstalled(pkg: String) = ModuleProbe.isAppInstalled(this@AppSettingsActivity, pkg)

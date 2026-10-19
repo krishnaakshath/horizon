@@ -1,7 +1,6 @@
 package dev.tvlauncher.ambient
 
 import android.content.Context
-import android.graphics.drawable.Drawable
 import dev.tvlauncher.device.DeviceProfile
 import dev.tvlauncher.device.EffectsMode
 import java.io.File
@@ -41,10 +40,6 @@ object HomeWallpaperProvider {
             }
         }
     }
-
-    /** Convenience for callers that only need a Drawable reference. */
-    fun asDrawable(context: Context, settings: WallpaperSettings, profile: DeviceProfile): Drawable =
-        drawableFor(context, settings, profile)
 
     private fun builtIn(id: String, size: WallpaperPlan.Size, accent: Int): WallpaperDrawable {
         val d = WallpaperDrawable(BuiltInWallpapers.meta(id).baseColor)

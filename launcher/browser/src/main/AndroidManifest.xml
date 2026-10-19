@@ -9,6 +9,7 @@
         android:required="false" />
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- WebView follows connectivity changes (navigator.onLine, reconnects) with it. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- The launcher's controller settings (A/B swap, stick sensitivity), read-only. -->

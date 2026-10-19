@@ -8,8 +8,6 @@ import dev.tvlauncher.brand.Brand
  * (SetupCopyTest enforces it).
  */
 object SetupCopy {
-    const val SCREEN_TITLE = "Set up your TV"
-    const val SCREEN_LEAD = "A few quick steps. Everything is optional and you can come back any time in Settings."
     const val FINISH = "Go to Home"
     const val SKIP = "Skip"
     const val ALL_SET = "All set. Enjoy your TV."
@@ -74,7 +72,6 @@ object SetupCopy {
     // Replacements for lines other screens used to show.
     const val LOCATION_NEEDED = "Allow ${Brand.SHORT} to list nearby networks and devices. Your position is never read."
     const val LOCATION_ALLOW = "Allow"
-    const val LOCATION_BLOCKED = NEAR_HELPER
     const val SCREENSAVER_NOTE = "To use Ambient as the screensaver, pick ${Brand.AMBIENT} in the TV's screen saver settings."
     const val PHOTOS_NOTE = "Copy a folder of photos to Pictures/TVLauncher, or to a TVLauncher folder on a USB stick."
     const val INSTALL_NOTE = "Open the app's file from a USB drive with a file manager and allow the install when asked."

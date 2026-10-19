@@ -23,7 +23,6 @@ import android.view.ViewOutlineProvider
 import android.widget.ImageView
 import dev.tvlauncher.audit.AuditTags
 import dev.tvlauncher.audit.auditAddTag
-import dev.tvlauncher.panel.PanelStyle
 import dev.tvlauncher.room.RoomTheme
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -43,18 +42,6 @@ import java.util.concurrent.Executors
  * ([GlassBackdrop.version]) change.
  */
 object Glass {
-    // Aliases of the shared panel surface (dev.tvlauncher.panel.PanelStyle), kept for callers.
-    const val FILL_FULL = PanelStyle.SURFACE
-    const val FILL_LITE = PanelStyle.SURFACE_LITE
-    const val BORDER = 0x33FFFFFF
-    const val HIGHLIGHT = GlassTokens.SHEEN_TOP
-    /**
-     * Legacy near-opaque panel fills. The frosted card that replaced them is opaque by
-     * construction (it paints the backdrop sample first), so content never reads through it.
-     */
-    const val PANEL_FULL = PanelStyle.SURFACE
-    const val PANEL_LITE = PanelStyle.SURFACE_LITE
-
     /** Frosted card on [view] (sets its background; FULL: elevation shadow). Returns the drawable. */
     fun frost(view: View, full: Boolean, radiusDp: Int = GlassTokens.RADIUS_PANEL): GlassDrawable {
         val d = GlassDrawable(view.context, GlassDrawable.Kind.FROSTED, radiusDp, full)
@@ -88,13 +75,6 @@ object Glass {
 
     /** Repaints [view] whenever the backdrop sample changes (adaptive tint, blur). */
     fun track(view: View) = GlassBackdrop.track(view)
-
-    /** Compatibility: a floating panel (frosted, host-less: sampled from the window origin). */
-    fun panel(context: Context, full: Boolean, radiusDp: Int): Drawable =
-        GlassDrawable(context, GlassDrawable.Kind.FROSTED, radiusDp, full)
-
-    /** Compatibility: a small translucent surface (now [clear] glass). */
-    fun surface(context: Context, full: Boolean, radiusDp: Int): Drawable = clear(context, full, radiusDp)
 }
 
 /**
@@ -141,8 +121,6 @@ object GlassBackdrop {
         view.addOnAttachStateChangeListener(tracker)
         if (view.isAttachedToWindow && view !in hosts) hosts.add(view)
     }
-
-    fun isOwner(o: Any) = owner === o
 
     /** A new settled backdrop from [from]; false when nothing changed. A changed sample drops the old blur. */
     fun publish(from: Any, s: IntArray, scrim: Int, w: Int, h: Int): Boolean {
