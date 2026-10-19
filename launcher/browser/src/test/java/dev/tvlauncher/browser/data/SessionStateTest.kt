@@ -6,6 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 
 class SessionStateTest {
     private fun model(): TabModel {
@@ -14,6 +15,7 @@ class SessionStateTest {
         m.open("https://b.com/")!!.title = "B"
         m.open("https://c.com/")!!.title = "C"
         m.switchTo(1)
+        m.active.desktop = true
         return m
     }
 
@@ -44,37 +46,73 @@ class SessionStateTest {
         assertEquals(listOf("https://a.com/", null, "https://c.com/"), m.tabs.map { it.url })
     }
 
+    /** Production path: DebouncedSaver + SequencedWriter on a virtual clock (as wired in the activity). */
     @Test fun destroyWithin2sOfLoad_keepsLoadedUrl() {
-        // Page loaded -> delayed save queued; user closes within 2 s -> onStop saves now and cancels the queue.
         val m = model()
-        val queue = FakeQueue()
-        val written = ArrayList<String>()
-        val saver = DebouncedSaver(queue::post, queue::remove) { written.add(it) }
+        val clock = FakeScheduler()
+        val disk = ArrayList<String>()
+        val ioQueue = ArrayList<Runnable>()
+        val writer = SequencedWriter { disk.add(it) }
+        val saver = DebouncedSaver(clock::post, clock::remove) { json ->
+            val seq = writer.next()
+            ioQueue.add(Runnable { writer.write(seq, json) }) // io thread, possibly late
+        }
         SessionSnapshot.apply(m, SessionSnapshot.Web("https://b.com/loaded", "L", 0), false)
         saver.schedule(2000) { m.encode() }
-        // onStop: snapshot while the WebView still exists, flush synchronously, cancel pending.
+        clock.advance(1000)            // closed after 1 s: pending save not yet fired
+        assertTrue(disk.isEmpty())
+        // onStop: snapshot while the WebView still exists, cancel pending, write synchronously.
         SessionSnapshot.apply(m, SessionSnapshot.Web("https://b.com/loaded", "L", 0), false)
-        saver.flushNow { m.encode() }
         saver.cancel()
-        // onDestroy: WebView gone (web == null) - a late snapshot must not blank it either.
+        writer.write(writer.next(), m.encode())
+        // onDestroy: WebView gone; a late snapshot must not blank the tab.
         SessionSnapshot.apply(m, null, showingStart = false)
-        queue.runAll()
-        assertEquals(1, written.size)
-        assertEquals("https://b.com/loaded", TabModel.decode(written.last()).tabs[1].url)
-        assertEquals("https://b.com/loaded", m.active.url)
+        clock.advance(5000)
+        ioQueue.forEach { it.run() }
+        assertEquals(1, disk.size)
+        assertEquals("https://b.com/loaded", TabModel.decode(disk.last()).tabs[1].url)
+    }
+
+    @Test fun sequencedWriter_skipsStaleWrites() {
+        val disk = ArrayList<String>()
+        val w = SequencedWriter { disk.add(it) }
+        val old = w.next()
+        val new = w.next()
+        assertTrue(w.write(new, "new"))
+        assertFalse(w.write(old, "old"))
+        assertEquals(listOf("new"), disk)
     }
 
     @Test fun atomicWrite_usesTempAndRename() {
         val ops = RecordingOps()
-        AtomicText.write(ops, File("/x/session.json"), "{}")
+        assertTrue(AtomicText.write(ops, File("/x/session.json"), "{}"))
         assertEquals(listOf("write /x/session.json.tmp", "rename /x/session.json.tmp -> /x/session.json"), ops.log)
     }
 
-    @Test fun atomicWrite_renameFails_replacesTarget() {
-        val ops = RecordingOps(renameOk = false)
-        AtomicText.write(ops, File("/x/s.json"), "{}")
-        assertTrue(ops.log.contains("delete /x/s.json"))
-        assertEquals("rename /x/s.json.tmp -> /x/s.json", ops.log.last())
+    @Test fun atomicWrite_diskFull_deletesTemp_keepsDestination() {
+        val ops = RecordingOps(failWrite = true)
+        assertFalse(AtomicText.write(ops, File("/x/s.json"), "{}"))
+        assertEquals(listOf("write /x/s.json.tmp", "delete /x/s.json.tmp"), ops.log)
+    }
+
+    @Test fun atomicWrite_renameFails_usesBackup_andRestoresOnFailure() {
+        val ops = RecordingOps(renameResults = mutableListOf(false, true, false, true))
+        assertFalse(AtomicText.write(ops, File("/x/s.json"), "{}"))
+        assertEquals(listOf(
+            "write /x/s.json.tmp",
+            "rename /x/s.json.tmp -> /x/s.json",      // direct replace fails
+            "rename /x/s.json -> /x/s.json.bak",       // move old aside
+            "rename /x/s.json.tmp -> /x/s.json",      // still fails
+            "rename /x/s.json.bak -> /x/s.json",       // old file restored
+            "delete /x/s.json.tmp"
+        ), ops.log)
+        assertFalse(ops.log.contains("delete /x/s.json"))
+    }
+
+    @Test fun atomicWrite_renameFallbackSucceeds_dropsBackup() {
+        val ops = RecordingOps(renameResults = mutableListOf(false, true, true))
+        assertTrue(AtomicText.write(ops, File("/x/s.json"), "{}"))
+        assertEquals("delete /x/s.json.bak", ops.log.last())
     }
 
     @Test fun corruptSession_loadsEmpty() {
@@ -83,37 +121,44 @@ class SessionStateTest {
         assertNull(m.active.url)
     }
 
-    @Test fun afterClear_blanksInactiveTabs_keepsActiveUrl() {
-        val m = model()
-        val r = SessionState.afterClear(m)
-        assertEquals(listOf(null, "https://b.com/", null), r.tabs.map { it.url })
-        assertTrue(r.tabs.all { it.scrollY == 0 })
-        assertEquals("", r.tabs[0].title)
-        assertEquals(1, r.activeIndex)
-        assertFalse(r.tabs[1].desktop)
+    @Test fun afterClear_isExactlyOneBlankTab() {
+        val r = SessionState.afterClear(model())
+        assertEquals(1, r.tabs.size)
+        assertNull(r.active.url)
+        assertEquals("", r.active.title)
+        assertEquals(0, r.active.scrollY)
+        assertEquals(0, r.activeIndex)
+        assertEquals(1, TabModel.decode(r.encode()).tabs.size)
     }
 
-    @Test fun afterClear_onStartPage_allBlank() {
-        val m = model()
-        m.active.url = null
-        assertTrue(SessionState.afterClear(m).tabs.all { it.url == null })
+    @Test fun afterClear_resetsDesktopFlag() {
+        assertFalse(SessionState.afterClear(model()).active.desktop)
     }
 
-    class FakeQueue {
-        private val items = ArrayList<Runnable>()
-        fun post(r: Runnable, delay: Long) { items.add(r) }
-        fun remove(r: Runnable) { items.remove(r) }
-        fun runAll() { val copy = ArrayList(items); items.clear(); copy.forEach { it.run() } }
+    class FakeScheduler {
+        private var now = 0L
+        private val tasks = ArrayList<Pair<Long, Runnable>>()
+        fun post(r: Runnable, delay: Long) { tasks.add(now + delay to r) }
+        fun remove(r: Runnable) { tasks.removeAll { it.second === r } }
+        fun advance(ms: Long) {
+            now += ms
+            val due = tasks.filter { it.first <= now }
+            tasks.removeAll(due)
+            due.forEach { it.second.run() }
+        }
     }
 
-    class RecordingOps(private val renameOk: Boolean = true) : FileOps {
+    class RecordingOps(private val failWrite: Boolean = false, private val renameResults: MutableList<Boolean> = mutableListOf()) : FileOps {
         val log = ArrayList<String>()
-        private var renames = 0
-        override fun write(file: File, text: String) { log.add("write ${file.path}") }
+        override fun write(file: File, text: String) {
+            log.add("write ${file.path}")
+            if (failWrite) throw IOException("ENOSPC")
+        }
         override fun rename(from: File, to: File): Boolean {
             log.add("rename ${from.path} -> ${to.path}")
-            return renameOk || renames++ > 0
+            return if (renameResults.isEmpty()) true else renameResults.removeAt(0)
         }
         override fun delete(file: File) { log.add("delete ${file.path}") }
+        override fun exists(file: File) = true
     }
 }

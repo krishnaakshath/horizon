@@ -21,14 +21,8 @@ object SessionSnapshot {
 }
 
 object SessionState {
-    /** After "Clear browsing data": inactive tabs become blank start pages; the active tab keeps its page. */
-    fun afterClear(model: TabModel): TabModel {
-        val tabs = model.tabs.mapIndexed { i, t ->
-            if (i == model.activeIndex) Tab(t.id, t.url, if (t.url == null) "" else t.title, 0, false)
-            else Tab(t.id, null, "", 0, false)
-        }
-        return TabModel.of(tabs, model.activeIndex)
-    }
+    /** After "Clear browsing data": exactly one blank start-page tab (no URL, title, scroll or desktop flag). */
+    fun afterClear(@Suppress("UNUSED_PARAMETER") model: TabModel): TabModel = TabModel()
 }
 
 /** One pending delayed save; flushNow writes immediately and drops the pending one. */
@@ -61,6 +55,7 @@ interface FileOps {
     fun write(file: File, text: String)
     fun rename(from: File, to: File): Boolean
     fun delete(file: File)
+    fun exists(file: File): Boolean = file.exists()
 
     object Real : FileOps {
         override fun write(file: File, text: String) { file.parentFile?.mkdirs(); file.writeText(text) }
@@ -69,18 +64,55 @@ interface FileOps {
     }
 }
 
-/** Write to "<name>.tmp" then rename over the target, so a kill mid-write never truncates the file. */
+/**
+ * Atomic text write: write "<name>.tmp", then rename over the target. If the platform refuses to
+ * rename over an existing file, the old file is moved to "<name>.bak" first and restored if the
+ * second rename fails. The existing destination is never deleted; a failed write removes the temp.
+ */
 object AtomicText {
-    fun write(ops: FileOps, file: File, text: String) {
+    fun write(ops: FileOps, file: File, text: String): Boolean {
+        val tmp = File(file.path + ".tmp")
         try {
-            val tmp = File(file.path + ".tmp")
             ops.write(tmp, text)
-            if (!ops.rename(tmp, file)) {
-                ops.delete(file)
-                ops.rename(tmp, file)
-            }
         } catch (e: Exception) {
-            // Keep the previous file.
+            ops.delete(tmp)
+            return false
         }
+        if (ops.rename(tmp, file)) return true
+        val bak = File(file.path + ".bak")
+        val movedAside = ops.rename(file, bak)
+        if (movedAside && ops.rename(tmp, file)) {
+            ops.delete(bak)
+            return true
+        }
+        if (movedAside) ops.rename(bak, file)
+        ops.delete(tmp)
+        return false
     }
+}
+
+/** Session writes from several threads: only a write newer than the last one written lands. */
+class SequencedWriter(private val sink: (String) -> Unit) {
+    private var issued = 0L
+    private var written = 0L
+
+    @Synchronized fun next(): Long = ++issued
+
+    @Synchronized fun write(seq: Long, text: String): Boolean {
+        if (seq <= written) return false
+        written = seq
+        sink(text)
+        return true
+    }
+}
+
+/** While browsing data is being cleared, nothing may be re-recorded (history, session). */
+class ClearGate {
+    @Volatile var clearing = false; private set
+
+    fun begin() { clearing = true }
+    fun end() { clearing = false }
+
+    fun shouldRecordHistory(url: String): Boolean = !clearing && url != "about:blank" && UrlPolicy.isStorable(url)
+    fun shouldScheduleSession(): Boolean = !clearing
 }
