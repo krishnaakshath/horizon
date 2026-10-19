@@ -23,7 +23,7 @@ class FaviconLoader(context: Context) {
 
     private val dir = File(context.cacheDir, "favicons")
     private val mem = LruCache<String, Icon>(24)
-    private val failed = HashSet<String>()
+    private val failedAt = HashMap<String, Long>()
     private val waiting = HashMap<String, MutableList<(Icon?) -> Unit>>()
     private val main = Handler(Looper.getMainLooper())
     private val exec = Executors.newFixedThreadPool(2, ThreadFactory { r ->
@@ -38,13 +38,13 @@ class FaviconLoader(context: Context) {
     fun load(pageUrl: String, cb: (Icon?) -> Unit) {
         val origin = FaviconUrlCandidates.origin(pageUrl) ?: return cb(null)
         mem.get(origin)?.let { return cb(it) }
-        if (origin in failed) return cb(null)
+        failedAt[origin]?.let { if (System.currentTimeMillis() - it < FAIL_TTL_MS) return cb(null) else failedAt.remove(origin) }
         waiting[origin]?.let { it.add(cb); return }
         waiting[origin] = mutableListOf(cb)
         exec.execute {
             val icon = try { fromDisk(origin) ?: fromNetwork(pageUrl, origin) } catch (t: Throwable) { null }
             main.post {
-                if (icon != null) mem.put(origin, icon) else failed.add(origin)
+                if (icon != null) mem.put(origin, icon) else failedAt[origin] = System.currentTimeMillis()
                 waiting.remove(origin)?.forEach { it(icon) }
             }
         }
@@ -77,7 +77,7 @@ class FaviconLoader(context: Context) {
         // 1) apple-touch-icon.png at the origin
         if (!consider(FaviconUrlCandidates.build(pageUrl, null).take(1))) {
             // 2) icons declared in the HEAD, 3) favicon.ico
-            val head = Http.get(origin + "/", HtmlIconParser.MAX_HTML, TIMEOUT_MS, { it.contains("html", true) }, truncateOk = true)
+            val head = Http.default.get(origin + "/", HtmlIconParser.MAX_HTML, TIMEOUT_MS, { it.contains("html", true) }, truncateOk = true)
                 ?.let { r -> String(r.bytes, Charsets.UTF_8).let { s -> s.substring(0, s.indexOf("</head>", ignoreCase = true).takeIf { it > 0 } ?: s.length) } }
             consider(FaviconUrlCandidates.build(pageUrl, head))
         }
@@ -85,21 +85,21 @@ class FaviconLoader(context: Context) {
         try {
             dir.mkdirs()
             file(origin).outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            prune() // keep the disk cache within 4 MB after every write
         } catch (e: Exception) { }
         return describe(b)
     }
 
     private fun fetchBitmap(url: String): Bitmap? {
-        val r = Http.get(url, MAX_BYTES, TIMEOUT_MS, { it.startsWith("image/", true) && !it.contains("svg", true) }) ?: return null
+        val r = Http.default.get(url, MAX_BYTES, TIMEOUT_MS, { it.startsWith("image/", true) && !it.contains("svg", true) }) ?: return null
+        // Bounds first (always), then a sample factor from the LONGEST edge; huge/elongated images are rejected.
         val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(r.bytes, 0, r.bytes.size, o)
-        if (o.outWidth < MIN_PX || o.outHeight < MIN_PX) return null
-        var sample = 1
-        while (o.outWidth / (sample * 2) >= TARGET_PX) sample *= 2
-        val b = BitmapFactory.decodeByteArray(r.bytes, 0, r.bytes.size, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
-        if (b.width <= TARGET_PX) return b
-        val h = (b.height * TARGET_PX.toFloat() / b.width).toInt().coerceAtLeast(1)
-        return Bitmap.createScaledBitmap(b, TARGET_PX, h, true).also { if (it !== b) b.recycle() }
+        val plan = IconDecodePlanner.plan(o.outWidth, o.outHeight) as? IconDecodePlanner.Plan.Sample ?: return null
+        val b = BitmapFactory.decodeByteArray(r.bytes, 0, r.bytes.size, BitmapFactory.Options().apply { inSampleSize = plan.n }) ?: return null
+        val (w, h) = IconDecodePlanner.fit(b.width, b.height, TARGET_PX)
+        if (w == b.width && h == b.height) return b
+        return Bitmap.createScaledBitmap(b, w, h, true).also { if (it !== b) b.recycle() }
     }
 
     private fun describe(b: Bitmap): Icon {
@@ -111,17 +111,23 @@ class FaviconLoader(context: Context) {
         return Icon(b, IconColors.dominant(px), corners.all { (it ushr 24) > 200 })
     }
 
-    private fun prune() {
+    @Synchronized private fun prune() {
         val files = dir.listFiles() ?: return
         val entries = files.map { CachePolicy.Entry(it.name, it.length(), it.lastModified()) }
         val drop = CachePolicy.evict(entries, MAX_DISK, TTL_MS, System.currentTimeMillis()).toSet()
         files.filter { it.name in drop }.forEach { it.delete() }
     }
 
+    /** Clears memory and disk caches (synchronous disk delete so a following clear is complete). */
     fun clear() {
-        mem.evictAll(); failed.clear()
-        exec.execute { dir.listFiles()?.forEach { it.delete() } }
+        mem.evictAll(); failedAt.clear()
+        dir.listFiles()?.forEach { it.delete() }
     }
+
+    /** Low memory: drop decoded icons (disk cache stays). */
+    fun trimMemory() = mem.evictAll()
+
+    fun shutdown() = exec.shutdownNow()
 
     private companion object {
         const val TIMEOUT_MS = 4000
@@ -130,6 +136,6 @@ class FaviconLoader(context: Context) {
         const val TTL_MS = 30L * 24 * 60 * 60 * 1000
         const val TARGET_PX = 96
         const val GOOD_PX = 64
-        const val MIN_PX = 16
+        const val FAIL_TTL_MS = 10L * 60 * 1000
     }
 }
