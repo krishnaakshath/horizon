@@ -65,7 +65,7 @@ class HelperSettingsActivity : Activity() {
 
         val route = EnableRoutes.pick(isServiceEnabled(), resolves(accessibilityIntent()), canWriteSecure(), resolves(setupIntent()))
         when (route) {
-            EnableRoute.ALREADY_ON -> content.addView(row("Remote shortcuts", "On \u2713") { })
+            EnableRoute.ALREADY_ON -> content.addView(row("Remote shortcuts", HelperCopy.status(HelperService.current != null)) { })
             EnableRoute.SELF_ENABLE -> content.addView(row("Turn on double-Back and power-on help", "Select to turn on") { selfEnable() })
             EnableRoute.OPEN_SCREEN -> content.addView(row("Remote shortcuts: off", "Select, then turn on Launcher Helper") {
                 start(accessibilityIntent())
@@ -132,6 +132,8 @@ class HelperSettingsActivity : Activity() {
 
         content.addView(label("Apps where Double-Back is ignored", 16f, text, true))
         content.addView(label(ExclusionList.format(s.exclusions), 14f, muted, false).apply { setPadding(dp(4), dp(6), 0, 0) })
+        content.addView(spacer())
+        content.addView(label(HelperCopy.MEMORY_NOTE, 14f, muted, false))
         content.addView(spacer())
         content.addView(label("Runs on this TV only. Does not read screen content. No internet access.", 14f, muted, false))
 

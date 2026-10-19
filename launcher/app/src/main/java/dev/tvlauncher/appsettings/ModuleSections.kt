@@ -75,7 +75,14 @@ object InsightsSection : SettingsSection, SpecifiedPage {
 }
 
 /** How an optional companion app is shown and opened. */
-internal class ModuleUi(val addOn: AddOn, val iconRes: Int, val openNote: String?, val open: (Context) -> Boolean)
+internal class ModuleUi(
+    val addOn: AddOn,
+    val iconRes: Int,
+    val openNote: String?,
+    /** A calm line under the rows while the app is installed (what to expect from it). */
+    val note: String? = null,
+    val open: (Context) -> Boolean
+)
 
 internal object ModuleUis {
     val all: List<ModuleUi> = AddOns.all.map { a ->
@@ -87,7 +94,8 @@ internal object ModuleUis {
             "weather" -> ModuleUi(a, R.drawable.ic_set_weather, "Location and units") { c ->
                 WeatherCompanion.settingsIntent(c)?.let { SystemActions.start(c, it) } ?: SystemActions.launchPackage(c, a.packageName)
             }
-            else -> ModuleUi(a, R.drawable.ic_set_helper, "Double-Back and a shortcut key in every app") { c ->
+            else -> ModuleUi(a, R.drawable.ic_set_helper, dev.tvlauncher.system.HelperCopy.OPEN_NOTE,
+                note = dev.tvlauncher.system.HelperCopy.LIMIT) { c ->
                 SystemActions.start(c, Intent().setClassName(ModuleSections.HELPER_PACKAGE, ModuleSections.HELPER_ACTIVITY))
             }
         }
@@ -117,6 +125,7 @@ internal object ModulePage {
         page.row("$prefix.action", AddOns.primaryAction(installed), RowKind.Action { act() },
             subtitle = if (installed) m.openNote else a.packageName,
             iconRes = if (installed) R.drawable.ic_set_chevron else R.drawable.ic_set_import)
+        if (installed) m.note?.let { page.note(it) }
         return page
     }
 }

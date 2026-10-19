@@ -66,7 +66,7 @@ object ControllersSection : SettingsSection, SpecifiedPage {
         }, subtitle = "Nintendo layout: B selects, A goes back", iconRes = R.drawable.ic_set_reset)
         page.row(GUIDE, "Guide button opens Home", RowKind.Toggle(s.guideHome) { on ->
             src.update { it.copy(guideHome = on) }
-        }, subtitle = "Xbox, PS or Home button; in other apps too while the Helper is on", iconRes = R.drawable.ic_set_home)
+        }, subtitle = "Xbox, PS or Home button; in other apps too while the Helper is running", iconRes = R.drawable.ic_set_home)
         page.row(VIBRATE, "Vibrate on focus move", RowKind.Toggle(s.vibrate) { on ->
             src.update { it.copy(vibrate = on) }
             if (on) pads.filter { it.vibrates }.forEach { PadVibration.pulse(it.id) }

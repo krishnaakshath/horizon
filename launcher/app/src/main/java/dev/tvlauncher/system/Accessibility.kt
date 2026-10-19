@@ -156,12 +156,12 @@ object AccessibilitySection : SettingsSection, SpecifiedPage {
         val helperOn = PowerActions.helperEnabled(context)
         when {
             !helperInstalled -> page.row("a11y.helper", "Helper", RowKind.Info("Not installed"),
-                subtitle = "Double-Back home, power menu and shortcut key; see Add-ons", iconRes = R.drawable.ic_set_helper)
+                subtitle = HelperCopy.subtitle(installed = false, on = false), iconRes = R.drawable.ic_set_helper)
             "a11y.helper" in plan.switchable -> page.row("a11y.helper", "Helper", RowKind.Toggle(helperOn) { want ->
                 if (!SecureSwitches.setService(context, A11yModel.HELPER_COMPONENT, want)) nav.notify("The Helper could not be switched")
-            }, subtitle = "Double-Back home, power menu and shortcut key", iconRes = R.drawable.ic_set_helper)
+            }, subtitle = HelperCopy.subtitle(installed = true, on = helperOn), iconRes = R.drawable.ic_set_helper)
             else -> page.row("a11y.helper", "Helper", RowKind.Info(if (helperOn) "On" else "Off"),
-                subtitle = "Double-Back home, power menu and shortcut key", iconRes = R.drawable.ic_set_helper)
+                subtitle = HelperCopy.subtitle(installed = true, on = helperOn), iconRes = R.drawable.ic_set_helper)
         }
         if (plan.note) page.note("Captions, colour and helper switches appear here once this TV lets the launcher change them.")
 

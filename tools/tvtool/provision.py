@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -35,8 +36,25 @@ RUNTIME_PERMS = ("android.permission.READ_EXTERNAL_STORAGE", "android.permission
 SECURE_KEYS = ("enabled_notification_listeners", "enabled_accessibility_services", "accessibility_enabled",
                "tv_user_setup_complete")
 
+# Install order measured on TCL: the Helper first, so the launcher finds it on its first start.
+INSTALL_ORDER = (HELPER, LAUNCHER, "dev.tvlauncher.browser", STORE, "dev.tvlauncher.weather")
+# Vendor app ops (TCL): reset to "ignore" by every `install -r`, so they are re-applied after each install.
+VENDOR_OPS = ("APP_AUTO_START", "APP_ASSOC_START")
+OVERLAY_OP = "SYSTEM_ALERT_WINDOW"
+APPOP_MODES = ("allow", "ignore", "deny", "default", "foreground")
+UNSUPPORTED = "unsupported"
+TCL_RESUME = "tcl.sys.intent.action.STR_RESUME_COMPLETED"
+POWER_RECEIVER = f"{LAUNCHER}/.power.PowerOnReceiver"
+SELFTEST_LINE = "PowerOn: home in front via DIRECT"
+SELFTEST_WAIT_S = 15
+# Intent actions that look like package names but are not packages.
+SCOPE_TOKENS = frozenset({TCL_RESUME})
+HELPER_NOT_RUNNING = "helper not running (TCL memory manager may stop it); launcher features still work"
+
 PROVISION_DIR = Path(__file__).resolve().parents[2] / "profiles" / "provision"
 VALUE_RE = re.compile(r"^[A-Za-z0-9_.:/=-]+$")
+
+sleep = time.sleep  # replaced in tests
 
 
 # ------------------------------------------------------------------ profiles
@@ -127,6 +145,8 @@ class Probe:
     usage_allowed: bool = False
     store_install_allowed: bool = False
     helper_granted: set[str] = field(default_factory=set)
+    ops: dict[tuple[str, str], str] = field(default_factory=dict)  # (package, op) -> mode or UNSUPPORTED
+    helper_bound: bool = False
 
 
 def _none_if_null(v: str) -> str | None:
@@ -162,6 +182,33 @@ def parse_home_holder(out: str, sdk: int) -> str | None:
     return pkg if PKG_RE.match(pkg) and pkg != "android" else None
 
 
+def parse_appop_mode(out: str, op: str) -> str:
+    """Mode from `appops get <pkg> <op>`: allow/ignore/deny/default/foreground, or UNSUPPORTED."""
+    if re.search(r"unknown operation|error", out, re.I):
+        return UNSUPPORTED
+    m = re.search(rf"\b{re.escape(op)}: ([a-z_]+)", out)
+    return m.group(1) if m else "default"  # "No operations." means the default mode
+
+
+def parse_bound(dumpsys: str) -> bool:
+    """True when `dumpsys accessibility` lists the Helper under "Bound services"."""
+    i = dumpsys.find("Bound services:")
+    if i < 0:
+        return False
+    rest = dumpsys[i + len("Bound services:"):]
+    j = rest.find("services:")
+    section = rest if j < 0 else rest[:j]
+    return (HELPER_SERVICE in section or f"{HELPER}/.HelperService" in section
+            or f"label={TITLES[HELPER]}" in section)
+
+
+def _appop(adb: Adb, pkg: str, op: str) -> str:
+    try:
+        return parse_appop_mode(adb.shell("appops", "get", pkg, op), op)
+    except AdbError:
+        return UNSUPPORTED
+
+
 def _home_query(sdk: int) -> tuple[str, ...]:
     if sdk >= 29:
         return ("cmd", "role", "get-role-holders", HOME_ROLE)
@@ -185,6 +232,15 @@ def probe(adb: Adb) -> Probe:
         p.usage_allowed = "allow" in adb.shell("appops", "get", LAUNCHER, "GET_USAGE_STATS").lower()
     if HELPER in installed:
         p.helper_granted = parse_granted(adb.shell("dumpsys", "package", HELPER))
+    for pkg in (LAUNCHER, HELPER):
+        if pkg in installed:
+            for op in VENDOR_OPS + ((OVERLAY_OP,) if pkg == LAUNCHER else ()):
+                p.ops[(pkg, op)] = _appop(adb, pkg, op)
+    if HELPER in installed:
+        try:
+            p.helper_bound = parse_bound(adb.shell("dumpsys", "accessibility"))
+        except AdbError:
+            p.helper_bound = False
     if STORE in installed:
         p.store_install_allowed = "allow" in adb.shell("appops", "get", STORE, "REQUEST_INSTALL_PACKAGES").lower()
     return p
@@ -203,11 +259,21 @@ class Step:
     soft: bool = False        # a failed check only warns (the TV may report it differently)
     apk: str | None = None
     takeover: bool = False
+    optional: bool = False    # the TV may not have this setting: a refusal only warns
+    then: tuple[tuple[str, ...], ...] = ()   # more commands run right after argv, as part of this step
+    retry: tuple[tuple[str, ...], ...] = ()  # commands repeated once when the check fails
+    wait_s: int = 0           # pause before this step
+    warn: str = ""            # what a soft failure means, in plain words
+    selftest: bool = False
+
+    def commands(self) -> tuple[tuple[str, ...], ...]:
+        return (self.argv, *self.then)
 
     def display(self, host: str) -> str:
         if self.apk is not None:
             return f"adb -s {host}:5555 install -r {self.apk}"
-        return f"adb -s {host}:5555 shell {' '.join(self.argv)}"
+        text = " && ".join(f"adb -s {host}:5555 shell {' '.join(c)}" for c in self.commands())
+        return (f"(after {self.wait_s} s) " if self.wait_s else "") + text
 
 
 def merge_services(flat: str | None, component: str) -> str:
@@ -237,15 +303,49 @@ def _restore(key: str, previous: str | None) -> tuple[str, ...]:
     return ("settings", "put", "secure", key, previous) if previous else ("settings", "delete", "secure", key)
 
 
-def plan_steps(p: Probe, apks: dict[str, str], profile: ProvisionProfile, take_over_home: bool) -> list[Step]:
-    """Pure: the ordered changes for this TV. Steps already in place are left out."""
+def _vendor_reason(pkg: str, op: str) -> str:
+    if op == "APP_AUTO_START":
+        return f"Lets {TITLES[pkg]} start by itself (TCL TVs switch this off after every install)."
+    return f"Lets {TITLES[pkg]} and its companion app start each other (TCL TVs switch this off after every install)."
+
+
+def plan_steps(p: Probe, apks: dict[str, str], profile: ProvisionProfile, take_over_home: bool,
+               self_test: bool | None = None) -> list[Step]:
+    """Pure: the ordered changes for this TV. Steps already in place are left out.
+
+    self_test: None adds the power-on self-test whenever anything else changes; True always; False never.
+    """
     steps: list[Step] = []
     after = set(p.installed) | set(apks)
-    for pkg in OUR_PACKAGES:
-        if pkg in apks:
-            fresh = pkg not in p.installed
-            steps.append(Step(("pm", "path", pkg), f"{'Install' if fresh else 'Update'} {TITLES[pkg]} from {apks[pkg]}.",
-                              undo=((("pm", "uninstall", pkg),) if fresh else ()), verify="installed", apk=apks[pkg]))
+    present = set(p.installed)
+    unsupported = {op for (_pkg, op), mode in p.ops.items() if mode == UNSUPPORTED}
+    undo_attached: set[tuple[str, str]] = set()
+
+    def vendor_ops(force: bool) -> None:
+        for pkg in (LAUNCHER, HELPER):
+            if pkg not in present:
+                continue
+            for op in VENDOR_OPS:
+                prev = p.ops.get((pkg, op))
+                if op in unsupported or (not force and prev == "allow"):
+                    continue
+                undo: tuple[tuple[str, ...], ...] = ()
+                if pkg in p.installed and prev in APPOP_MODES and (pkg, op) not in undo_attached:
+                    undo = (("appops", "set", pkg, op, prev),)
+                    undo_attached.add((pkg, op))
+                steps.append(Step(("appops", "set", pkg, op, "allow"), _vendor_reason(pkg, op), undo=undo,
+                                  verify="appop", optional=True,
+                                  warn="this TV does not have this setting, so it was skipped"))
+
+    installing = [pkg for pkg in INSTALL_ORDER if pkg in apks]
+    for pkg in installing:
+        fresh = pkg not in p.installed
+        steps.append(Step(("pm", "path", pkg), f"{'Install' if fresh else 'Update'} {TITLES[pkg]} from {apks[pkg]}.",
+                          undo=((("pm", "uninstall", pkg),) if fresh else ()), verify="installed", apk=apks[pkg]))
+        present.add(pkg)
+        vendor_ops(force=True)
+    if not installing:
+        vendor_ops(force=False)
     if LAUNCHER not in after:
         return steps
     fresh_launcher = LAUNCHER not in p.installed
@@ -267,6 +367,12 @@ def plan_steps(p: Probe, apks: dict[str, str], profile: ProvisionProfile, take_o
         steps.append(Step(("appops", "set", LAUNCHER, "GET_USAGE_STATS", "allow"),
                           "Lets Insights see which app is on screen (stays on the TV).",
                           undo=(("appops", "set", LAUNCHER, "GET_USAGE_STATS", "default"),), verify="usage"))
+    overlay = p.ops.get((LAUNCHER, OVERLAY_OP))
+    if LAUNCHER in apks or overlay != "allow":
+        undo = (("appops", "set", LAUNCHER, OVERLAY_OP, overlay),) if not fresh_launcher and overlay in APPOP_MODES else ()
+        steps.append(Step(("appops", "set", LAUNCHER, OVERLAY_OP, "allow"),
+                          "Lets TV Launcher bring the home screen forward when the TV turns on (Android 11 needs this; "
+                          "the launcher never draws over other apps).", undo=undo, verify="appop"))
     if STORE in after and (STORE not in p.installed or not p.store_install_allowed):
         steps.append(Step(("appops", "set", STORE, "REQUEST_INSTALL_PACKAGES", "allow"),
                           "Lets Get Apps install the apps you pick (it still asks before each install).",
@@ -278,14 +384,28 @@ def plan_steps(p: Probe, apks: dict[str, str], profile: ProvisionProfile, take_o
                           undo=(("cmd", "notification", "disallow_listener", LISTENER),), verify="listener", soft=True))
     if HELPER in after:
         services = p.secure.get("enabled_accessibility_services")
-        if not _contains(services, HELPER_SERVICE):
-            steps.append(Step(("settings", "put", "secure", "enabled_accessibility_services", _merge(services, HELPER_SERVICE)),
-                              "Turns on the Helper's remote shortcuts; services already on stay on.",
-                              undo=(_restore("enabled_accessibility_services", services),), verify="a11y"))
-        if p.secure.get("accessibility_enabled") != "1":
-            steps.append(Step(("settings", "put", "secure", "accessibility_enabled", "1"),
-                              "Accessibility services only run while this is on.",
-                              undo=(_restore("accessibility_enabled", p.secure.get("accessibility_enabled")),), verify="a11y_on"))
+        enabled = p.secure.get("accessibility_enabled")
+        if HELPER in apks or not _contains(services, HELPER_SERVICE) or enabled != "1" or not p.helper_bound:
+            # This exact order clears Android's "crashed service" mark, which otherwise keeps the
+            # Helper unbound after the TV's memory manager stopped it (measured on TCL, Android 11).
+            seq = [
+                Step(("settings", "put", "secure", "accessibility_enabled", "0"),
+                     "Switches accessibility off for a moment, so Android forgets that the Helper was stopped before.",
+                     verify="a11y_off"),
+                Step(("settings", "delete", "secure", "enabled_accessibility_services"),
+                     "Empties the list of accessibility services for a moment (the next step puts every one of them back).",
+                     verify="a11y_cleared"),
+                Step(("settings", "put", "secure", "enabled_accessibility_services", _merge(services, HELPER_SERVICE)),
+                     "Puts the list back with the Helper added; services that were already on stay on.",
+                     undo=(_restore("enabled_accessibility_services", services),), verify="a11y"),
+                Step(("settings", "put", "secure", "accessibility_enabled", "1"),
+                     "Switches accessibility back on, which starts the Helper.",
+                     undo=(_restore("accessibility_enabled", enabled),), verify="a11y_on"),
+            ]
+            steps.extend(seq)
+            steps.append(Step(("dumpsys", "accessibility"),
+                              "Checks that the Helper is running; if not, the four steps above are repeated once.",
+                              verify="bound", soft=True, retry=tuple(x.argv for x in seq), warn=HELPER_NOT_RUNNING))
     if p.secure.get("tv_user_setup_complete") == "0":
         steps.append(Step(("settings", "put", "secure", "tv_user_setup_complete", "1"),
                           "This TV reports its first-time setup as unfinished, which makes the Home key do nothing.",
@@ -305,17 +425,40 @@ def plan_steps(p: Probe, apks: dict[str, str], profile: ProvisionProfile, take_o
                 steps.append(Step(("pm", "disable-user", "--user", "0", pkg),
                                   f"Turns off the stock launcher {pkg} so the Home key opens TV Launcher (undo re-enables it).",
                                   undo=(("pm", "enable", pkg),), verify="disabled", takeover=True))
+    if self_test or (self_test is None and steps):
+        steps.extend(self_test_steps())
     check_scope(steps, profile)
     return steps
+
+
+def self_test_steps() -> list[Step]:
+    """Power-on self-test: another app in front, a simulated wake, then the test is forgotten."""
+    return [
+        Step(("am", "start", "-a", "android.settings.SETTINGS"),
+             "Self-test: opens the TV's Settings so another app is in front (nothing in it is changed).",
+             optional=True, warn="the TV's Settings did not open, so the self-test was skipped", selftest=True),
+        Step(("am", "broadcast", "-a", TCL_RESUME, "-n", POWER_RECEIVER),
+             f"Self-test: after {SELFTEST_WAIT_S} seconds, tells TV Launcher the TV just woke up, as the TV does after "
+             "standby. The home screen should come forward by itself.",
+             wait_s=SELFTEST_WAIT_S, verify="selftest", soft=True, selftest=True,
+             warn="home did not come forward by itself; on the TV, see Settings > System > Power & sleep > Power on"),
+        Step(("run-as", LAUNCHER, "rm", "-f", "shared_prefs/power_on.xml"),
+             "Self-test: forgets the test wake-up, so it does not count against real power-ons. TV Launcher restarts "
+             "on its home screen.",
+             then=(("am", "force-stop", LAUNCHER), ("am", "start", "-n", HOME_ACTIVITY)),
+             optional=True, selftest=True,
+             warn="this build does not allow it; the test wake-up is forgotten by itself within 10 minutes"),
+    ]
 
 
 def check_scope(steps: list[Step], profile: ProvisionProfile) -> None:
     """Refuses any plan that would touch a package that is not ours or a listed stock launcher."""
     allowed = set(OUR_PACKAGES) | set(profile.stock_launchers)
     for s in steps:
-        for argv in (s.argv, *s.undo):
+        for argv in (*s.commands(), *s.retry, *s.undo):
             for tok in argv:
-                if PKG_RE.match(tok) and tok.count(".") >= 2 and not tok.startswith("android.") and tok not in allowed:
+                if (PKG_RE.match(tok) and tok.count(".") >= 2 and not tok.startswith("android.")
+                        and tok not in allowed and tok not in SCOPE_TOKENS):
                     raise ValueError(f"refusing plan: step would touch {tok!r}")
         if s.takeover and s.argv[-1] not in profile.stock_launchers:
             raise ValueError(f"refusing plan: {s.argv[-1]!r} is not a known stock launcher")
@@ -328,6 +471,8 @@ UNDO_SHAPES = [
     re.compile(r"^pm (uninstall|enable) [A-Za-z0-9_.]+$"),
     re.compile(r"^pm revoke dev\.tvlauncher(\.helper)? android\.permission\.[A-Z_]+$"),
     re.compile(r"^appops set dev\.tvlauncher(\.store)? (GET_USAGE_STATS|REQUEST_INSTALL_PACKAGES) default$"),
+    re.compile(r"^appops set dev\.tvlauncher(\.helper)? (APP_AUTO_START|APP_ASSOC_START|SYSTEM_ALERT_WINDOW) "
+               r"(allow|ignore|deny|default|foreground)$"),
     re.compile(r"^cmd notification disallow_listener [A-Za-z0-9_.]+/[A-Za-z0-9_.]+$"),
     re.compile(r"^settings put secure (enabled_accessibility_services|accessibility_enabled|tv_user_setup_complete) [A-Za-z0-9_.:/=-]+$"),
     re.compile(r"^settings delete secure (enabled_accessibility_services|accessibility_enabled)$"),
@@ -372,7 +517,7 @@ def write_undo(out_dir: Path, model: str, host: str, steps: list[Step]) -> Path:
 # ------------------------------------------------------------------ verify and run
 
 
-def verify(kind: str, step: Step, adb: Adb, sdk: int) -> bool:
+def verify(kind: str, step: Step, adb: Adb, sdk: int, mark: str | None = None) -> bool:
     if kind == "installed":
         return "package:" in adb.shell("pm", "path", step.argv[-1])
     if kind == "granted":
@@ -381,14 +526,26 @@ def verify(kind: str, step: Step, adb: Adb, sdk: int) -> bool:
         return WRITE_SECURE in parse_granted(adb.shell("dumpsys", "package", HELPER))
     if kind == "usage":
         return "allow" in adb.shell("appops", "get", LAUNCHER, "GET_USAGE_STATS").lower()
+    if kind == "appop":
+        pkg, op = step.argv[2], step.argv[3]
+        return parse_appop_mode(adb.shell("appops", "get", pkg, op), op) == "allow"
     if kind == "store":
         return "allow" in adb.shell("appops", "get", STORE, "REQUEST_INSTALL_PACKAGES").lower()
     if kind == "listener":
         return _contains(_none_if_null(adb.shell("settings", "get", "secure", "enabled_notification_listeners")), LISTENER)
+    if kind == "a11y_off":
+        return adb.shell("settings", "get", "secure", "accessibility_enabled").strip() == "0"
+    if kind == "a11y_cleared":
+        return _none_if_null(adb.shell("settings", "get", "secure", "enabled_accessibility_services")) is None
     if kind == "a11y":
-        return _contains(_none_if_null(adb.shell("settings", "get", "secure", "enabled_accessibility_services")), HELPER_SERVICE)
+        now = _none_if_null(adb.shell("settings", "get", "secure", "enabled_accessibility_services"))
+        return all(_contains(now, e) for e in _entries(step.argv[-1]))
     if kind == "a11y_on":
         return adb.shell("settings", "get", "secure", "accessibility_enabled").strip() == "1"
+    if kind == "bound":
+        return _wait_bound(adb)
+    if kind == "selftest":
+        return _wait_selftest(adb, mark)
     if kind == "tv_setup":
         return adb.shell("settings", "get", "secure", "tv_user_setup_complete").strip() == "1"
     if kind == "home":
@@ -396,6 +553,27 @@ def verify(kind: str, step: Step, adb: Adb, sdk: int) -> bool:
     if kind == "disabled":
         return step.argv[-1] in parse_packages(adb.shell("pm", "list", "packages", "-d"))
     raise ValueError(f"unknown check {kind!r}")
+
+
+def _wait_bound(adb: Adb, tries: int = 5) -> bool:
+    for _ in range(tries):
+        sleep(1)
+        if parse_bound(adb.shell("dumpsys", "accessibility")):
+            return True
+    return False
+
+
+def _wait_selftest(adb: Adb, mark: str | None, tries: int = 12) -> bool:
+    since = ("-T", f"{int(mark) - 1}.000") if mark and mark.isdigit() else ("-t", "500")
+    for _ in range(tries):
+        sleep(1)
+        if SELFTEST_LINE in adb.shell("logcat", "-d", "-v", "tag", *since, "-s", "PowerOn"):
+            return True
+    return False
+
+
+def _refused(out: str) -> bool:
+    return bool(re.search(r"unknown operation|^error|not debuggable|exception", out, re.I | re.M))
 
 
 def run(a, adb: Adb, say) -> int:
@@ -412,7 +590,9 @@ def run(a, adb: Adb, say) -> int:
     say(f"{p.manufacturer} {p.model} (Android SDK {p.sdk}); profile: {profile.name}")
     for n in profile.notes:
         say(f"  note: {n}")
-    steps = plan_steps(p, {k: str(apk_dir / v) for k, v in apks.items()} if apk_dir else {}, profile, a.take_over_home)
+    self_test = False if getattr(a, "skip_self_test", False) else (True if getattr(a, "self_test", False) else None)
+    steps = plan_steps(p, {k: str(apk_dir / v) for k, v in apks.items()} if apk_dir else {}, profile, a.take_over_home,
+                       self_test)
     if LAUNCHER not in p.installed and LAUNCHER not in apks:
         say("TV Launcher is not installed and no launcher APK was found; pass --apks FOLDER.")
         return 2
@@ -433,23 +613,52 @@ def run(a, adb: Adb, say) -> int:
     undo = write_undo(Path(a.out), p.model, a.host, steps)
     say(f"Undo script written: {undo}")
     warnings = 0
+    selftest_off = False
     for i, s in enumerate(steps, 1):
+        if s.selftest and selftest_off:
+            say(f"  [{i}] skipped")
+            continue
         try:
             if s.takeover and f"{LAUNCHER}/" not in _resolvable_home(adb):
                 say(f"  [{i}] STOPPED: TV Launcher is not available as a home app, so the stock launcher stays on.")
                 return 1
-            out = adb.install(s.apk) if s.apk is not None else adb.shell(*s.argv)
-            if s.apk is not None and "Success" not in out:
-                raise AdbError(f"install did not report Success: {out.strip()!r}")
-            ok = verify(s.verify, s, adb, p.sdk) if s.verify else True
+            if s.wait_s:
+                say(f"  [{i}] waiting {s.wait_s} s...")
+                sleep(s.wait_s)
+            mark = adb.shell("date", "+%s").strip() if s.verify == "selftest" else None
+            if s.apk is not None:
+                out = adb.install(s.apk)
+                if "Success" not in out:
+                    raise AdbError(f"install did not report Success: {out.strip()!r}")
+            else:
+                out = ""
+                for argv in s.commands():
+                    res = adb.shell(*argv)
+                    out += res
+                    if s.optional and _refused(res):
+                        break
+            if s.optional and _refused(out):
+                raise AdbError(out.strip() or "refused")
+            ok = verify(s.verify, s, adb, p.sdk, mark) if s.verify else True
+            if not ok and s.retry:
+                say(f"  [{i}] the Helper is not running yet; repeating the accessibility steps once")
+                for argv in s.retry:
+                    adb.shell(*argv)
+                ok = verify(s.verify, s, adb, p.sdk, mark)
         except AdbError as e:
+            if s.optional:
+                warnings += 1
+                if s.selftest:
+                    selftest_off = True
+                say(f"  [{i}] warning: {s.warn or e}")
+                continue
             say(f"  [{i}] STOPPED: {e}. Changes so far are undone by {undo}")
             return 1
         if ok:
             say(f"  [{i}] ok")
         elif s.soft:
             warnings += 1
-            say(f"  [{i}] done, but the TV does not report it yet (check on the TV)")
+            say(f"  [{i}] warning: {s.warn}" if s.warn else f"  [{i}] done, but the TV does not report it yet (check on the TV)")
         else:
             say(f"  [{i}] STOPPED: the change did not take effect. Changes so far are undone by {undo}")
             return 1

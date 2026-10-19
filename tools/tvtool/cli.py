@@ -260,6 +260,9 @@ def _parser():
     p.add_argument("--apply", action="store_true", help="make the changes (default: dry run)")
     p.add_argument("--take-over-home", action="store_true",
                    help="also turn off the stock launcher (writes an undo script first)")
+    p.add_argument("--self-test", action="store_true",
+                   help="run the power-on self-test even when nothing else needs changing")
+    p.add_argument("--skip-self-test", action="store_true", help="leave out the power-on self-test")
     p.add_argument("--provision-profiles", help=argparse.SUPPRESS)
     return p
 

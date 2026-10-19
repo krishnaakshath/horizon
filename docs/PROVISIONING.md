@@ -27,7 +27,12 @@ python3 -m tvtool provision --host 192.168.1.50 --apks ../launcher-apks --apply
 # 3. Optional: also turn off the TV's stock launcher, so the Home key opens TV Launcher
 #    on TVs where the stock launcher is hard-wired to Home:
 python3 -m tvtool provision --host 192.168.1.50 --apks ../launcher-apks --apply --take-over-home
+
+# Only the power-on self-test (nothing else changes when everything is in place):
+python3 -m tvtool provision --host 192.168.1.50 --self-test --apply
 ```
+
+`--skip-self-test` leaves the power-on self-test out of the plan.
 
 `--apks` is a folder with the APK files. Files are recognised by name (`app-*.apk` or
 `launcher-*.apk` for the launcher, `helper-*`, `browser-*`, `store-*`, `weather-*`, or
@@ -41,23 +46,29 @@ already in place on the TV are left out, so running it twice is harmless.
 
 | Step | Why |
 | --- | --- |
-| Install or update the launcher and companion APKs (`adb install -r`, data kept) | The apps themselves |
+| Install or update the APKs (`adb install -r`, data kept): **Launcher Helper first, then TV Launcher**, then the other companions | The apps themselves. The launcher finds the Helper on its first start |
+| After **every** install: `appops set dev.tvlauncher APP_AUTO_START allow`, `appops set dev.tvlauncher.helper APP_AUTO_START allow`, and the same with `APP_ASSOC_START` | TCL's vendor switches that let the apps start by themselves and start each other. TCL resets them to `ignore` on every `install -r`, so they are re-applied after each install and read back (`appops get`). TVs without these switches skip them with a warning |
 | `pm grant dev.tvlauncher android.permission.WRITE_SECURE_SETTINGS` | Lets the launcher switch on Now Playing and the Helper by itself, also after updates and reboots |
 | `pm grant dev.tvlauncher.helper android.permission.WRITE_SECURE_SETTINGS` | Lets the Helper keep its own service on, on TVs without an accessibility screen |
 | `pm grant dev.tvlauncher android.permission.READ_EXTERNAL_STORAGE` | Your photos as wallpapers |
 | `pm grant dev.tvlauncher android.permission.ACCESS_FINE_LOCATION` | Wi-Fi and Bluetooth lists of nearby networks and devices (position is never read) |
 | `appops set dev.tvlauncher GET_USAGE_STATS allow` | Insights (stays on the TV) |
+| `appops set dev.tvlauncher SYSTEM_ALERT_WINDOW allow` | "Display over other apps". On Android 11 this is what lets the launcher bring the home screen forward when the TV turns on. Nothing is drawn over other apps. Read back as `allow` |
 | `appops set dev.tvlauncher.store REQUEST_INSTALL_PACKAGES allow` | Get Apps can install the apps you pick |
 | `cmd notification allow_listener dev.tvlauncher/dev.tvlauncher.ambient.AmbientNotificationService` | Now Playing and ambient notifications |
-| `settings put secure enabled_accessibility_services <existing>:dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService` and `accessibility_enabled 1` | The Helper's remote shortcuts. Services already enabled stay enabled |
+| The Helper's accessibility service, in exactly this order: `settings put secure accessibility_enabled 0`, `settings delete secure enabled_accessibility_services`, `settings put secure enabled_accessibility_services <existing>:dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService`, `settings put secure accessibility_enabled 1` | The Helper's remote shortcuts. Services already enabled stay enabled. The off / clear / put back / on order clears Android's "Crashed services" mark, which otherwise keeps a Helper that was stopped once from ever being bound again |
+| `dumpsys accessibility` | Checks that the Helper is listed under "Bound services". If not, the four steps above are repeated once; if it is still not bound the run ends with the warning *helper not running (TCL memory manager may stop it); launcher features still work* (a warning, not an error) |
 | `settings put secure tv_user_setup_complete 1`, only when the setting exists and is `0` | Some TVs leave it at 0 after their own setup, and then the Home key does nothing |
 | `cmd role add-role-holder android.app.role.HOME dev.tvlauncher` (Android 10+) or `cmd package set-home-activity` (older) | Makes TV Launcher the home app |
 | With `--take-over-home` only: `pm disable-user --user 0 <stock launcher>` | So a Home key wired to the stock launcher opens TV Launcher |
+| Self-test: `am start -a android.settings.SETTINGS`, a 15 s pause, `am broadcast -a tcl.sys.intent.action.STR_RESUME_COMPLETED -n dev.tvlauncher/.power.PowerOnReceiver` | Puts another app in front, then tells the launcher the TV just woke up (the same signal a TCL TV sends after standby). Expected in the log: `PowerOn: home in front via DIRECT` |
+| Self-test clean-up: `run-as dev.tvlauncher rm -f shared_prefs/power_on.xml`, `am force-stop dev.tvlauncher`, `am start -n dev.tvlauncher/dev.tvlauncher.HomeActivity` | Forgets the test wake-up so it does not count against the launcher's limit of home pushes per wake. Needs a debuggable build; on a release build this only warns (the counter clears itself within 10 minutes). The "Open home after power on" switch returns to its default, on |
 
 After each step the result is read back from the TV (for example
-`settings get secure enabled_accessibility_services`). A step that did not take effect stops
-the run. Two checks only warn, because some TVs report them differently: the notification
-listener and the home role.
+`settings get secure enabled_accessibility_services` or `appops get dev.tvlauncher
+SYSTEM_ALERT_WINDOW`). A step that did not take effect stops the run. These only warn: the
+notification listener and the home role (some TVs report them differently), vendor app-op
+switches the TV does not have, the Helper not being bound after the retry, and the self-test.
 
 ## Safety rules
 
@@ -69,8 +80,13 @@ listener and the home role.
   disabled, never uninstalled.
 - Before the first change an undo script is written to `--out` (default `./scans-out/`),
   named `provision_undo_<model>_<time>.sh`. It reverses every planned step in reverse order
-  (re-enables the stock launcher, restores previous settings values, revokes the grants and
-  uninstalls apps that were not installed before).
+  (re-enables the stock launcher, restores the previous settings values, including both
+  accessibility settings, puts every app op it changed back to the mode it had before
+  (`APP_AUTO_START`, `APP_ASSOC_START`, `SYSTEM_ALERT_WINDOW`, `GET_USAGE_STATS`,
+  `REQUEST_INSTALL_PACKAGES`), revokes the grants and uninstalls apps that were not installed
+  before).
+- The self-test only opens the TV's Settings (it changes nothing there) and sends the wake
+  signal to TV Launcher's own receiver.
 
 ## Undo
 
@@ -112,6 +128,15 @@ and Fire TV stock launchers).
   Launcher. The TV has no notification-access or accessibility screens, so those are granted
   by provisioning. `tv_user_setup_complete` can be left at `0`, which makes the Home key do
   nothing; provisioning sets it to `1`.
+- **TCL app ops:** `APP_AUTO_START` and `APP_ASSOC_START` are reset to `ignore` by every
+  `adb install -r`, for TV Launcher and for the Helper. Re-run provisioning (or at least
+  re-apply both ops for both apps) after every update.
+- **TCL power-on:** a direct start of the home screen after standby works only with
+  "Display over other apps" (`SYSTEM_ALERT_WINDOW`) allowed, so the launcher tries that
+  first, then the Helper, then one last direct start, each checked 1.5 s later.
+- **TCL memory manager:** it can stop the Helper at any time. Android 11 then marks the
+  accessibility service as crashed and does not bind it again until it is switched off and
+  on in the order above.
 - Some firmware ignores a written `enabled_notification_listeners` value; `cmd notification
   allow_listener` is the reliable way and is what provisioning uses.
 
@@ -137,3 +162,13 @@ read screen content). It needs:
 
 Double-Back (Back twice quickly leaves the current app for Home) is on by default; the
 shortcut key that opens Spotlight is chosen in the Helper app.
+
+### The honest limit on TCL TVs
+
+On TCL TVs the memory manager can stop the Helper. When it does, the Helper's extras in
+**other apps** drop out until it runs again: double-Back to Home, the launcher's volume bar
+over other apps, and the game controller's Guide button going to Home. **TV Launcher itself
+is not affected**: the home screen, power-on (which uses "Display over other apps", not the
+Helper) and everything inside the launcher keep working. Re-running provisioning switches the
+Helper back on. The Helper's own screen and the launcher's Settings say the same in plain
+words.

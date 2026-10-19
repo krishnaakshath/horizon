@@ -9,6 +9,11 @@ HOST = "192.168.1.50"
 TCL = pv.load_provision_profiles()
 
 
+@pytest.fixture(autouse=True)
+def no_sleep(monkeypatch):
+    monkeypatch.setattr(pv, "sleep", lambda s: None)
+
+
 def tcl_profile():
     return pv.match_provision_profile(TCL, "TCL", "32S5403AF")
 
@@ -60,7 +65,8 @@ def cmds(steps):
 def test_freshTcl_fullPlan_inOrder_withoutTakeover():
     steps = pv.plan_steps(probe(), ALL_APKS, tcl_profile(), take_over_home=False)
     c = cmds(steps)
-    assert c[:3] == ["install app-debug.apk", "install helper-debug.apk", "install store-debug.apk"]
+    installs = [x for x in c if x.startswith("install ")]
+    assert installs == ["install helper-debug.apk", "install app-debug.apk", "install store-debug.apk"]
     assert "pm grant dev.tvlauncher android.permission.WRITE_SECURE_SETTINGS" in c
     assert "pm grant dev.tvlauncher android.permission.READ_EXTERNAL_STORAGE" in c
     assert "cmd notification allow_listener dev.tvlauncher/dev.tvlauncher.ambient.AmbientNotificationService" in c
@@ -68,7 +74,11 @@ def test_freshTcl_fullPlan_inOrder_withoutTakeover():
             "dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService") in c
     assert "settings put secure accessibility_enabled 1" in c
     assert "settings put secure tv_user_setup_complete 1" in c
-    assert c[-1] == "cmd role add-role-holder android.app.role.HOME dev.tvlauncher"
+    assert "appops set dev.tvlauncher SYSTEM_ALERT_WINDOW allow" in c
+    assert c[-4] == "cmd role add-role-holder android.app.role.HOME dev.tvlauncher"
+    assert c[-3:] == ["am start -a android.settings.SETTINGS",
+                      "am broadcast -a tcl.sys.intent.action.STR_RESUME_COMPLETED -n dev.tvlauncher/.power.PowerOnReceiver",
+                      "run-as dev.tvlauncher rm -f shared_prefs/power_on.xml"]
     assert not any("disable-user" in x for x in c)
     assert all(s.reason for s in steps)
 
@@ -89,8 +99,12 @@ def test_alreadyProvisioned_planIsEmpty():
               secure={"enabled_notification_listeners": "dev.tvlauncher/.ambient.AmbientNotificationService",
                       "enabled_accessibility_services": "dev.tvlauncher.helper/.HelperService",
                       "accessibility_enabled": "1", "tv_user_setup_complete": "1"},
-              granted={pv.WRITE_SECURE, *pv.RUNTIME_PERMS}, usage_allowed=True, helper_granted={pv.WRITE_SECURE})
+              granted={pv.WRITE_SECURE, *pv.RUNTIME_PERMS}, usage_allowed=True, helper_granted={pv.WRITE_SECURE},
+              ops={**{(k, op): "allow" for k in (pv.LAUNCHER, pv.HELPER) for op in pv.VENDOR_OPS},
+                   (pv.LAUNCHER, pv.OVERLAY_OP): "allow"}, helper_bound=True)
     assert pv.plan_steps(p, {}, tcl_profile(), take_over_home=False) == []
+    # The self-test can still be asked for on its own.
+    assert [s.selftest for s in pv.plan_steps(p, {}, tcl_profile(), False, self_test=True)] == [True, True, True]
 
 
 def test_tvUserSetupComplete_onlyWhenPresentAndZero():
@@ -103,9 +117,68 @@ def test_accessibility_keepsOtherServices_andUndoRestoresThem():
     p = probe(installed={"dev.tvlauncher", "dev.tvlauncher.helper"},
               secure={**probe().secure, "enabled_accessibility_services": "com.vendor.tts/com.vendor.tts.S",
                       "accessibility_enabled": "1"})
-    s = next(s for s in pv.plan_steps(p, {}, tcl_profile(), False) if "enabled_accessibility_services" in s.argv)
+    s = next(s for s in pv.plan_steps(p, {}, tcl_profile(), False) if s.argv[:4] == ("settings", "put", "secure", "enabled_accessibility_services"))
     assert s.argv[-1] == "com.vendor.tts/com.vendor.tts.S:dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService"
     assert s.undo == (("settings", "put", "secure", "enabled_accessibility_services", "com.vendor.tts/com.vendor.tts.S"),)
+
+
+def test_accessibility_exactOrder_clearsCrashedMark_thenChecksBound():
+    p = probe(installed={"dev.tvlauncher", "dev.tvlauncher.helper"},
+              secure={**probe().secure, "enabled_accessibility_services": "com.vendor.tts/com.vendor.tts.S:" + pv.HELPER_SERVICE,
+                      "accessibility_enabled": "1"}, helper_bound=False)
+    c = cmds(pv.plan_steps(p, {}, tcl_profile(), False))
+    i = c.index("settings put secure accessibility_enabled 0")
+    assert c[i:i + 5] == [
+        "settings put secure accessibility_enabled 0",
+        "settings delete secure enabled_accessibility_services",
+        "settings put secure enabled_accessibility_services com.vendor.tts/com.vendor.tts.S:" + pv.HELPER_SERVICE,
+        "settings put secure accessibility_enabled 1",
+        "dumpsys accessibility"]
+    # Bound and enabled: nothing to do for the Helper.
+    p.helper_bound = True
+    assert "dumpsys accessibility" not in cmds(pv.plan_steps(p, {}, tcl_profile(), False))
+
+
+def test_vendorOps_reappliedAfterEveryInstall_forBothApps_withUndoOfPreviousMode():
+    p = probe(installed={"dev.tvlauncher", "dev.tvlauncher.helper"},
+              ops={("dev.tvlauncher", "APP_AUTO_START"): "ignore", ("dev.tvlauncher", "APP_ASSOC_START"): "default",
+                   ("dev.tvlauncher.helper", "APP_AUTO_START"): "allow", ("dev.tvlauncher.helper", "APP_ASSOC_START"): "allow",
+                   ("dev.tvlauncher", "SYSTEM_ALERT_WINDOW"): "default"})
+    steps = pv.plan_steps(p, ALL_APKS, tcl_profile(), False)
+    c = cmds(steps)
+    ops = [f"appops set {pkg} {op} allow" for pkg in ("dev.tvlauncher", "dev.tvlauncher.helper") for op in pv.VENDOR_OPS]
+    for n, apk in enumerate(("install helper-debug.apk", "install app-debug.apk", "install store-debug.apk")):
+        i = c.index(apk)
+        assert sorted(c[i + 1:i + 5]) == sorted(ops), (apk, c[i + 1:i + 5])
+    undos = [u for s in steps for u in s.undo if u[:2] == ("appops", "set") and u[3] in pv.VENDOR_OPS]
+    assert sorted(undos) == sorted([("appops", "set", "dev.tvlauncher", "APP_AUTO_START", "ignore"),
+                                    ("appops", "set", "dev.tvlauncher", "APP_ASSOC_START", "default"),
+                                    ("appops", "set", "dev.tvlauncher.helper", "APP_AUTO_START", "allow"),
+                                    ("appops", "set", "dev.tvlauncher.helper", "APP_ASSOC_START", "allow")])
+    saw = next(s for s in steps if s.argv[3:4] == ("SYSTEM_ALERT_WINDOW",))
+    assert saw.undo == (("appops", "set", "dev.tvlauncher", "SYSTEM_ALERT_WINDOW", "default"),)
+    # Without installs only the ops that are not "allow" yet.
+    c2 = cmds(pv.plan_steps(p, {}, tcl_profile(), False))
+    assert [x for x in c2 if "APP_" in x] == ["appops set dev.tvlauncher APP_AUTO_START allow",
+                                             "appops set dev.tvlauncher APP_ASSOC_START allow"]
+
+
+def test_vendorOps_leftOut_whenTheTvDoesNotHaveThem():
+    p = probe(installed={"dev.tvlauncher"}, ops={("dev.tvlauncher", "APP_AUTO_START"): pv.UNSUPPORTED,
+                                                 ("dev.tvlauncher", "APP_ASSOC_START"): pv.UNSUPPORTED})
+    assert not any("APP_" in x for x in cmds(pv.plan_steps(p, ALL_APKS, tcl_profile(), False)))
+
+
+def test_parseAppopMode_andBound():
+    assert pv.parse_appop_mode("APP_AUTO_START: allow; time=+1m\n", "APP_AUTO_START") == "allow"
+    assert pv.parse_appop_mode("No operations.\n", "SYSTEM_ALERT_WINDOW") == "default"
+    assert pv.parse_appop_mode("Error: Unknown operation string: APP_AUTO_START\n", "APP_AUTO_START") == pv.UNSUPPORTED
+    dump = ("User state[\n  Bound services:{Service[label=Launcher Helper, feedbackType[FEEDBACK_GENERIC]]}\n"
+            "  Enabled services:{{dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService}}\n  Crashed services:{}\n")
+    assert pv.parse_bound(dump)
+    crashed = ("  Bound services:{}\n  Enabled services:{{dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService}}\n"
+               "  Crashed services:{dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService}\n")
+    assert not pv.parse_bound(crashed)
 
 
 def test_legacyAndroid_usesSetHomeActivity():
@@ -127,7 +200,8 @@ def test_undoLines_reverseOrder_andValidated():
     steps = pv.plan_steps(probe(installed={"com.google.android.tvlauncher"}), ALL_APKS, tcl_profile(), True)
     lines = pv.undo_lines(steps, HOST)
     assert lines[0] == f"adb -s {HOST}:5555 shell pm enable com.google.android.tvlauncher"
-    assert lines[-1] == f"adb -s {HOST}:5555 shell pm uninstall dev.tvlauncher"
+    assert lines[-1] == f"adb -s {HOST}:5555 shell pm uninstall dev.tvlauncher.helper"
+    assert f"adb -s {HOST}:5555 shell pm uninstall dev.tvlauncher" in lines
     assert all(pv.undo_allowed(pv.UNDO_LINE.match(l)["cmd"]) for l in lines)
     with pytest.raises(ValueError):
         pv.undo_lines([pv.Step(("x",), "x", undo=(("rm", "-rf", "/"),))], HOST)
@@ -136,7 +210,10 @@ def test_undoLines_reverseOrder_andValidated():
 # ------------------------------------------------------------- end to end with a fake TV
 
 class FakeTv:
-    def __init__(self, sdk=30, secure=None, installed=None, ignore_listener=False, fail_on=None):
+    """Behaves like the measured TCL TV: installs reset the vendor app ops, a stopped Helper stays unbound."""
+
+    def __init__(self, sdk=30, secure=None, installed=None, ignore_listener=False, fail_on=None, binds_after=1,
+                 debuggable=True, vendor_ops=True):
         self.sdk = sdk
         self.secure = {"tv_user_setup_complete": "0", **(secure or {})}
         self.installed = set(installed or {"com.google.android.tvlauncher", "com.android.tv.settings"})
@@ -146,7 +223,18 @@ class FakeTv:
         self.home = "com.google.android.tvlauncher"
         self.ignore_listener = ignore_listener
         self.fail_on = fail_on
+        self.binds_after = binds_after  # how many accessibility off/on toggles until the Helper binds (0: never)
+        self.toggles = 0
+        self.debuggable = debuggable
+        self.vendor_ops = vendor_ops
+        self.front = "com.google.android.tvlauncher"
+        self.log = []
+        self.prefs_file = True
         self.calls = []
+
+    def bound(self):
+        return (self.binds_after > 0 and self.toggles >= self.binds_after and self.secure.get("accessibility_enabled") == "1"
+                and pv.HELPER_SERVICE in (self.secure.get("enabled_accessibility_services") or ""))
 
     def connect(self, host):
         pass
@@ -154,6 +242,9 @@ class FakeTv:
     def install(self, path):
         self.calls.append(("install", path))
         self.installed.update(pv.match_apks([Path(path).name]))
+        for k in list(self.ops):  # TCL: every install -r switches these back to ignore
+            if k[1] in pv.VENDOR_OPS:
+                self.ops[k] = "ignore"
         return "Performing Streamed Install\nSuccess\n"
 
     def shell(self, *a):
@@ -172,7 +263,33 @@ class FakeTv:
         if a[:3] == ["settings", "get", "secure"]:
             return (self.secure.get(a[3]) or "null") + "\n"
         if a[:3] == ["settings", "put", "secure"]:
+            if a[3] == "accessibility_enabled" and a[4] == "1" and self.secure.get(a[3]) == "0" \
+                    and "enabled_accessibility_services" in self.secure:
+                self.toggles += 1
             self.secure[a[3]] = a[4]
+            return ""
+        if a == ["dumpsys", "accessibility"]:
+            if self.bound():
+                return "  Bound services:{Service[label=Launcher Helper]}\n  Enabled services:{}\n"
+            return "  Bound services:{}\n  Crashed services:{dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService}\n"
+        if a == ["date", "+%s"]:
+            return "1760950000\n"
+        if a[:2] == ["am", "start"]:
+            self.front = "settings" if "android.settings.SETTINGS" in a else "dev.tvlauncher"
+            return "Starting: Intent { act=... }\n"
+        if a[:2] == ["am", "broadcast"]:
+            if self.ops.get(("dev.tvlauncher", "SYSTEM_ALERT_WINDOW")) == "allow" and self.front != "dev.tvlauncher":
+                self.log.append("I/PowerOn: home in front via DIRECT")
+                self.front = "dev.tvlauncher"
+            return "Broadcasting: Intent { ... }\nBroadcast completed: result=0\n"
+        if a[0] == "logcat":
+            return "".join(l + "\n" for l in self.log)
+        if a[0] == "run-as":
+            if not self.debuggable:
+                raise AdbError("adb exited 1: run-as: package not debuggable: dev.tvlauncher")
+            self.prefs_file = False
+            return ""
+        if a[:2] == ["am", "force-stop"]:
             return ""
         if a[:3] == ["settings", "delete", "secure"]:
             self.secure.pop(a[3], None)
@@ -194,8 +311,12 @@ class FakeTv:
         if a[:3] == ["cmd", "role", "remove-role-holder"]:
             return ""
         if a[:2] == ["appops", "get"]:
+            if a[3] in pv.VENDOR_OPS and not self.vendor_ops:
+                raise AdbError("adb exited 255: Error: Unknown operation string: " + a[3])
             return f"{a[3]}: {self.ops.get((a[2], a[3]), 'default')}\n"
         if a[:2] == ["appops", "set"]:
+            if a[3] in pv.VENDOR_OPS and not self.vendor_ops:
+                raise AdbError("adb exited 255: Error: Unknown operation string: " + a[3])
             self.ops[(a[2], a[3])] = a[4]
             return ""
         if a[:3] == ["cmd", "notification", "allow_listener"]:
@@ -234,9 +355,19 @@ def run(tmp_path, tv, *extra):
 
 
 def mutations(tv):
-    return [c for c in tv.calls if c[0] == "install" or c[:2] in (("pm", "grant"), ("pm", "disable-user"))
-            or c[:3] in (("settings", "put", "secure"), ("cmd", "role", "add-role-holder"))
-            or c[:2] == ("appops", "set") or c[:3] == ("cmd", "notification", "allow_listener")]
+    return [c for c in tv.calls if c[0] in ("install", "run-as") or c[:2] in (("pm", "grant"), ("pm", "disable-user"))
+            or c[:3] in (("settings", "put", "secure"), ("settings", "delete", "secure"), ("cmd", "role", "add-role-holder"))
+            or c[:2] in (("appops", "set"), ("am", "start"), ("am", "broadcast"), ("am", "force-stop"))
+            or c[:3] == ("cmd", "notification", "allow_listener")]
+
+
+def test_dryRun_showsSelfTestWithReasons(tmp_path):
+    tv = FakeTv()
+    code, text = run(tmp_path, tv)
+    assert code == 0
+    assert "(after 15 s) adb" in text and "Self-test" in text
+    assert "settings put secure accessibility_enabled 0" in text
+    assert tv.log == [] and tv.prefs_file
 
 
 def test_dryRunByDefault_printsCommandsAndReasons_changesNothing(tmp_path):
@@ -265,6 +396,100 @@ def test_apply_runsVerifiesAndWritesUndo(tmp_path):
     undo = list((tmp_path / "out").glob("provision_undo_*.sh"))
     assert len(undo) == 1 and "pm uninstall dev.tvlauncher" in undo[0].read_text()
     assert "Provisioning complete" in text
+    for pkg in ("dev.tvlauncher", "dev.tvlauncher.helper"):
+        for op in pv.VENDOR_OPS:
+            assert tv.ops[(pkg, op)] == "allow", (pkg, op)
+    assert tv.ops[("dev.tvlauncher", "SYSTEM_ALERT_WINDOW")] == "allow"
+    assert tv.bound()
+    # Helper first, then the launcher.
+    installs = [c[1] for c in tv.calls if c[0] == "install"]
+    assert [Path(x).name for x in installs] == ["helper-debug.apk", "app-debug.apk"]
+    # Self-test: another app in front, a 15 s pause, the simulated wake, the counters forgotten.
+    assert "home in front via DIRECT" in tv.log[0] and not tv.prefs_file
+    assert tv.calls.index(("am", "start", "-a", "android.settings.SETTINGS")) < tv.calls.index(
+        ("am", "broadcast", "-a", pv.TCL_RESUME, "-n", pv.POWER_RECEIVER))
+    assert "waiting 15 s" in text
+    assert "warning" not in text, text
+
+
+def test_apply_reappliesVendorOps_afterUpdateResetsThem_andRollbackRestoresThem(tmp_path):
+    tv = FakeTv(installed={"com.google.android.tvlauncher", "dev.tvlauncher", "dev.tvlauncher.helper"})
+    tv.ops = {("dev.tvlauncher", "APP_AUTO_START"): "default", ("dev.tvlauncher.helper", "APP_AUTO_START"): "allow",
+              ("dev.tvlauncher", "SYSTEM_ALERT_WINDOW"): "ignore"}
+    tv.secure.update({"enabled_accessibility_services": "com.vendor.tts/com.vendor.tts.S", "accessibility_enabled": "1"})
+    code, text = run(tmp_path, tv, "--apply")
+    assert code == 0, text
+    assert all(tv.ops[(p, op)] == "allow" for p in ("dev.tvlauncher", "dev.tvlauncher.helper") for op in pv.VENDOR_OPS)
+    assert tv.secure["enabled_accessibility_services"] == "com.vendor.tts/com.vendor.tts.S:" + pv.HELPER_SERVICE
+    undo = next((tmp_path / "out").glob("provision_undo_*.sh"))
+    out = []
+    assert cli.main(["rollback", "--host", HOST, "--script", str(undo)], adb=tv, print_fn=out.append) == 0, out
+    assert tv.ops[("dev.tvlauncher", "APP_AUTO_START")] == "default"
+    assert tv.ops[("dev.tvlauncher.helper", "APP_AUTO_START")] == "allow"
+    assert tv.ops[("dev.tvlauncher", "APP_ASSOC_START")] == "default"
+    assert tv.ops[("dev.tvlauncher", "SYSTEM_ALERT_WINDOW")] == "ignore"
+    assert tv.secure["enabled_accessibility_services"] == "com.vendor.tts/com.vendor.tts.S"
+    assert tv.secure["accessibility_enabled"] == "1"
+
+
+def test_apply_helperBindsOnlyOnSecondTry(tmp_path):
+    tv = FakeTv(binds_after=2)
+    code, text = run(tmp_path, tv, "--apply")
+    assert code == 0, text
+    assert "repeating the accessibility steps once" in text and tv.bound()
+    assert pv.HELPER_NOT_RUNNING not in text
+
+
+def test_apply_helperNeverBinds_isAWarningNotAnError(tmp_path):
+    tv = FakeTv(binds_after=0)
+    code, text = run(tmp_path, tv, "--apply")
+    assert code == 0, text
+    assert f"warning: {pv.HELPER_NOT_RUNNING}" in text
+    assert tv.toggles == 2  # tried exactly twice
+    assert "Provisioning complete" in text
+
+
+def test_apply_tvWithoutVendorOps_andReleaseBuild_onlyWarns(tmp_path):
+    tv = FakeTv(vendor_ops=False, debuggable=False)
+    code, text = run(tmp_path, tv, "--apply")
+    assert code == 0, text
+    assert "this TV does not have this setting" in text
+    assert "forgotten by itself" in text
+
+
+def test_overlayNotTaking_stopsTheRun(tmp_path):
+    tv = FakeTv()
+    real = tv.shell
+
+    def no_overlay(*a):
+        if a[:4] == ("appops", "set", "dev.tvlauncher", "SYSTEM_ALERT_WINDOW"):
+            return ""
+        return real(*a)
+    tv.shell = no_overlay
+    code, text = run(tmp_path, tv, "--apply")
+    assert code == 1 and "STOPPED" in text
+    assert tv.log == []  # the self-test never ran
+
+
+def test_selfTest_homeNotForward_isAWarning(tmp_path):
+    tv = FakeTv()
+    real = tv.shell
+
+    def silent_broadcast(*a):
+        if a[:2] == ("am", "broadcast"):
+            tv.calls.append(a)
+            return "Broadcast completed: result=0\n"
+        return real(*a)
+    tv.shell = silent_broadcast
+    code, text = run(tmp_path, tv, "--apply")
+    assert code == 0, text
+    assert "warning: home did not come forward by itself" in text
+
+
+def test_skipSelfTest(tmp_path):
+    tv = FakeTv()
+    code, text = run(tmp_path, tv, "--skip-self-test")
+    assert code == 0 and "Self-test" not in text
 
 
 def test_apply_takeover_thenRollbackRestores(tmp_path):
