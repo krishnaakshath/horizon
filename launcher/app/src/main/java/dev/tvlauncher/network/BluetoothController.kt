@@ -21,15 +21,16 @@ data class BtSnapshot(
     val found: List<BtRaw>,
     val connected: Set<String>,
     val pairing: Map<String, PairState>,
-    val note: BluetoothController.Note
+    val note: BluetoothController.Note,
+    val locationEnabled: Boolean = true
 ) {
     val sections: BtSections get() = BtListBuilder.build(bonded, found, connected)
 }
 
 /**
  * Bluetooth adapter state, discovery, pairing and connection state. All listener calls are on the
- * main thread. [start] in onStart, [stop] in onStop (cancels discovery, unregisters the receiver,
- * closes every profile proxy). Never throws: operations return a result instead.
+ * main thread. [start] in onStart, [stop] in onStop (cancels discovery and the pairing watchdog,
+ * unregisters the receiver, closes every profile proxy). Never throws: operations return a result.
  *
  * Platform limits: connect/disconnect of a profile and bond removal are not public API (Forget
  * uses reflection with a settings fallback); enable()/disable() only work on API <= 32 and with
@@ -39,22 +40,34 @@ data class BtSnapshot(
 @Suppress("DEPRECATION")
 class BluetoothController(context: Context) {
     fun interface Listener { fun onChanged(snapshot: BtSnapshot) }
-    enum class Note { NONE, NEEDS_LOCATION, SCAN_FAILED }
+    enum class Note { NONE, NEEDS_LOCATION, LOCATION_OFF, SCAN_FAILED }
     enum class Result { OK, NOT_PERMITTED, FAILED }
 
     private val app = context.applicationContext
     private val main = Handler(Looper.getMainLooper())
-    private val adapter: BluetoothAdapter? = try { BluetoothAdapter.getDefaultAdapter() } catch (e: RuntimeException) { null }
+    private val adapter: BluetoothAdapter? = safely(null) { BluetoothAdapter.getDefaultAdapter() }
     private val listeners = LinkedHashSet<Listener>()
     private val found = LinkedHashMap<String, BtRaw>()
     private val acl = HashSet<String>()
     private val profileConnected = HashMap<Int, Set<String>>()
     private val proxies = HashMap<Int, BluetoothProfile>()
+    private val pendingProfiles = HashSet<Int>()
+    private var session = 0
     private val pairing = HashMap<String, PairState>()
     private var receiver: BroadcastReceiver? = null
     private var started = false
     private var scanning = false
+    private var scanWhenEnabled = false
     private var note = Note.NONE
+
+    private val watchdog = PairingWatchdog(PairingWatchdog.DEFAULT_TIMEOUT_MS, object : PairingWatchdog.Scheduler {
+        override fun postDelayed(delayMs: Long, r: Runnable): PairingWatchdog.Cancelable {
+            main.postDelayed(r, delayMs)
+            return PairingWatchdog.Cancelable { main.removeCallbacks(r) }
+        }
+    }) { address ->
+        if (pairing[address] == PairState.PAIRING) { pairing[address] = PairState.FAILED; publish() }
+    }
 
     var snapshot: BtSnapshot = build()
         private set
@@ -77,8 +90,11 @@ class BluetoothController(context: Context) {
     fun stop() {
         if (!started) return
         started = false
+        scanWhenEnabled = false
+        watchdog.stop()
+        for ((a, s) in pairing.toMap()) if (s == PairState.PAIRING) pairing[a] = PairState.IDLE
         stopDiscovery(publish = false)
-        receiver?.let { try { app.unregisterReceiver(it) } catch (e: IllegalArgumentException) { } }
+        receiver?.let { safely(Unit) { app.unregisterReceiver(it) } }
         receiver = null
         closeProxies()
         acl.clear()
@@ -93,6 +109,7 @@ class BluetoothController(context: Context) {
         note = Note.NONE
         if (!isEnabled()) return Result.FAILED
         if (!hasLocationPermission()) { note = Note.NEEDS_LOCATION; publish(); return Result.NOT_PERMITTED }
+        if (!LocationState.isEnabled(app)) { note = Note.LOCATION_OFF; publish(); return Result.FAILED }
         return try {
             found.clear()
             if (a.isDiscovering) a.cancelDiscovery()
@@ -106,25 +123,34 @@ class BluetoothController(context: Context) {
             }
         } catch (e: SecurityException) {
             note = Note.SCAN_FAILED; scanning = false; publish(); Result.NOT_PERMITTED
+        } catch (t: Throwable) {
+            if (t is OutOfMemoryError) throw t
+            note = Note.SCAN_FAILED; scanning = false; publish(); Result.FAILED
         }
     }
 
     fun stopDiscovery(publish: Boolean = true) {
         main.removeCallbacks(stopScanRunnable)
-        try { if (adapter?.isDiscovering == true) adapter.cancelDiscovery() } catch (e: RuntimeException) { }
+        safely(Unit) { if (adapter?.isDiscovering == true) adapter.cancelDiscovery() }
         scanning = false
         if (publish) publish()
     }
 
-    /** enable()/disable() are deprecated and blocked on newer Android; callers fall back to Settings. */
-    fun setEnabled(on: Boolean): Result {
+    /**
+     * enable()/disable() are deprecated and blocked on newer Android; callers fall back to Settings.
+     * [scanWhenReady] starts discovery from the STATE_ON broadcast (no fixed delay).
+     */
+    fun setEnabled(on: Boolean, scanWhenReady: Boolean = false): Result {
         val a = adapter ?: return Result.FAILED
         if (Build.VERSION.SDK_INT >= 33) return Result.NOT_PERMITTED
         return try {
             val ok = if (on) a.enable() else a.disable()
-            if (ok) Result.OK else Result.NOT_PERMITTED
+            if (ok) { scanWhenEnabled = on && scanWhenReady; Result.OK } else Result.NOT_PERMITTED
         } catch (e: SecurityException) {
             Result.NOT_PERMITTED
+        } catch (t: Throwable) {
+            if (t is OutOfMemoryError) throw t
+            Result.FAILED
         }
     }
 
@@ -134,10 +160,13 @@ class BluetoothController(context: Context) {
             stopDiscovery()
             val d = a.getRemoteDevice(address)
             pairing[address] = PairState.PAIRING
-            if (d.createBond()) { publish(); Result.OK } else { pairing[address] = PairState.FAILED; publish(); Result.FAILED }
+            if (d.createBond()) {
+                watchdog.start(address); publish(); Result.OK
+            } else { pairing[address] = PairState.FAILED; publish(); Result.FAILED }
         } catch (e: SecurityException) {
             pairing[address] = PairState.FAILED; publish(); Result.NOT_PERMITTED
-        } catch (e: IllegalArgumentException) {
+        } catch (t: Throwable) {
+            if (t is OutOfMemoryError) throw t
             pairing[address] = PairState.FAILED; publish(); Result.FAILED
         }
     }
@@ -152,14 +181,15 @@ class BluetoothController(context: Context) {
             pairing.remove(address)
             publish()
             if (ok) Result.OK else Result.FAILED
-        } catch (e: Exception) {
+        } catch (t: Throwable) {
+            if (t is OutOfMemoryError) throw t
             Result.NOT_PERMITTED
         }
     }
 
     // ---- internals ----
 
-    private fun isEnabled() = try { adapter?.isEnabled == true } catch (e: RuntimeException) { false }
+    private fun isEnabled() = safely(false) { adapter?.isEnabled == true }
 
     private fun publish() {
         snapshot = build()
@@ -167,21 +197,19 @@ class BluetoothController(context: Context) {
     }
 
     private fun build(): BtSnapshot {
-        val bonded = try {
-            adapter?.bondedDevices.orEmpty().map { raw(it) }
-        } catch (e: RuntimeException) { emptyList() }
+        val bonded = safely(emptyList<BtRaw>()) { adapter?.bondedDevices.orEmpty().map { raw(it) } }
         val connected = HashSet<String>(acl)
         for (s in profileConnected.values) connected.addAll(s)
         return BtSnapshot(
             present = adapter != null, enabled = isEnabled(), scanning = scanning,
             bonded = bonded, found = found.values.toList(), connected = connected,
-            pairing = HashMap(pairing), note = note
+            pairing = HashMap(pairing), note = note, locationEnabled = LocationState.isEnabled(app)
         )
     }
 
     private fun raw(d: BluetoothDevice, extraName: String? = null): BtRaw {
-        val name = extraName ?: try { d.name } catch (e: RuntimeException) { null }
-        val cls = try { d.bluetoothClass } catch (e: RuntimeException) { null }
+        val name = extraName ?: safely<String?>(null) { d.name }
+        val cls = safely(null) { d.bluetoothClass }
         return BtRaw(d.address, name, cls?.majorDeviceClass ?: -1, cls?.deviceClass ?: -1)
     }
 
@@ -189,15 +217,18 @@ class BluetoothController(context: Context) {
         val r = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, intent: Intent?) {
                 intent ?: return
-                val dev: BluetoothDevice? = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+                val dev: BluetoothDevice? = safely(null) { intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE) }
                 when (intent.action) {
                     BluetoothAdapter.ACTION_STATE_CHANGED -> {
                         val st = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
                         if (st == BluetoothAdapter.STATE_OFF || st == BluetoothAdapter.STATE_TURNING_OFF) {
                             main.removeCallbacks(stopScanRunnable)
-                            scanning = false; found.clear(); acl.clear(); profileConnected.clear(); closeProxies()
+                            watchdog.stop()
+                            scanning = false; found.clear(); acl.clear(); closeProxies()
+                            for ((a, s) in pairing.toMap()) if (s == PairState.PAIRING) pairing[a] = PairState.FAILED
                         } else if (st == BluetoothAdapter.STATE_ON) {
                             openProxies()
+                            if (scanWhenEnabled) { scanWhenEnabled = false; startDiscovery() }
                         }
                     }
                     BluetoothDevice.ACTION_FOUND -> dev?.let {
@@ -212,6 +243,7 @@ class BluetoothController(context: Context) {
                         val st = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)
                         val prev = pairing[it.address] ?: PairState.IDLE
                         pairing[it.address] = NetworkPanelState.pair(prev, st)
+                        watchdog.onBondState(it.address, st)
                         if (st == BluetoothDevice.BOND_BONDED) found.remove(it.address)
                     }
                     BluetoothDevice.ACTION_ACL_CONNECTED -> dev?.let { acl.add(it.address) }
@@ -228,44 +260,56 @@ class BluetoothController(context: Context) {
             addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
             addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
             addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+            addAction(LocationState.MODE_CHANGED_ACTION)
         }
-        try { app.registerReceiver(r, f, null, main); receiver = r } catch (e: RuntimeException) { receiver = null }
+        receiver = safely<BroadcastReceiver?>(null) { app.registerReceiver(r, f, null, main); r }
     }
 
     private fun openProxies() {
         val a = adapter ?: return
         if (!isEnabled()) return
+        val mySession = session
         for (p in PROFILES) {
-            if (proxies.containsKey(p)) continue
-            try {
+            if (proxies.containsKey(p) || pendingProfiles.contains(p)) continue
+            pendingProfiles.add(p)
+            val ok = safely(false) {
                 a.getProfileProxy(app, object : BluetoothProfile.ServiceListener {
                     override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
                         main.post {
-                            if (!started) { closeQuietly(profile, proxy); return@post }
+                            pendingProfiles.remove(profile)
+                            // Stale (stopped or restarted since the request) or duplicate: close it.
+                            if (!started || mySession != session || proxies.containsKey(profile)) {
+                                closeQuietly(profile, proxy); return@post
+                            }
                             proxies[profile] = proxy
-                            profileConnected[profile] = try {
-                                proxy.connectedDevices.map { it.address }.toSet()
-                            } catch (e: RuntimeException) { emptySet() }
+                            profileConnected[profile] = safely(emptySet()) { proxy.connectedDevices.map { it.address }.toSet() }
                             publish()
                         }
                     }
 
                     override fun onServiceDisconnected(profile: Int) {
-                        main.post { proxies.remove(profile); profileConnected.remove(profile); publish() }
+                        main.post {
+                            if (mySession != session) return@post
+                            proxies.remove(profile)?.let { closeQuietly(profile, it) }
+                            profileConnected.remove(profile); publish()
+                        }
                     }
                 }, p)
-            } catch (e: RuntimeException) { }
+            }
+            if (!ok) pendingProfiles.remove(p)
         }
     }
 
     private fun closeProxies() {
+        session++
+        pendingProfiles.clear()
         for ((p, proxy) in proxies.toMap()) closeQuietly(p, proxy)
         proxies.clear()
         profileConnected.clear()
     }
 
     private fun closeQuietly(profile: Int, proxy: BluetoothProfile) {
-        try { adapter?.closeProfileProxy(profile, proxy) } catch (e: RuntimeException) { }
+        safely(Unit) { adapter?.closeProfileProxy(profile, proxy) }
     }
 
     companion object {

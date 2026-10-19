@@ -1,23 +1,29 @@
 package dev.tvlauncher.network
 
-enum class WifiContent { PERMISSION_MISSING, WIFI_OFF, LIST, SCANNING, EMPTY }
-enum class BtContent { NO_ADAPTER, OFF, LIST, SCANNING, EMPTY }
+enum class WifiContent { PERMISSION_MISSING, LOCATION_OFF, WIFI_OFF, LIST, SCANNING, EMPTY }
+enum class BtContent { NO_ADAPTER, OFF, LOCATION_OFF, LIST, SCANNING, EMPTY }
 enum class PairState { IDLE, PAIRING, PAIRED, FAILED }
 
 /** Pure reducers that decide what a panel body shows. */
 object NetworkPanelState {
-    fun wifi(hasLocationPermission: Boolean, wifiEnabled: Boolean, scanning: Boolean, networkCount: Int) = when {
+    /**
+     * Permission is checked first, then the Wi-Fi radio; the device-wide Location switch only
+     * matters when there is nothing cached to show (Android 9+ returns empty scan results without it).
+     */
+    fun wifi(hasLocationPermission: Boolean, locationEnabled: Boolean, wifiEnabled: Boolean, scanning: Boolean, networkCount: Int) = when {
         !hasLocationPermission -> WifiContent.PERMISSION_MISSING
         !wifiEnabled -> WifiContent.WIFI_OFF
         networkCount > 0 -> WifiContent.LIST
+        !locationEnabled -> WifiContent.LOCATION_OFF
         scanning -> WifiContent.SCANNING
         else -> WifiContent.EMPTY
     }
 
-    fun bluetooth(present: Boolean, enabled: Boolean, scanning: Boolean, deviceCount: Int) = when {
+    fun bluetooth(present: Boolean, enabled: Boolean, locationEnabled: Boolean, scanning: Boolean, deviceCount: Int) = when {
         !present -> BtContent.NO_ADAPTER
         !enabled -> BtContent.OFF
         deviceCount > 0 -> BtContent.LIST
+        !locationEnabled -> BtContent.LOCATION_OFF
         scanning -> BtContent.SCANNING
         else -> BtContent.EMPTY
     }
@@ -38,12 +44,18 @@ object NetworkPanelState {
 class ScanThrottle(private val max: Int = 4, private val windowMs: Long = 120_000L) {
     private val stamps = ArrayDeque<Long>()
 
+    private var lastAt = Long.MIN_VALUE / 2
+
+    /** True when a scan was started less than [maxAgeMs] ago. */
+    fun isFresh(now: Long, maxAgeMs: Long) = now - lastAt < maxAgeMs
+
     private fun prune(now: Long) { while (stamps.isNotEmpty() && now - stamps.first() >= windowMs) stamps.removeFirst() }
 
     fun tryAcquire(now: Long): Boolean {
         prune(now)
         if (stamps.size >= max) return false
         stamps.addLast(now)
+        lastAt = now
         return true
     }
 

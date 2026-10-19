@@ -41,29 +41,44 @@ class BluetoothPanel(
     private val listener = BluetoothController.Listener { latest = it; schedule() }
     private val renderRunnable = Runnable { latest?.let { render(it) } }
 
-    val isShowing: Boolean get() = shell.isShowing
+    /** True from [show] until the close animation has finished. */
+    val isShowing: Boolean get() = shell.isVisible
 
     fun show(host: ViewGroup) {
-        if (shell.isShowing) return
+        if (shell.isOpen) return
         if (!controller.isStarted) { controller.start(); startedHere = true }
         selected = null; message = null; firstRender = true; lastRenderAt = 0L
-        shell.show(host) { }
+        shell.show(host)
         controller.addListener(listener)
-        if (controller.snapshot.enabled) controller.startDiscovery()
+        if (controller.snapshot.enabled && !controller.snapshot.scanning) controller.startDiscovery()
     }
 
     fun dismiss() {
-        if (!shell.isShowing) return
+        if (!shell.isOpen) return
+        detach()
+        shell.dismiss()
+    }
+
+    /**
+     * Immediate teardown, no animation: removes the view, cancels pending renders and discovery,
+     * drops the listener and stops the controller if this panel started it. Idempotent. Call from
+     * the host's onStop/onDestroy.
+     */
+    fun release() {
+        detach()
+        shell.release()
+    }
+
+    private fun detach() {
         main.removeCallbacks(renderRunnable)
         controller.removeListener(listener)
         controller.stopDiscovery(publish = false)
         if (startedHere) { controller.stop(); startedHere = false }
-        shell.dismiss()
     }
 
-    /** BACK leaves the device actions first, then closes the panel. */
+    /** BACK leaves the device actions first, then closes the panel; consumed while animating out. */
     fun onBack(): Boolean {
-        if (!shell.isShowing) return false
+        if (!shell.isOpen) return shell.isVisible
         if (selected != null) {
             selected = null
             latest?.let { render(it) }
@@ -81,7 +96,7 @@ class BluetoothPanel(
     }
 
     private fun render(s: BtSnapshot) {
-        if (!shell.isShowing) return
+        if (!shell.isOpen) return
         lastRenderAt = android.os.SystemClock.uptimeMillis()
         val sections = s.sections
         val sel = selected?.let { a -> sections.all.firstOrNull { it.address.equals(a, true) } }
@@ -91,7 +106,7 @@ class BluetoothPanel(
             shell.rebuildBody("act:forget") { buildDeviceBody(sel) }
         } else {
             renderHeader(s, sections)
-            val content = NetworkPanelState.bluetooth(s.present, s.enabled, s.scanning, sections.all.size)
+            val content = NetworkPanelState.bluetooth(s.present, s.enabled, s.locationEnabled, s.scanning, sections.all.size)
             shell.rebuildBody(if (firstRender) "act:toggle" else null) { buildBody(s, sections, content) }
         }
         firstRender = false
@@ -168,11 +183,24 @@ class BluetoothPanel(
             card.addView(PanelViews.note(context, "Android requires it for Bluetooth discovery. Run this once from a computer, then scan again:"))
             card.addView(PanelViews.note(context, NetworkSettings.ADB_LOCATION_GRANT, mono = true))
             body.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(Theme.S3) })
+        } else if (s.enabled && !s.locationEnabled) {
+            val card = PanelViews.card(context)
+            card.addView(TextView(context).apply {
+                style(Theme.SP_SUB, Theme.medium); text = "Location is switched off"
+            })
+            card.addView(PanelViews.note(context, "Turn on Location in the TV settings \u2014 Android needs it for nearby device scans, even though this launcher never reads your position."))
+            card.addView(PanelViews.note(context, "From a computer instead:"))
+            card.addView(PanelViews.note(context, NetworkSettings.ADB_LOCATION_ON, mono = true))
+            body.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(Theme.S3) })
+            val open = PanelRow(context, R.drawable.ic_settings, "Open Location settings", null, key = "act:location")
+            open.setOnClickListener { NetworkSettings.openLocation(context) }
+            body.addView(open, rowParams())
         } else if (s.note == BluetoothController.Note.SCAN_FAILED) {
             body.addView(PanelViews.note(context, "Scanning could not start on this TV. You can still pair from the TV's Bluetooth settings."))
         }
 
         when (content) {
+            BtContent.LOCATION_OFF -> Unit
             BtContent.OFF -> body.addView(PanelViews.note(context, "Bluetooth is off. Switch it on above."))
             BtContent.SCANNING -> body.addView(PanelViews.centered(context,
                 BouncingDots(context, Theme.TEXT_2),
@@ -228,7 +256,7 @@ class BluetoothPanel(
         val forget = PanelRow(context, R.drawable.ic_net_close, "Forget ${d.name}", "Remove the pairing", key = "act:forget")
         forget.setOnClickListener {
             when (controller.forget(d.address)) {
-                BluetoothController.Result.OK -> { message = "Forgot ${d.name}."; selected = null }
+                BluetoothController.Result.OK -> { message = "Forgetting ${d.name}\u2026"; selected = null }
                 else -> {
                     message = "Forgetting is not allowed here, so the TV's Bluetooth settings were opened."
                     NetworkSettings.openBluetooth(context)
@@ -250,13 +278,11 @@ class BluetoothPanel(
 
     private fun onToggle(s: BtSnapshot) {
         message = null
-        val r = controller.setEnabled(!s.enabled)
+        // Discovery starts from the controller's STATE_ON broadcast, not a fixed delay.
+        val r = controller.setEnabled(!s.enabled, scanWhenReady = true)
         if (r != BluetoothController.Result.OK) {
             message = "This TV does not let apps switch Bluetooth. Use the TV's Bluetooth settings."
             latest?.let { render(it) }
-        } else if (!s.enabled) {
-            // The adapter powers up asynchronously; scanning starts from the state-change below.
-            main.postDelayed({ if (shell.isShowing && controller.snapshot.enabled) controller.startDiscovery() }, 1500)
         }
     }
 
@@ -285,9 +311,9 @@ class BluetoothPanel(
 
         override fun onDraw(canvas: Canvas) {
             rect.set(0f, 0f, width.toFloat(), height.toFloat())
-            paint.color = if (checked) 0xFF34D399.toInt() else 0xFF5B6475.toInt()
+            paint.color = if (checked) NetColors.SWITCH_ON else NetColors.SWITCH_OFF
             canvas.drawRoundRect(rect, height / 2f, height / 2f, paint)
-            paint.color = 0xFFFFFFFF.toInt()
+            paint.color = NetColors.SWITCH_THUMB
             val r = height / 2f - context.dp(3)
             val cx = if (checked) width - height / 2f else height / 2f
             canvas.drawCircle(cx, height / 2f, r, paint)

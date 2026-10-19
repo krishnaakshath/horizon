@@ -36,9 +36,10 @@ data class WifiSnapshot(
     val connection: WifiConnection,
     val wifiEnabled: Boolean,
     val hasLocationPermission: Boolean,
+    val locationEnabled: Boolean,
     val scanning: Boolean,
     val scans: List<RawScan>,
-    /** > 0 when Android's scan throttle (4 per 2 min) is holding a new scan back. */
+    /** > 0 while Android's scan throttle (4 per 2 min) is holding a new scan back; counts down live. */
     val throttledSeconds: Int
 )
 
@@ -65,7 +66,7 @@ class WifiController(context: Context) {
     private var started = false
     private var callback: ConnectivityManager.NetworkCallback? = null
     private var receiver: BroadcastReceiver? = null
-    private var throttledSeconds = 0
+    private var throttleUntil = 0L
 
     var snapshot: WifiSnapshot = build()
         private set
@@ -91,10 +92,11 @@ class WifiController(context: Context) {
         started = false
         main.removeCallbacks(refreshNow)
         main.removeCallbacks(scanTimeout)
+        main.removeCallbacks(countdown)
         scanning = false
-        callback?.let { try { cm?.unregisterNetworkCallback(it) } catch (e: RuntimeException) { } }
+        callback?.let { safely(Unit) { cm?.unregisterNetworkCallback(it) } }
         callback = null
-        receiver?.let { try { app.unregisterReceiver(it) } catch (e: IllegalArgumentException) { } }
+        receiver?.let { safely(Unit) { app.unregisterReceiver(it) } }
         receiver = null
     }
 
@@ -103,34 +105,43 @@ class WifiController(context: Context) {
 
     fun refresh() = publish()
 
+    /** Scan on panel open only when the last scan is older than [maxAgeMs]; cached results show instantly. */
+    fun scanIfStale(maxAgeMs: Long = 30_000L) {
+        if (throttle.isFresh(SystemClock.elapsedRealtime(), maxAgeMs)) publish() else scan()
+    }
+
     /** Ask the system for a fresh scan; cached results stay visible. Safe to call any time. */
     fun scan() {
-        throttledSeconds = 0
-        if (!hasLocationPermission() || wm == null || !wm.isWifiEnabledSafe()) { publish(); return }
         val now = SystemClock.elapsedRealtime()
+        if (!hasLocationPermission() || wm == null || !wm.isWifiEnabledSafe() || !LocationState.isEnabled(app)) { publish(); return }
         if (!throttle.tryAcquire(now)) {
-            throttledSeconds = throttle.retryAfterSeconds(now)
+            throttleUntil = now + throttle.retryAfterSeconds(now) * 1000L
             publish()
             return
         }
-        val ok = try { wm.startScan() } catch (e: SecurityException) { false } catch (e: RuntimeException) { false }
+        val ok = safely(false) { wm.startScan() }
         if (ok) {
+            throttleUntil = 0L
             scanning = true
             main.removeCallbacks(scanTimeout)
             main.postDelayed(scanTimeout, SCAN_TIMEOUT_MS)
         } else {
-            // The system refused (its own throttle); fall back to whatever it has cached.
-            throttledSeconds = 120
+            // The system refused (its own throttle); keep showing whatever it has cached.
+            throttleUntil = now + 120_000L
         }
         publish()
     }
 
-    private fun WifiManager.isWifiEnabledSafe() = try { isWifiEnabled } catch (e: RuntimeException) { false }
+    private fun WifiManager.isWifiEnabledSafe() = safely(false) { isWifiEnabled }
 
     private fun publish() {
         snapshot = build()
         for (l in listeners.toList()) l.onChanged(snapshot)
+        main.removeCallbacks(countdown)
+        if (started && snapshot.throttledSeconds > 0) main.postDelayed(countdown, 1000)
     }
+
+    private val countdown = Runnable { publish() }
 
     private fun schedule() {
         main.removeCallbacks(refreshNow)
@@ -143,11 +154,9 @@ class WifiController(context: Context) {
             override fun onLost(network: Network) = schedule()
             override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = schedule()
         }
-        try {
+        callback = safely<ConnectivityManager.NetworkCallback?>(null) {
             cm?.registerDefaultNetworkCallback(cb)
-            callback = cb
-        } catch (e: RuntimeException) {
-            callback = null
+            cb
         }
     }
 
@@ -166,13 +175,9 @@ class WifiController(context: Context) {
             addAction(WifiManager.RSSI_CHANGED_ACTION)
             addAction(WifiManager.WIFI_STATE_CHANGED_ACTION)
             addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION)
+            addAction(LocationState.MODE_CHANGED_ACTION)
         }
-        try {
-            app.registerReceiver(r, f, null, main)
-            receiver = r
-        } catch (e: RuntimeException) {
-            receiver = null
-        }
+        receiver = safely<BroadcastReceiver?>(null) { app.registerReceiver(r, f, null, main); r }
     }
 
     private fun build(): WifiSnapshot {
@@ -182,22 +187,19 @@ class WifiController(context: Context) {
             connection = readConnection(),
             wifiEnabled = enabled,
             hasLocationPermission = perm,
+            locationEnabled = LocationState.isEnabled(app),
             scanning = scanning,
             scans = if (perm && enabled) readScans() else emptyList(),
-            throttledSeconds = throttledSeconds
+            throttledSeconds = ((throttleUntil - SystemClock.elapsedRealtime() + 999) / 1000).toInt().coerceAtLeast(0)
         )
     }
 
     @SuppressLint("MissingPermission")
-    private fun readScans(): List<RawScan> = try {
+    private fun readScans(): List<RawScan> = safely(emptyList()) {
         wm?.scanResults.orEmpty().map { RawScan(it.SSID, it.BSSID, it.level, it.frequency, it.capabilities) }
-    } catch (e: SecurityException) {
-        emptyList()
-    } catch (e: RuntimeException) {
-        emptyList()
     }
 
-    private fun readConnection(): WifiConnection = try {
+    private fun readConnection(): WifiConnection = safely(WifiConnection.NONE) {
         val net = cm?.activeNetwork
         val caps = net?.let { cm?.getNetworkCapabilities(it) }
         val ip = net?.let { ipOf(it) }
@@ -220,17 +222,13 @@ class WifiController(context: Context) {
             }
             else -> WifiConnection.NONE
         }
-    } catch (e: RuntimeException) {
-        WifiConnection.NONE
     }
 
-    private fun ipOf(net: Network): String? = try {
+    private fun ipOf(net: Network): String? = safely(null) {
         cm?.getLinkProperties(net)?.linkAddresses
             ?.map { it.address }
             ?.firstOrNull { it is Inet4Address && !it.isLoopbackAddress }
             ?.hostAddress
-    } catch (e: RuntimeException) {
-        null
     }
 
     private companion object { const val SCAN_TIMEOUT_MS = 10_000L }

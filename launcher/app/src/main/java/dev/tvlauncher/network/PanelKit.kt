@@ -22,6 +22,22 @@ import dev.tvlauncher.ui.Theme
 import dev.tvlauncher.ui.Theme.style
 import dev.tvlauncher.ui.dp
 
+/** One place for every panel color, derived from the launcher Theme palette. */
+internal object NetColors {
+    private fun alpha(color: Int, a: Int) = (color and 0x00FFFFFF) or (a shl 24)
+    val GLASS_FILL = alpha(Theme.SURFACE, 0xCC)
+    val GLASS_STROKE = alpha(Theme.TEXT, 0x33)
+    val SCRIM = alpha(0x000000, 0x66)
+    val TRANSPARENT = alpha(Theme.TEXT, 0x00)
+    val CHIP_FILL = alpha(Theme.TEXT, 0x1A)
+    val CARD_FILL = alpha(Theme.TEXT, 0x14)
+    val PILL_FILL = CHIP_FILL
+    val ROW_FOCUS = Theme.TEXT
+    val SWITCH_ON = 0xFF34D399.toInt()
+    val SWITCH_OFF = 0xFF5B6475.toInt()
+    val SWITCH_THUMB = Theme.TEXT
+}
+
 /** Full-screen scrim that keeps D-pad focus inside the panel while it is open. */
 internal class TrapFrame(context: Context) : FrameLayout(context) {
     override fun focusSearch(focused: View?, direction: Int): View? =
@@ -32,6 +48,7 @@ internal class TrapFrame(context: Context) : FrameLayout(context) {
  * Glass card anchored under the top bar, top-right, overscan-safe. Opens with a short fade and
  * slide ([lite]: 160 ms and no hardware layer; otherwise 220 ms with a layer only while animating).
  * The host restores focus to the pill that opened the panel after [dismiss].
+ * Open/closing state lives in [PanelLifecycle] so a stale close animation never removes a re-opened panel.
  */
 internal class PanelShell(private val context: Context, private val lite: Boolean) {
     val root = TrapFrame(context)
@@ -39,18 +56,24 @@ internal class PanelShell(private val context: Context, private val lite: Boolea
     val body = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     val scroll = ScrollView(context).apply { isVerticalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_NEVER }
     private val card = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-    private var closing = false
+    val lifecycle = PanelLifecycle()
     var onClosed: (() -> Unit)? = null
 
-    val isShowing: Boolean get() = root.parent != null && !closing
+    /** True while open (accepts input / re-renders). */
+    val isOpen: Boolean get() = lifecycle.isOpen
+    /** True until the close animation has finished. */
+    val isVisible: Boolean get() = lifecycle.isVisible
 
     init {
-        root.setBackgroundColor(SCRIM)
+        root.setBackgroundColor(NetColors.SCRIM)
         root.isClickable = true
+        // Fallback so focus is trapped even when the panel has no focusable rows.
+        root.isFocusable = true
+        root.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         card.background = GradientDrawable().apply {
-            setColor(GLASS_FILL)
+            setColor(NetColors.GLASS_FILL)
             cornerRadius = context.dp(RADIUS).toFloat()
-            setStroke(context.dp(1), GLASS_STROKE)
+            setStroke(context.dp(1), NetColors.GLASS_STROKE)
         }
         val pad = context.dp(Theme.S4)
         card.setPadding(pad, pad, pad, pad)
@@ -64,9 +87,10 @@ internal class PanelShell(private val context: Context, private val lite: Boolea
         })
     }
 
-    fun show(host: ViewGroup, initialFocus: () -> Unit) {
-        if (isShowing) return
-        closing = false
+    fun show(host: ViewGroup) {
+        if (lifecycle.show() == null) return
+        // A fast reopen during the close animation: drop the old animation and its end action.
+        root.animate().cancel(); card.animate().cancel()
         (root.parent as? ViewGroup)?.removeView(root)
         host.addView(root, ViewGroup.LayoutParams(-1, -1))
         root.alpha = 0f
@@ -76,21 +100,28 @@ internal class PanelShell(private val context: Context, private val lite: Boolea
         val a = root.animate().alpha(1f).setDuration(ms)
         if (!lite) a.withLayer()
         a.start()
-        initialFocus()
+        root.requestFocus()
     }
 
     fun dismiss() {
-        if (!isShowing) return
-        closing = true
+        val gen = lifecycle.dismiss() ?: return
         val ms = if (lite) LITE_MS else FULL_MS
         card.animate().translationY(-context.dp(10).toFloat()).setDuration(ms).start()
         val a = root.animate().alpha(0f).setDuration(ms).withEndAction {
-            (root.parent as? ViewGroup)?.removeView(root)
-            closing = false
-            onClosed?.invoke()
+            if (lifecycle.finishClose(gen)) {
+                (root.parent as? ViewGroup)?.removeView(root)
+                onClosed?.invoke()
+            }
         }
         if (!lite) a.withLayer()
         a.start()
+    }
+
+    /** Immediate teardown without animation. Idempotent. */
+    fun release() {
+        lifecycle.release()
+        root.animate().cancel(); card.animate().cancel()
+        (root.parent as? ViewGroup)?.removeView(root)
     }
 
     /** Rebuilds the list body, keeping the focused row (by key) and scroll position when possible. */
@@ -105,20 +136,12 @@ internal class PanelShell(private val context: Context, private val lite: Boolea
         if (target != null && (hadFocus || root.findFocus() == null)) {
             target.requestFocus()
             if (target.key == focusedKey) scroll.post { scroll.scrollTo(0, sy) }
+        } else if (target == null && root.findFocus() == null) {
+            root.requestFocus()
         }
     }
 
-    /** Removes the view immediately (host teardown, onStop). */
-    fun forceRemove() {
-        root.animate().cancel(); card.animate().cancel()
-        (root.parent as? ViewGroup)?.removeView(root)
-        closing = false
-    }
-
     companion object {
-        const val GLASS_FILL = 0xCC151922.toInt()
-        const val GLASS_STROKE = 0x33FFFFFF
-        const val SCRIM = 0x66000000
         const val RADIUS = 20
         const val WIDTH = 480
         const val TOP_BAR_CLEARANCE = 56
@@ -150,8 +173,8 @@ internal class PanelRow(
         minimumHeight = context.dp(56)
         setPadding(context.dp(Theme.S3), context.dp(Theme.S2), context.dp(Theme.S3), context.dp(Theme.S2))
         background = StateListDrawable().apply {
-            addState(intArrayOf(android.R.attr.state_focused), shape(Theme.TEXT))
-            addState(intArrayOf(), shape(0x00000000))
+            addState(intArrayOf(android.R.attr.state_focused), shape(NetColors.ROW_FOCUS))
+            addState(intArrayOf(), shape(NetColors.TRANSPARENT))
         }
         if (iconRes != null) {
             iconView.setImageResource(iconRes)
@@ -239,7 +262,7 @@ internal object PanelViews {
         this.text = text
         setPadding(context.dp(10), context.dp(5), context.dp(10), context.dp(5))
         background = GradientDrawable().apply {
-            setColor(0x1AFFFFFF)
+            setColor(NetColors.CHIP_FILL)
             cornerRadius = context.dp(Theme.RADIUS_PILL).toFloat()
             setStroke(context.dp(1), Theme.STROKE)
         }
@@ -259,7 +282,7 @@ internal object PanelViews {
         setPadding(context.dp(Theme.S3), context.dp(Theme.S2), context.dp(Theme.S3), context.dp(Theme.S2))
     }
 
-    fun card(context: Context, fill: Int = 0x14FFFFFF): LinearLayout = LinearLayout(context).apply {
+    fun card(context: Context, fill: Int = NetColors.CARD_FILL): LinearLayout = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         background = GradientDrawable().apply {
             setColor(fill)

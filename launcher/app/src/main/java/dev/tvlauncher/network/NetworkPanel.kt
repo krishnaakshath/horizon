@@ -29,37 +29,50 @@ class NetworkPanel(
     private var firstRender = true
     private val listener = WifiController.Listener { render(it) }
 
-    val isShowing: Boolean get() = shell.isShowing
+    /** True from [show] until the close animation has finished. */
+    val isShowing: Boolean get() = shell.isVisible
 
     fun show(host: ViewGroup) {
-        if (shell.isShowing) return
+        if (shell.isOpen) return
         if (!controller.isStarted) { controller.start(); startedHere = true }
         last = null
         firstRender = true
-        shell.show(host) { }
+        shell.show(host)
         controller.addListener(listener)
-        controller.scan()
+        controller.scanIfStale()
     }
 
     fun dismiss() {
-        if (!shell.isShowing) return
-        controller.removeListener(listener)
-        if (startedHere) { controller.stop(); startedHere = false }
+        if (!shell.isOpen) return
+        detach()
         shell.dismiss()
     }
 
-    /** Returns true when the key was consumed (the panel was open and is now closing). */
+    /**
+     * Immediate teardown, no animation: removes the view, drops the listener and stops the
+     * controller if this panel started it. Idempotent. Call from the host's onStop/onDestroy.
+     */
+    fun release() {
+        detach()
+        shell.release()
+    }
+
+    private fun detach() {
+        controller.removeListener(listener)
+        if (startedHere) { controller.stop(); startedHere = false }
+    }
+
+    /** Consumed while the panel is open or still animating out. */
     fun onBack(): Boolean {
-        if (!shell.isShowing) return false
-        dismiss()
-        return true
+        if (shell.isOpen) { dismiss(); return true }
+        return shell.isVisible
     }
 
     private fun render(s: WifiSnapshot) {
-        if (!shell.isShowing || s == last) return
+        if (!shell.isOpen || s == last) return
         last = s
         val models = WifiListBuilder.build(s.scans, s.connection.bssid, s.connection.ssid)
-        val content = NetworkPanelState.wifi(s.hasLocationPermission, s.wifiEnabled, s.scanning, models.size)
+        val content = NetworkPanelState.wifi(s.hasLocationPermission, s.locationEnabled, s.wifiEnabled, s.scanning, models.size)
         renderHeader(s, models)
         val preferKey = models.firstOrNull()?.let { netKey(it) }
         shell.rebuildBody(if (firstRender) preferKey else null) { buildBody(s, models, content) }
@@ -74,8 +87,8 @@ class NetworkPanel(
         h.removeAllViews()
         val iconRes = when (c.kind) {
             WifiConnection.Kind.ETHERNET -> NetIcons.ETHERNET
-            WifiConnection.Kind.WIFI -> NetIcons.forWifi(c.level, true)
-            WifiConnection.Kind.NONE -> NetIcons.forWifi(0, false)
+            WifiConnection.Kind.WIFI -> c.rssi?.let { NetIcons.forWifiRssi(it, true) } ?: NetIcons.forWifiLevel(0, true)
+            WifiConnection.Kind.NONE -> NetIcons.forWifiLevel(0, false)
         }
         val title = when (c.kind) {
             WifiConnection.Kind.ETHERNET -> "Ethernet connected"
@@ -149,6 +162,19 @@ class NetworkPanel(
                 card.addView(PanelViews.note(context, "Your connection details above work without it."))
                 body.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(Theme.S3) })
             }
+            WifiContent.LOCATION_OFF -> {
+                val card = PanelViews.card(context)
+                card.addView(TextView(context).apply {
+                    style(Theme.SP_SUB, Theme.medium); text = "Location is switched off"
+                })
+                card.addView(PanelViews.note(context, "Turn on Location in the TV settings \u2014 Android needs it for nearby network scans, even though this launcher never reads your position."))
+                card.addView(PanelViews.note(context, "From a computer instead:"))
+                card.addView(PanelViews.note(context, NetworkSettings.ADB_LOCATION_ON, mono = true))
+                val open = PanelRow(context, R.drawable.ic_settings, "Open Location settings", null, key = "act:location")
+                open.setOnClickListener { NetworkSettings.openLocation(context) }
+                body.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(Theme.S3) })
+                body.addView(open, rowParams())
+            }
             WifiContent.WIFI_OFF ->
                 body.addView(PanelViews.note(context, "Wi-Fi is off. Turn it on in the TV's Wi-Fi settings."))
             WifiContent.SCANNING -> body.addView(PanelViews.centered(context,
@@ -167,7 +193,7 @@ class NetworkPanel(
         if (m.connected) parts.add("Connected")
         if (m.band != WifiBand.UNKNOWN) parts.add(m.band.label)
         parts.add(m.security.label)
-        val row = PanelRow(context, NetIcons.forWifi(m.signalLevel, true), m.ssid, parts.joinToString(" · "), key = netKey(m))
+        val row = PanelRow(context, NetIcons.forWifiLevel(m.signalLevel, true), m.ssid, parts.joinToString(" · "), key = netKey(m))
         when {
             m.connected -> row.trailingIcon(R.drawable.ic_net_check)
             !m.security.isOpen -> row.trailingIcon(R.drawable.ic_net_lock, 18)

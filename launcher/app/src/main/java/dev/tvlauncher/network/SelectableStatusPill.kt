@@ -38,7 +38,7 @@ class SelectableStatusPill(context: Context, iconRes: Int, label: String? = null
         }
         background = StateListDrawable().apply {
             addState(intArrayOf(android.R.attr.state_focused), pill(Theme.TEXT, 0))
-            addState(intArrayOf(), pill(0x1AFFFFFF, Theme.STROKE))
+            addState(intArrayOf(), pill(NetColors.PILL_FILL, Theme.STROKE))
         }
         setOnClickListener { onClick() }
         applyFocus(false)

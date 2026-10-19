@@ -9,6 +9,12 @@ import dev.tvlauncher.ui.SystemActions
 object NetworkSettings {
     const val ADB_LOCATION_GRANT = "adb shell pm grant dev.tvlauncher android.permission.ACCESS_FINE_LOCATION"
 
+    const val ADB_LOCATION_ON = "adb shell settings put secure location_mode 3"
+
+    fun openLocation(context: Context): Boolean =
+        SystemActions.start(context, Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) ||
+            SystemActions.start(context, Intent(Settings.ACTION_SETTINGS))
+
     fun openWifi(context: Context): Boolean =
         SystemActions.start(context, Intent(Settings.ACTION_WIFI_SETTINGS)) ||
             SystemActions.start(context, Intent(Settings.ACTION_WIRELESS_SETTINGS)) ||

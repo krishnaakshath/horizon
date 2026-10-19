@@ -13,6 +13,7 @@ enum class WifiBand(val label: String) { GHZ_2_4("2.4 GHz"), GHZ_5("5 GHz"), GHZ
 
 enum class WifiSecurity(val label: String, val isOpen: Boolean = false) {
     OPEN("Open", true),
+    OWE("Open (encrypted)", true),
     WEP("WEP"),
     WPA("WPA"),
     WPA2("WPA2"),
@@ -58,6 +59,7 @@ data class WifiNetworkModel(
             val sae = "SAE" in c
             val psk = "PSK" in c
             return when {
+                "OWE" in c -> WifiSecurity.OWE
                 "EAP" in c -> WifiSecurity.ENTERPRISE
                 sae && psk -> WifiSecurity.WPA2_WPA3
                 sae -> WifiSecurity.WPA3

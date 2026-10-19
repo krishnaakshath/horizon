@@ -89,4 +89,25 @@ class WifiModelTest {
         assertEquals(4, WifiNetworkModel.levelOf(-20))
         assertEquals(4, WifiNetworkModel.MAX_LEVEL)
     }
+
+    @Test fun security_owe() {
+        assertEquals(WifiSecurity.OWE, WifiNetworkModel.securityOf("[RSN-OWE-CCMP][ESS]"))
+        assertTrue(WifiSecurity.OWE.isOpen)
+        assertEquals("Open (encrypted)", WifiSecurity.OWE.label)
+    }
+
+    @Test fun band_edges() {
+        assertEquals(WifiBand.GHZ_2_4, WifiNetworkModel.bandOf(2400))
+        assertEquals(WifiBand.GHZ_2_4, WifiNetworkModel.bandOf(2500))
+        assertEquals(WifiBand.UNKNOWN, WifiNetworkModel.bandOf(2399))
+        assertEquals(WifiBand.UNKNOWN, WifiNetworkModel.bandOf(2501))
+        assertEquals(WifiBand.UNKNOWN, WifiNetworkModel.bandOf(4899))
+        assertEquals(WifiBand.GHZ_5, WifiNetworkModel.bandOf(4900))
+        assertEquals(WifiBand.GHZ_5, WifiNetworkModel.bandOf(5900))
+        assertEquals(WifiBand.UNKNOWN, WifiNetworkModel.bandOf(5901))
+        assertEquals(WifiBand.UNKNOWN, WifiNetworkModel.bandOf(5924))
+        assertEquals(WifiBand.GHZ_6, WifiNetworkModel.bandOf(5925))
+        assertEquals(WifiBand.GHZ_6, WifiNetworkModel.bandOf(7125))
+        assertEquals(WifiBand.UNKNOWN, WifiNetworkModel.bandOf(7126))
+    }
 }
