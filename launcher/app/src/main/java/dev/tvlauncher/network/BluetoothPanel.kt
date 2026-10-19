@@ -183,17 +183,17 @@ class BluetoothPanel(
             card.addView(TextView(context).apply {
                 style(Theme.SP_SUB, Theme.medium); text = "Location permission needed to find devices"
             })
-            card.addView(PanelViews.note(context, "Android requires it for Bluetooth discovery. Run this once from a computer, then scan again:"))
-            card.addView(PanelViews.note(context, NetworkSettings.ADB_LOCATION_GRANT, mono = true))
+            card.addView(PanelViews.note(context, dev.tvlauncher.setup.SetupCopy.LOCATION_NEEDED))
             body.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(Theme.S3) })
+            val allow = PanelRow(context, R.drawable.ic_settings, dev.tvlauncher.setup.SetupCopy.LOCATION_ALLOW, null, key = "act:allowLocation")
+            allow.setOnClickListener { NetworkSettings.requestLocation(context) }
+            body.addView(allow, rowParams())
         } else if (s.enabled && !s.locationEnabled) {
             val card = PanelViews.card(context)
             card.addView(TextView(context).apply {
                 style(Theme.SP_SUB, Theme.medium); text = "Location is switched off"
             })
             card.addView(PanelViews.note(context, "Turn on Location in the TV settings \u2014 Android needs it for nearby device scans, even though this launcher never reads your position."))
-            card.addView(PanelViews.note(context, "From a computer instead:"))
-            card.addView(PanelViews.note(context, NetworkSettings.ADB_LOCATION_ON, mono = true))
             body.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(Theme.S3) })
             val open = PanelRow(context, R.drawable.ic_settings, "Open Location settings", null, key = "act:location")
             open.setOnClickListener { NetworkSettings.openLocation(context) }

@@ -30,7 +30,7 @@ object ModuleSections {
     /** Value and an optional note for the "Usage access" row. */
     fun usageAccessStatus(granted: Boolean): Pair<String, String?> =
         if (granted) "Granted" to null
-        else "Not granted" to "If this TV has no usage access page, run this once from a computer:\n${UsageAccess.ADB_LINE}"
+        else "Not granted" to dev.tvlauncher.setup.SetupCopy.HELPER_LINE
 
     fun installedValue(installed: Boolean): String = if (installed) "Installed" else "Not installed"
 }
@@ -53,7 +53,7 @@ object InsightsSection : SettingsSection, SpecifiedPage {
     override val iconRes = R.drawable.ic_set_insights
     override val group = SettingsGroup.APPS
     override val description = "What you watch most. Everything stays on this TV."
-    override val spec = PageSpec(id, listOf("insights.open", "insights.access"), listOf("insights.adb"))
+    override val spec = PageSpec(id, listOf("insights.open", "insights.access"), listOf("insights.setup"))
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val page = SettingsPage(context, nav.style, spec)
@@ -65,15 +65,10 @@ object InsightsSection : SettingsSection, SpecifiedPage {
         page.row("insights.access", "Usage access", if (granted) RowKind.Info(value) else RowKind.Action(value) {
             if (!UsageAccess.openSettings(context)) nav.notify("This TV has no usage access page; see Advanced")
         }, subtitle = "Lets the launcher see which app is on screen", iconRes = R.drawable.ic_set_eye)
-        page.advanced(nav, "insights.advanced", "Grant usage access from a computer") { adv ->
-            adv.row("insights.adb", "Grant from a computer", RowKind.Action {
-                nav.push("Grant from a computer") { c, n ->
-                    TextPage(c, n.style).apply {
-                        setText(ModuleSections.usageAccessStatus(false).second.orEmpty() +
-                            "\n\nThen come back here; the status updates by itself.")
-                    }
-                }
-            }, subtitle = "One adb line, for TVs without a usage access page", iconRes = R.drawable.ic_sc_developer)
+        page.advanced(nav, "insights.advanced", "No usage access page on this TV?") { adv ->
+            adv.row("insights.setup", "Open setup", RowKind.Action {
+                if (!dev.tvlauncher.setup.SetupStatus.open(context)) nav.notify("Setup could not be opened")
+            }, subtitle = "The setup checklist shows what this TV needs", iconRes = R.drawable.ic_sc_settings)
         }
         return page
     }

@@ -59,7 +59,7 @@ class DiscoverSettingsTest {
         val card = noAccess.first { it.key == "nowPlayingAccess" }
         assertTrue(card.visible)
         assertEquals(DiscoverSettingsRows.Kind.CARD, card.kind)
-        assertTrue(card.hint!!.contains("allow_listener"))
+        assertFalse(card.hint!!.contains("allow_listener")) // plain words, no command line
         val ok = DiscoverSettingsRows.rows(DiscoverSettings(), NowPlayingSettings(nowPlayingEnabled = true), true, "IN")
         assertFalse(ok.first { it.key == "nowPlayingAccess" }.visible)
         assertTrue(ok.first { it.key == "nowPlayingShowOnHome" }.visible)

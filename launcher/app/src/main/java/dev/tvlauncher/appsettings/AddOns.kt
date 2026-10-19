@@ -24,8 +24,7 @@ object AddOns {
 
     fun howToInstall(a: AddOn): String =
         "${a.title} is a separate app (${a.packageName}).\n\n" +
-            "1. Copy its APK to a USB drive, or keep it on a computer on the same network.\n" +
-            "2. On the TV, open the APK with a file manager and allow the install when asked,\n" +
-            "   or from the computer run:  adb install <file>.apk\n" +
+            "1. Get it with the Get Apps app, or copy its file to a USB drive.\n" +
+            "2. On the TV, open the file with a file manager and allow the install when asked.\n" +
             "3. Come back here: the ${a.title} page appears under Apps & tools."
 }

@@ -117,10 +117,7 @@ class AmbientDream : DreamService() {
     }
 
     companion object {
-        const val ADB_SELECT =
-            "adb shell settings put secure screensaver_components dev.tvlauncher/dev.tvlauncher.ambient.AmbientDream"
-        const val ADB_ENABLE = "adb shell settings put secure screensaver_enabled 1"
-        const val ADB_ON_SLEEP = "adb shell settings put secure screensaver_activate_on_sleep 1"
+        const val COMPONENT = "dev.tvlauncher/dev.tvlauncher.ambient.AmbientDream"
     }
 }
 

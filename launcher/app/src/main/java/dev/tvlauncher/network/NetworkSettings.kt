@@ -7,9 +7,14 @@ import dev.tvlauncher.ui.SystemActions
 
 /** Guarded jumps into the TV's own settings screens; each tries a chain of fallbacks. */
 object NetworkSettings {
-    const val ADB_LOCATION_GRANT = "adb shell pm grant dev.tvlauncher android.permission.ACCESS_FINE_LOCATION"
+    const val LOCATION_PERMISSION = android.Manifest.permission.ACCESS_FINE_LOCATION
 
-    const val ADB_LOCATION_ON = "adb shell settings put secure location_mode 3"
+    /**
+     * Shows Android's own permission dialog for [LOCATION_PERMISSION] (or, once Android stops
+     * showing it, the launcher's app page in the TV settings). False when nothing could open.
+     */
+    fun requestLocation(context: Context): Boolean =
+        dev.tvlauncher.setup.SetupStatus.requestPermission(context, LOCATION_PERMISSION)
 
     fun openLocation(context: Context): Boolean =
         SystemActions.start(context, Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) ||

@@ -58,13 +58,18 @@ object AmbientViewModel {
         c.title?.let { c.app.length..(c.app.length + SEP.length + it.length) }
 }
 
-/** Pure user-facing text for granting listener access. */
+/**
+ * Pure user-facing text for granting listener access. Never a command line: a TV without the
+ * access screen gets one calm line, and the one-time setup helper (or setup's own automatic
+ * grant) switches access on.
+ */
 object NotificationAccessText {
-    fun adbLine(pkg: String, serviceClass: String) = "adb shell cmd notification allow_listener $pkg/$serviceClass"
+    fun instructions(settingsOpened: Boolean): String =
+        dev.tvlauncher.setup.SetupCopy.notificationAccessHint(settingsOpened)
 
-    fun instructions(settingsOpened: Boolean, adbLine: String): String =
-        if (settingsOpened) "Turn on TV Launcher in the list that just opened, then press Back."
-        else "This TV has no notification access screen. From a computer on the same network, run:\n$adbLine"
+    @Deprecated("The hint no longer takes a recipe", ReplaceWith("instructions(settingsOpened)"))
+    @Suppress("UNUSED_PARAMETER")
+    fun instructions(settingsOpened: Boolean, adbLine: String): String = instructions(settingsOpened)
 }
 
 object NotificationFilter {

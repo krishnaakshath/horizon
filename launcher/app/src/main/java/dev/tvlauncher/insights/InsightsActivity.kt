@@ -159,18 +159,10 @@ class InsightsActivity : Activity() {
             style(Theme.SP_SUB, Theme.regular, Theme.TEXT_2)
             setLineSpacing(0f, 1.2f)
         })
-        content.addView(TextView(this).apply {
-            text = "No settings screen on this TV? Run this from a computer:"
+        if (UsageAccess.settingsIntent(this) == null) content.addView(TextView(this).apply {
+            text = dev.tvlauncher.setup.SetupCopy.HELPER_LINE
             style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
             setPadding(0, dp(Theme.S5), 0, dp(Theme.S2))
-        })
-        content.addView(TextView(this).apply {
-            text = UsageAccess.ADB_LINE
-            style(Theme.SP_SUB, Theme.medium)
-            typeface = android.graphics.Typeface.MONOSPACE
-            setTextIsSelectable(false)
-            setPadding(dp(Theme.S4), dp(Theme.S3), dp(Theme.S4), dp(Theme.S3))
-            background = round(Theme.SURFACE, 12)
         })
         val btn = Button(this).apply {
             text = "Open usage access settings"

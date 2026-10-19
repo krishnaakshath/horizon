@@ -1,6 +1,5 @@
 package dev.tvlauncher.appsettings
 
-import dev.tvlauncher.insights.UsageAccess
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -29,13 +28,13 @@ class ModuleSectionsTest {
     }
 
     @Test
-    fun usageAccessStatus_showsAdbLineOnlyWhenMissing() {
+    fun usageAccessStatus_showsTheHelperLineOnlyWhenMissing() {
         val granted = ModuleSections.usageAccessStatus(granted = true)
         assertEquals("Granted", granted.first)
         assertNull(granted.second)
         val missing = ModuleSections.usageAccessStatus(granted = false)
         assertEquals("Not granted", missing.first)
-        assertTrue(missing.second!!.contains(UsageAccess.ADB_LINE))
+        assertEquals(dev.tvlauncher.setup.SetupCopy.HELPER_LINE, missing.second)
     }
 
     @Test

@@ -169,8 +169,7 @@ class WallpaperPickerPanel(
         panel.addView(TextView(context).apply {
             style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
             text = "Add your own: each folder in Pictures/TVLauncher (or TVLauncher on a USB stick) is a collection, " +
-                "named after the folder. JPG, PNG or WebP up to 8 MB, ${WallpaperPlan.MAX_FILES} per folder.\n" +
-                "From a computer: ${UserWallpapers.ADB_PUSH_FOLDER}"
+                "named after the folder. JPG, PNG or WebP up to 8 MB, ${WallpaperPlan.MAX_FILES} per folder."
             maxLines = 8
         }, lp(top = 8))
         return panel

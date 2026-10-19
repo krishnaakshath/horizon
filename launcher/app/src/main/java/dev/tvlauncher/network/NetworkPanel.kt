@@ -156,10 +156,12 @@ class NetworkPanel(
                 card.addView(TextView(context).apply {
                     style(Theme.SP_SUB, Theme.medium); text = "Location permission needed to list networks"
                 })
-                card.addView(PanelViews.note(context, "Android hides Wi-Fi scan results from apps without it. Run this once from a computer, then reopen this panel:"))
-                card.addView(PanelViews.note(context, NetworkSettings.ADB_LOCATION_GRANT, mono = true))
+                card.addView(PanelViews.note(context, dev.tvlauncher.setup.SetupCopy.LOCATION_NEEDED))
                 card.addView(PanelViews.note(context, "Your connection details above work without it."))
                 body.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(Theme.S3) })
+                val allow = PanelRow(context, R.drawable.ic_settings, dev.tvlauncher.setup.SetupCopy.LOCATION_ALLOW, null, key = "act:allowLocation")
+                allow.setOnClickListener { NetworkSettings.requestLocation(context) }
+                body.addView(allow, rowParams())
             }
             WifiContent.LOCATION_OFF -> {
                 val card = PanelViews.card(context)
@@ -167,8 +169,6 @@ class NetworkPanel(
                     style(Theme.SP_SUB, Theme.medium); text = "Location is switched off"
                 })
                 card.addView(PanelViews.note(context, "Turn on Location in the TV settings \u2014 Android needs it for nearby network scans, even though this launcher never reads your position."))
-                card.addView(PanelViews.note(context, "From a computer instead:"))
-                card.addView(PanelViews.note(context, NetworkSettings.ADB_LOCATION_ON, mono = true))
                 val open = PanelRow(context, R.drawable.ic_settings, "Open Location settings", null, key = "act:location")
                 open.setOnClickListener { NetworkSettings.openLocation(context) }
                 body.addView(card, LinearLayout.LayoutParams(-1, -2).apply { topMargin = context.dp(Theme.S3) })

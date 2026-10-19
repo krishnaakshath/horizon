@@ -69,11 +69,9 @@ class HelperSettingsActivity : Activity() {
         content.addView(
             row(
                 "Accessibility service: " + if (isServiceEnabled()) "Enabled" else "Not enabled",
-                "Select to open accessibility settings, or enable over ADB with the lines below.",
+                "Select to open accessibility settings and turn on Launcher Helper.",
             ) { openAccessibilitySettings() },
         )
-        content.addView(mono("adb shell settings put secure enabled_accessibility_services dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService"))
-        content.addView(mono("adb shell settings put secure accessibility_enabled 1"))
         content.addView(spacer())
 
         content.addView(
@@ -146,7 +144,7 @@ class HelperSettingsActivity : Activity() {
         try {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: Exception) {
-            learnMessage = "Accessibility settings are not available on this device. Use the ADB lines."
+            learnMessage = "This TV has no accessibility screen. The launcher's setup switches the Helper on by itself once the one-time setup helper has run."
             render()
         }
     }
@@ -160,15 +158,6 @@ class HelperSettingsActivity : Activity() {
         textSize = size
         setTextColor(color)
         if (bold) setTypeface(typeface, Typeface.BOLD)
-    }
-
-    private fun mono(t: String) = TextView(this).apply {
-        this.text = t
-        textSize = 13f
-        typeface = Typeface.MONOSPACE
-        setTextColor(muted)
-        setTextIsSelectable(false)
-        setPadding(dp(4), dp(6), 0, 0)
     }
 
     private fun row(title: String, value: String, onClick: () -> Unit): View {

@@ -765,12 +765,6 @@ class StoreActivity : Activity(), Installer.Listener {
         })
         body.addView(row)
         body.addView(note)
-        body.addView(sectionTitle("Alternative: from a computer with ADB"))
-        body.addView(text(ADB_GRANT, 15f, Kit.ACCENT, Kit.mono).apply {
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            background = rounded(Kit.SURFACE, Kit.RADIUS_SMALL, Kit.STROKE, 1)
-            setTextIsSelectable(false)
-        })
         return page("Permission", body)
     }
 
@@ -1230,7 +1224,6 @@ class StoreActivity : Activity(), Installer.Listener {
         private const val FOCUS_TAG = "primary-focus"
         /** Fixed, dimmed prefix for every APK-supplied row. */
         private const val APK_BULLET = "·  "
-        const val ADB_GRANT = "adb shell appops set dev.tvlauncher.store REQUEST_INSTALL_PACKAGES allow"
     }
 }
 
