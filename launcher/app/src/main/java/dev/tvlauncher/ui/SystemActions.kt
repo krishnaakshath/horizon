@@ -48,6 +48,14 @@ object SystemActions {
         QuickActions.Item.BROWSER -> launchPackage(context, QuickActions.BROWSER_PACKAGE)
     }
 
+    /** The launcher's own settings screen, if a build provides one (separate task). */
+    fun launcherSettings(context: Context): Boolean {
+        val i = Intent(LAUNCHER_SETTINGS_ACTION).setPackage(context.packageName)
+        if (context.packageManager.resolveActivity(i, 0) == null) return false
+        return start(context, i)
+    }
+
+    const val LAUNCHER_SETTINGS_ACTION = "dev.tvlauncher.action.SETTINGS"
     const val INSIGHTS_CLASS = "dev.tvlauncher.insights.InsightsActivity"
 
     fun inputs(context: Context): Boolean {

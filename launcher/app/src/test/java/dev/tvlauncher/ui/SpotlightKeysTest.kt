@@ -28,4 +28,9 @@ class SpotlightKeysTest {
     @Test fun intentAction() {
         assertEquals("dev.tvlauncher.action.SPOTLIGHT", SpotlightKeys.ACTION)
     }
+
+    @Test fun request_beforeFirstLoad_isDeferred() {
+        assertEquals(SpotlightKeys.Request.DEFER, SpotlightKeys.onRequest(appsLoaded = false))
+        assertEquals(SpotlightKeys.Request.OPEN_NOW, SpotlightKeys.onRequest(appsLoaded = true))
+    }
 }

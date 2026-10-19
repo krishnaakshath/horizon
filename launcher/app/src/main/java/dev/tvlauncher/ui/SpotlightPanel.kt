@@ -13,7 +13,10 @@ import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.FocusFinder
 import android.view.Gravity
+import android.os.Build
+import android.view.KeyCharacterMap
 import android.view.KeyEvent
+import android.view.WindowInsets
 import android.view.View
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
@@ -30,6 +33,8 @@ import dev.tvlauncher.apps.AppEntry
 import dev.tvlauncher.apps.component
 import dev.tvlauncher.ui.QuickActions.Item
 import dev.tvlauncher.ui.Theme.style
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * Spotlight: a glass panel that slides up from the bottom over a dim scrim. Rows: a search
@@ -49,8 +54,17 @@ class SpotlightPanel(
     var isOpen = false
         private set
     private var apps: List<AppEntry> = emptyList()
+    private var installedPackages: Set<String> = emptySet()
     private var shownActions: List<Item> = emptyList()
+    // Icon cache and loader: icons resolve off the main thread; all maps are main-thread only.
     private val icons = HashMap<String, Drawable>()
+    private val iconViews = HashMap<String, ImageView>()
+    private val loading = HashSet<String>()
+    private var iconExec: ExecutorService? = null
+    private var iconGen = 0
+    private val rankRunnable = Runnable { updateResults() }
+    /** Fallback IME state for API < 30 (no insets query): set on show, cleared on hide/BACK. */
+    private var imeShown = false
     private val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     private val openMs = SpotlightKeys.openMs(full)
 
@@ -65,7 +79,12 @@ class SpotlightPanel(
         clipToPadding = false
         background = Glass.surface(context, full, CARD_RADIUS_DP)
     }
-    val search: EditText = EditText(context).apply {
+    val search: EditText = object : EditText(context) {
+        override fun onKeyPreIme(keyCode: Int, event: KeyEvent): Boolean {
+            if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) imeShown = false
+            return super.onKeyPreIme(keyCode, event)
+        }
+    }.apply {
         hint = "Search apps"
         setHintTextColor(Theme.TEXT_2)
         style(18f, Theme.regular)
@@ -82,19 +101,30 @@ class SpotlightPanel(
         compoundDrawablePadding = context.dp(Theme.S3)
         setCompoundDrawablesRelativeWithIntrinsicBounds(context.getDrawable(R.drawable.ic_search), null, null, null)
         compoundDrawableTintList = ColorStateList.valueOf(Theme.TEXT_2)
-        setOnClickListener { showIme() }
+        setOnClickListener { showIme() } // touch
+        // Remote OK may arrive as DPAD_CENTER, ENTER or NUMPAD_ENTER: see SearchKeyPolicy.
+        setOnKeyListener { _, code, ev ->
+            if (!SearchKeyPolicy.isOkKey(code)) return@setOnKeyListener false
+            if (ev.action != KeyEvent.ACTION_DOWN || ev.repeatCount > 0) return@setOnKeyListener true
+            when (SearchKeyPolicy.decide(code, imeVisible(), text.isNullOrBlank())) {
+                SearchKeyPolicy.Decision.SHOW_IME -> showIme()
+                SearchKeyPolicy.Decision.SUBMIT_AND_FOCUS_RESULTS -> submit()
+                SearchKeyPolicy.Decision.PASS_THROUGH -> return@setOnKeyListener false
+            }
+            true
+        }
+        // Only the keyboard's own Search/Done action submits; hardware keys go through the policy.
         setOnEditorActionListener { _, id, ev ->
-            val enter = ev?.keyCode == KeyEvent.KEYCODE_ENTER && ev.action == KeyEvent.ACTION_DOWN
-            if (id == EditorInfo.IME_ACTION_SEARCH || enter) {
-                hideIme()
-                if (results.childCount > 0) results.getChildAt(0).requestFocus()
+            val fromIme = ev == null || ev.deviceId == KeyCharacterMap.VIRTUAL_KEYBOARD
+            if (fromIme && (id == EditorInfo.IME_ACTION_SEARCH || id == EditorInfo.IME_ACTION_DONE)) {
+                submit()
                 true
             } else false
         }
         addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-            override fun afterTextChanged(s: Editable?) = updateResults()
+            override fun afterTextChanged(s: Editable?) = scheduleRank()
         })
     }
     private val actionsRow = LinearLayout(context).apply {
@@ -148,13 +178,21 @@ class SpotlightPanel(
         })
     }
 
-    /** All apps Spotlight can find (refreshed after every reload). */
-    fun setApps(list: List<AppEntry>) {
+    /** All apps Spotlight can find and the installed set (for Browser); refreshed every reload. */
+    fun setApps(list: List<AppEntry>, installed: Set<String>) {
         apps = list
-        if (isOpen) updateResults()
+        installedPackages = installed
+        if (!isOpen) return
+        scheduleRank()
+        val items = QuickActions.items(installed)
+        if (items != shownActions) {
+            val hadFocus = actionsRow.hasFocus()
+            rebuildActions(items)
+            if (hadFocus) actionsRow.getChildAt(0)?.requestFocus()
+        }
     }
 
-    fun open(installedPackages: Set<String>) {
+    fun open() {
         if (isOpen) return
         isOpen = true
         descendantFocusability = FOCUS_AFTER_DESCENDANTS
@@ -180,7 +218,11 @@ class SpotlightPanel(
         onClosed() // focus goes back to the shelf while we are still laid out
         descendantFocusability = FOCUS_BLOCK_DESCENDANTS
         search.setText("")
+        removeCallbacks(rankRunnable)
+        updateResults()
+        iconGen++ // drop in-flight icon loads
         icons.clear()
+        loading.clear()
         scrim.animate().cancel(); card.animate().cancel()
         if (!animate) {
             visibility = View.GONE
@@ -227,11 +269,24 @@ class SpotlightPanel(
         Item.BROWSER -> R.drawable.ic_browser
     }
 
+    private fun scheduleRank() {
+        removeCallbacks(rankRunnable)
+        postDelayed(rankRunnable, RANK_DEBOUNCE_MS)
+    }
+
+    private fun submit() {
+        hideIme()
+        removeCallbacks(rankRunnable)
+        updateResults() // apply any pending keystrokes before moving focus
+        if (results.childCount > 0) results.getChildAt(0).requestFocus()
+    }
+
     private fun updateResults() {
         val q = search.text?.toString().orEmpty()
         val ranked = SpotlightSearch.rank(q, apps)
         val keepFocus = results.hasFocus()
         results.removeAllViews()
+        iconViews.clear()
         resultsBox.visibility = if (q.isBlank()) View.GONE else View.VISIBLE
         noMatches.visibility = if (ranked.isEmpty()) View.VISIBLE else View.GONE
         resultsScroll.visibility = if (ranked.isEmpty()) View.INVISIBLE else View.VISIBLE
@@ -256,8 +311,8 @@ class SpotlightPanel(
         }
         val icon = ImageView(context).apply {
             scaleType = ImageView.ScaleType.FIT_CENTER
-            setImageDrawable(icons.getOrPut(app.packageName) { loadIcon(app) })
         }
+        bindIcon(app, icon)
         val label = TextView(context).apply {
             text = app.label
             style(Theme.SP_LABEL, Theme.medium)
@@ -279,6 +334,26 @@ class SpotlightPanel(
         return tile
     }
 
+    /** Cached icon now, else a placeholder and an off-main-thread load. */
+    private fun bindIcon(app: AppEntry, view: ImageView) {
+        val pkg = app.packageName
+        icons[pkg]?.let { view.setImageDrawable(it); return }
+        view.setImageDrawable(rounded(0x1AFFFFFF, 0x1AFFFFFF, RESULT_RADIUS_DP))
+        iconViews[pkg] = view
+        if (!loading.add(pkg)) return
+        val gen = iconGen
+        val exec = iconExec ?: Executors.newSingleThreadExecutor().also { iconExec = it }
+        exec.execute {
+            val d = loadIcon(app)
+            post {
+                if (gen != iconGen) return@post
+                loading.remove(pkg)
+                icons[pkg] = d
+                iconViews[pkg]?.setImageDrawable(d)
+            }
+        }
+    }
+
     private fun loadIcon(app: AppEntry): Drawable = try {
         pm.getActivityIcon(app.component())
     } catch (e: PackageManager.NameNotFoundException) {
@@ -291,16 +366,27 @@ class SpotlightPanel(
         setStroke(context.dp(if (stroke == Theme.TEXT) 2 else 1), stroke)
     }
 
+    private fun imeVisible(): Boolean {
+        if (Build.VERSION.SDK_INT >= 30) search.rootWindowInsets?.let { return it.isVisible(WindowInsets.Type.ime()) }
+        return imeShown
+    }
+
     private fun showIme() {
         search.requestFocus()
-        imm.showSoftInput(search, 0)
+        imeShown = imm.showSoftInput(search, 0) || imeShown
     }
 
     private fun hideIme() {
+        imeShown = false
         imm.hideSoftInputFromWindow(search.windowToken, 0)
     }
 
     override fun onDetachedFromWindow() {
+        removeCallbacks(rankRunnable)
+        iconGen++
+        iconExec?.shutdownNow()
+        iconExec = null
+        loading.clear()
         scrim.animate().cancel()
         card.animate().cancel()
         super.onDetachedFromWindow()
@@ -314,5 +400,6 @@ class SpotlightPanel(
         const val RESULT_W_DP = 104
         const val RESULT_ICON_DP = 56
         const val RESULT_RADIUS_DP = 16
+        const val RANK_DEBOUNCE_MS = 60L
     }
 }

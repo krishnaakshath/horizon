@@ -5,6 +5,7 @@ import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -13,8 +14,17 @@ import android.widget.TextView
 import dev.tvlauncher.R
 import dev.tvlauncher.ui.Theme.style
 
-/** Clock + date on the left; Bluetooth, network and an Inputs pill on the right. */
-class TopBar(context: Context, onInputs: () -> Unit) : LinearLayout(context) {
+/**
+ * Clock + date on the left; Bluetooth, network and the Inputs and Settings pills on the right.
+ * DPAD_DOWN on either pill is reported via [onDown] (see [TopBarNav]).
+ */
+class TopBar(
+    context: Context,
+    onInputs: () -> Unit,
+    onSettings: () -> Unit,
+    onSettingsLongPress: () -> Unit,
+    onDown: () -> Boolean
+) : LinearLayout(context) {
     private val clock = TextClock(context).apply {
         format12Hour = "h:mm"
         format24Hour = "HH:mm"
@@ -28,6 +38,9 @@ class TopBar(context: Context, onInputs: () -> Unit) : LinearLayout(context) {
     private val bluetooth = icon(R.drawable.ic_bluetooth)
     private val network = icon(R.drawable.ic_wifi_3)
     val inputsButton = PillButton(context, R.drawable.ic_input, "Inputs", onInputs)
+    val settingsButton = PillButton(context, R.drawable.ic_settings, "Settings", onSettings).apply {
+        setOnLongClickListener { onSettingsLongPress(); true }
+    }
     private val status = StatusIcons(context) { net, bt ->
         network.setImageResource(StatusIcons.drawable(net))
         network.contentDescription = net.name
@@ -49,9 +62,14 @@ class TopBar(context: Context, onInputs: () -> Unit) : LinearLayout(context) {
         addView(date, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
         addView(bluetooth, iconParams())
         addView(network, iconParams())
-        addView(inputsButton, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
-            marginStart = context.dp(Theme.S3)
-        })
+        for (pill in listOf(inputsButton, settingsButton)) {
+            addView(pill, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+                marginStart = context.dp(Theme.S3)
+            })
+            pill.setOnKeyListener { _, code, ev ->
+                code == KeyEvent.KEYCODE_DPAD_DOWN && ev.action == KeyEvent.ACTION_DOWN && onDown()
+            }
+        }
         bluetooth.visibility = View.GONE
     }
 

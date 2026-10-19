@@ -15,4 +15,9 @@ object SpotlightKeys {
     fun onTileDown(stripVisible: Boolean): TileDown = if (stripVisible) TileDown.STRIP else TileDown.SPOTLIGHT
 
     fun openMs(full: Boolean): Long = if (full) 240L else 170L
+
+    enum class Request { OPEN_NOW, DEFER }
+
+    /** Opening before the first app load would show no Browser action and nothing to search. */
+    fun onRequest(appsLoaded: Boolean): Request = if (appsLoaded) Request.OPEN_NOW else Request.DEFER
 }

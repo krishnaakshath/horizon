@@ -23,7 +23,6 @@ import dev.tvlauncher.ui.HeroBox
 import dev.tvlauncher.ui.HomeContent
 import dev.tvlauncher.ui.LaunchOverlay
 import dev.tvlauncher.ui.QuickStrip
-import dev.tvlauncher.ui.RevealTargets
 import dev.tvlauncher.ui.Shelf
 import dev.tvlauncher.ui.ShelfAdapter
 import dev.tvlauncher.ui.SplashOverlay
@@ -32,8 +31,8 @@ import dev.tvlauncher.ui.SpotlightPanel
 import dev.tvlauncher.ui.SystemActions
 import dev.tvlauncher.ui.Theme
 import dev.tvlauncher.ui.TileMenu
-import dev.tvlauncher.ui.TileView
 import dev.tvlauncher.ui.TopBar
+import dev.tvlauncher.ui.TopBarNav
 import dev.tvlauncher.ui.dp
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -62,6 +61,8 @@ class HomeActivity : Activity() {
     /** Where focus returns when Spotlight closes: a non-shelf view, else the tile at [restoreIndex]. */
     private var restoreFocus: View? = null
     private var restoreIndex = 0
+    /** Spotlight was requested before the first app load; opened once it completes. */
+    private var pendingSpotlight = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,15 +71,16 @@ class HomeActivity : Activity() {
         profile = DeviceProfileReader.read(this)
         buildUi()
         val wantsSpotlight = intent?.action == SpotlightKeys.ACTION
+        if (wantsSpotlight) setIntent(Intent(intent).setAction(null)) // a recreation must not re-open it
         if (SplashOverlay.enabled(this) && !wantsSpotlight) {
             splash = SplashOverlay(this, profile.effectsMode == EffectsMode.FULL).also {
                 (content.parent as FrameLayout).addView(it, FrameLayout.LayoutParams(-1, -1))
-                it.prepare(revealTargets())
+                it.prepare(content.revealTargets())
                 it.start()
                 shelfBox.loader.visibility = View.GONE // the splash shows its own dots
             }
         }
-        if (wantsSpotlight) content.post { openSpotlight() }
+        if (wantsSpotlight) openSpotlight() // deferred until the first app list arrives
         repo.register { reload() }
         reload()
     }
@@ -88,7 +90,13 @@ class HomeActivity : Activity() {
         val root = FrameLayout(this)
         backdrop = BackdropView(this, if (full) 350L else 250L)
         root.addView(backdrop, FrameLayout.LayoutParams(-1, -1))
-        topBar = TopBar(this) { SystemActions.inputs(this) }
+        topBar = TopBar(
+            this,
+            onInputs = { SystemActions.inputs(this) },
+            onSettings = { if (!SystemActions.launcherSettings(this)) openSpotlight() },
+            onSettingsLongPress = { tileMenu.showDockMenu(visiblePackages(), installed) },
+            onDown = ::onTopBarDown
+        )
         heroBox = HeroBox(this, packageManager)
         launcher = AppLauncher(profile, AndroidLaunchBackend(this))
         tileMenu = TileMenu(this, prefs) { reload() }
@@ -123,12 +131,6 @@ class HomeActivity : Activity() {
 
     private fun visiblePackages() = adapter.getItems().map { it.packageName }
 
-    private fun revealTargets() = RevealTargets(content, topBar, heroBox.hero, shelf, strip) {
-        (0 until shelf.childCount).map { shelf.getChildAt(it) }
-            .sortedBy { it.left }
-            .mapNotNull { (it as? TileView)?.content }
-    }
-
     private fun onAppFocused(app: AppEntry) {
         backdrop.setAccent(adapter.accentOf(app))
         heroBox.hero.show(app, backdrop.heroColor)
@@ -139,13 +141,22 @@ class HomeActivity : Activity() {
         SpotlightKeys.TileDown.SPOTLIGHT -> { openSpotlight(); true }
     }
 
+    private fun onTopBarDown(): Boolean = when (TopBarNav.onDown(shelfEmpty = adapter.itemCount == 0)) {
+        TopBarNav.Action.FOCUS_SHELF -> focusTile(adapter.lastFocused)
+        TopBarNav.Action.OPEN_SPOTLIGHT -> { openSpotlight(); true }
+    }
+
     private fun openSpotlight() {
+        if (SpotlightKeys.onRequest(appsLoaded = !firstLoad) == SpotlightKeys.Request.DEFER) {
+            pendingSpotlight = true
+            return
+        }
         if (spotlight.isOpen || splash != null || isDestroyed) return // not under the cold-start splash
         val f = currentFocus
         restoreFocus = f?.takeIf { it.parent !== shelf && !strip.hasFocus() }
         restoreIndex = adapter.lastFocused
         strip.setSpotlightOpen(true)
-        spotlight.open(installed.mapTo(HashSet()) { it.packageName })
+        spotlight.open()
         content.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS // nothing leaks to the shelf
     }
 
@@ -180,14 +191,15 @@ class HomeActivity : Activity() {
         val focusedPkg = old.getOrNull(oldPos)?.packageName
         strip.reset()
         adapter.submit(apps)
-        spotlight.setApps(searchable)
+        spotlight.setApps(searchable, installed.mapTo(HashSet()) { it.packageName })
         shelfBox.loader.visibility = View.GONE
         heroBox.setEmpty(apps.isEmpty())
         val wasFirst = firstLoad
         firstLoad = false
         if (wasFirst) {
-            splash?.let { s -> shelf.post { s.reveal(revealTargets()) } }
+            splash?.let { s -> shelf.post { s.reveal(content.revealTargets()) } }
             splash = null
+            if (pendingSpotlight) shelf.post { pendingSpotlight = false; openSpotlight() }
         }
         if (apps.isEmpty()) {
             if ((hadFocus || wasFirst) && !spotlight.isOpen) topBar.inputsButton.requestFocus()
