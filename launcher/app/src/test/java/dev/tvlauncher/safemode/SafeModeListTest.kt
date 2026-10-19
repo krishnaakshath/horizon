@@ -109,4 +109,19 @@ class SafeModeListTest {
         assertTrue(SafeModeList.enableStockHint(SafeModeList.STOCK_LABEL_FALLBACK).contains("Android TV Home"))
         assertFalse(SafeModeList.enableStockHint("Android TV Home").contains("TV launcher"))
     }
+
+    @Test fun subtitle_isOneCalmLine() {
+        assertEquals("The launcher closed unexpectedly several times. Last error: NullPointerException.",
+            SafeModeList.subtitle("NullPointerException", minimal = false))
+        assertEquals("The launcher and its safe mode closed unexpectedly.", SafeModeList.subtitle("  ", minimal = true))
+        assertEquals("The launcher closed unexpectedly several times.", SafeModeList.subtitle(null, minimal = false))
+    }
+
+    @Test fun actionsAreTheWaysOut() {
+        assertEquals(true, SafeModeList.isAction(SafeModeList.Row.SystemSettings))
+        assertEquals(true, SafeModeList.isAction(SafeModeList.Row.TryNormal))
+        assertEquals(true, SafeModeList.isAction(SafeModeList.Row.StockLauncher))
+        assertEquals(false, SafeModeList.isAction(SafeModeList.Row.Notice("x")))
+        assertEquals(false, SafeModeList.isAction(SafeModeList.Row.App(app("n", "Netflix"))))
+    }
 }
