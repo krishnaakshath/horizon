@@ -20,8 +20,9 @@ data class WeatherCurrent(
     val code: Int,
     val condition: String,
     val isDay: Boolean,
-    val highC: Double,
-    val lowC: Double,
+    /** NULL in the provider when today's daily entry is missing/malformed. */
+    val highC: Double?,
+    val lowC: Double?,
     val humidity: Int,
     val windKmh: Double,
     val updatedMs: Long,
@@ -55,14 +56,18 @@ enum class WxIcon(val key: String) {
 
 object WeatherFormat {
     /** "21°" rounded half-up in the display unit; never "-0°". */
-    fun temp(tempC: Double, unit: String?): String {
-        if (tempC.isNaN() || tempC.isInfinite()) return "–"
+    fun temp(tempC: Double?, unit: String?): String {
+        if (tempC == null || tempC.isNaN() || tempC.isInfinite()) return "–"
         val v = if (unit.equals("F", ignoreCase = true)) tempC * 9.0 / 5.0 + 32.0 else tempC
         val r = v.roundToLong()
         return "${if (r == 0L) 0L else r}°"
     }
 
-    fun highLow(highC: Double, lowC: Double, unit: String?): String = "H ${temp(highC, unit)}  L ${temp(lowC, unit)}"
+    /** "H 24°  L 13°", or null when either side is missing (never prints "null"). */
+    fun highLow(highC: Double?, lowC: Double?, unit: String?): String? {
+        if (highC == null || lowC == null || highC.isNaN() || lowC.isNaN()) return null
+        return "H ${temp(highC, unit)}  L ${temp(lowC, unit)}"
+    }
 
     fun iconFor(code: Int, isDay: Boolean): WxIcon = when (code) {
         0 -> if (isDay) WxIcon.CLEAR_DAY else WxIcon.CLEAR_NIGHT
@@ -126,8 +131,8 @@ object WeatherParser {
             code = code,
             condition = str(row["condition"]).ifBlank { WeatherFormat.conditionFor(code) },
             isDay = int(row["is_day"], 1) != 0,
-            highC = dbl(row["high_c"]),
-            lowC = dbl(row["low_c"]),
+            highC = dbl(row["high_c"]).takeUnless { it.isNaN() },
+            lowC = dbl(row["low_c"]).takeUnless { it.isNaN() },
             humidity = int(row["humidity"], -1),
             windKmh = dbl(row["wind_kmh"]),
             updatedMs = lng(row["updated_ms"]),
@@ -172,6 +177,35 @@ class WeatherReader(private val source: WeatherSource) {
         }
     } catch (e: Exception) {
         null
+    }
+}
+
+/** Display strings for the weather block; null fields are hidden (pure, so testable). */
+data class WeatherDisplay(
+    val available: Boolean,
+    val icon: WxIcon?,
+    val temp: String?,
+    val condition: String?,
+    val highLow: String?,
+    val location: String?,
+    val freshness: String?
+) {
+    companion object {
+        fun from(snap: WeatherSnapshot?, nowMs: Long): WeatherDisplay {
+            val c = snap?.current
+            if (c == null || !WeatherFreshness.isUsable(c.updatedMs, nowMs)) {
+                return WeatherDisplay(false, null, null, WeatherFreshness.UNAVAILABLE, null, null, null)
+            }
+            return WeatherDisplay(
+                available = true,
+                icon = WeatherFormat.iconFor(c.code, c.isDay),
+                temp = WeatherFormat.temp(c.tempC, c.unit),
+                condition = c.condition.takeIf { it.isNotBlank() },
+                highLow = WeatherFormat.highLow(c.highC, c.lowC, c.unit),
+                location = c.location.takeIf { it.isNotBlank() },
+                freshness = WeatherFreshness.label(c.updatedMs, nowMs)
+            )
+        }
     }
 }
 

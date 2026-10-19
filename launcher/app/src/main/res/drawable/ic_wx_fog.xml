@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original weather glyph (24dp, pre-colored for dark ambient backgrounds). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <group android:translateX="0" android:translateY="-3.5" android:scaleX="1" android:scaleY="1">
+    <path android:fillColor="#FFF5F7FA" android:fillAlpha="0.85" android:pathData="M5.5,13.5a3.5,3.5 0 1,0 7,0a3.5,3.5 0 1,0 -7,0z"/>
+    <path android:fillColor="#FFF5F7FA" android:fillAlpha="0.85" android:pathData="M8.5,11a4.5,4.5 0 1,0 9,0a4.5,4.5 0 1,0 -9,0z"/>
+    <path android:fillColor="#FFF5F7FA" android:fillAlpha="0.85" android:pathData="M13.5,14a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z"/>
+    <path android:fillColor="#FFF5F7FA" android:fillAlpha="0.85" android:pathData="M9,13.5V17H16.5V13.5Z"/>
+    </group>
+    <path android:strokeColor="#FFF5F7FA" android:strokeWidth="1.6" android:strokeLineCap="round" android:strokeAlpha="0.9" android:pathData="M4.5,17.5L19.5,17.5"/>
+    <path android:strokeColor="#FFF5F7FA" android:strokeWidth="1.6" android:strokeLineCap="round" android:strokeAlpha="0.7" android:pathData="M6.5,20.5L17.5,20.5"/>
+</vector>

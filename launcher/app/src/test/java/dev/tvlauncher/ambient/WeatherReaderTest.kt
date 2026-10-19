@@ -44,7 +44,7 @@ class WeatherReaderTest {
         assertEquals(3, c.code)
         assertFalse(c.isDay)
         assertEquals("", c.location)
-        assertTrue(c.highC.isNaN())
+        assertNull(c.highC)
         assertEquals("C", c.unit)
         assertEquals("Overcast", c.condition) // condition falls back to the WMO text
     }
