@@ -68,7 +68,7 @@ class QuickActionsTest {
 
     @Test fun systemRoute_alwaysLandsInTheLaunchersOwnPages() {
         assertEquals(null, QuickActions.launcherSection(Item.SETTINGS))
-        assertEquals("system", QuickActions.launcherSection(Item.SOUND))
+        assertEquals("sound_output", QuickActions.launcherSection(Item.SOUND)) // Volume & output
         assertEquals("bluetooth", QuickActions.launcherSection(Item.BLUETOOTH))
         assertEquals("network", QuickActions.launcherSection(Item.NETWORK))
         assertEquals("devices", QuickActions.launcherSection(Item.DEVICES))

@@ -43,6 +43,11 @@ class LauncherApp : Application() {
             // No Speed / Private DNS pages and no automatic cleanup this run.
         }
         try {
+            dev.tvlauncher.volume.VolumeSection.register() // Settings > Sound > Volume & output
+        } catch (e: Throwable) {
+            // No Volume & output page this run; TV & system keeps its volume rows.
+        }
+        try {
             WaveTwoSections.registerAll()
         } catch (e: Throwable) {
             // Same: the wave-2 pages stay placeholders or absent.

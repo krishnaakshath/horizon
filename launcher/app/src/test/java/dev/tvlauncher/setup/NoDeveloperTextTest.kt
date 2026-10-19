@@ -34,7 +34,7 @@ class NoDeveloperTextTest {
     }
 
     @Test fun noModuleShowsDeveloperText() {
-        val modules = listOf("src/main", "../helper/src/main", "../store/src/main", "../browser/src/main", "../weather/src/main")
+        val modules = listOf("src/main", "../helper/src/main", "../store/src/main", "../browser/src/main", "../weather/src/main", "../volumecore/src/main")
             .map(::File).filter { it.isDirectory }
         assertTrue("module sources not found from ${File(".").absolutePath}", modules.isNotEmpty() && modules[0].isDirectory)
         assertEquals(emptyList<String>(), modules.flatMap(::hits))

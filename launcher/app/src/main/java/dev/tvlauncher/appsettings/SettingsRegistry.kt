@@ -29,6 +29,15 @@ class SettingsRegistry(builtIns: List<SettingsSection>) {
         if (i >= 0) entries[i] = section else entries.add(section)
     }
 
+    /** Like [register], but a new id goes right before [beforeId] (appended when that id is absent). */
+    @Synchronized
+    fun registerBefore(section: SettingsSection, beforeId: String) {
+        val i = entries.indexOfFirst { it.id == section.id }
+        if (i >= 0) { entries[i] = section; return }
+        val at = entries.indexOfFirst { it.id == beforeId }
+        if (at >= 0) entries.add(at, section) else entries.add(section)
+    }
+
     @Synchronized
     fun sections(): List<SettingsSection> = entries.toList()
 

@@ -62,7 +62,8 @@ object QuickActions {
     fun launcherSection(item: Item): String? = when (item) {
         Item.NETWORK -> "network"
         Item.BLUETOOTH -> "bluetooth"
-        Item.SOUND, Item.POWER, Item.SLEEP_TIMER -> "system"
+        Item.SOUND -> dev.tvlauncher.volume.VolumeSection.ID // Settings > Sound > Volume & output
+        Item.POWER, Item.SLEEP_TIMER -> "system"
         Item.DEVICES -> "devices"
         Item.ACCESSIBILITY -> "accessibility"
         else -> null

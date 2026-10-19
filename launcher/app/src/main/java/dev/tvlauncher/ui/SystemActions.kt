@@ -59,11 +59,11 @@ object SystemActions {
         QuickActions.Item.GET_APPS -> launchPackage(context, QuickActions.GET_APPS_PACKAGE)
         // Handled on the home screen (HomeModules); nothing to fall back to here.
         QuickActions.Item.RESTART, QuickActions.Item.DISCOVER -> false
-        QuickActions.Item.SOUND -> launcherSettings(context, QuickActions.launcherSection(item), SystemLinks.VOLUME)
         // The launcher's own sleep timer lives on TV & system > Power & sleep.
         QuickActions.Item.POWER, QuickActions.Item.SLEEP_TIMER ->
             launcherSettings(context, QuickActions.launcherSection(item), SystemLinks.POWER)
-        // Settings, Wi-Fi, Bluetooth, Devices and Accessibility: the launcher's own pages.
+        // Settings, Wi-Fi, Bluetooth, Devices, Accessibility and Sound (Settings > Sound > Volume &
+        // output, never the TV's sound menu): the launcher's own pages.
         else -> launcherSettings(context, QuickActions.launcherSection(item))
     }
 
