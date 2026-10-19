@@ -45,6 +45,7 @@ class WallpaperPickerPanel(
     private lateinit var slideshowRow: TextView
     private lateinit var intervalRow: TextView
     private lateinit var dimRow: TextView
+    private lateinit var textRow: TextView
     private lateinit var emptyText: TextView
 
     val isShowing: Boolean get() = root != null
@@ -84,10 +85,12 @@ class WallpaperPickerPanel(
         val r = root ?: return
         root = null
         jobs.forEach { it.cancel() }; jobs.clear()
+        // Detach every thumbnail from its ImageView before the bitmaps are (deferred-)recycled.
+        tiles.forEach { (_, v) -> ((v as ViewGroup).getChildAt(0) as ImageView).setImageDrawable(null) }
         host?.removeView(r)
         host = null
         tiles.clear()
-        thumbs.forEach { it.recycle() }; thumbs.clear()
+        thumbs.forEach { BitmapRecycler.defer(it) }; thumbs.clear()
     }
 
     /** True when the panel consumed BACK. */
@@ -129,6 +132,10 @@ class WallpaperPickerPanel(
         panel.addView(slideshowRow, lp(top = 16))
         panel.addView(intervalRow, lp(top = 6))
         panel.addView(dimRow, lp(top = 6))
+        textRow = controlRow {
+            commit(settings.copy(showNotificationText = !settings.showNotificationText))
+        }
+        panel.addView(textRow, lp(top = 6))
         val path = UserWallpapers.folder(context)?.path ?: UserWallpapers.DEVICE_PATH
         panel.addView(TextView(context).apply {
             style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
@@ -187,7 +194,7 @@ class WallpaperPickerPanel(
 
     private fun setThumb(tile: View, b: Bitmap?) {
         if (b == null) return
-        if (root == null) { b.recycle(); return }
+        if (root == null) { BitmapRecycler.defer(b); return }
         thumbs += b
         ((tile as ViewGroup).getChildAt(0) as ImageView).setImageBitmap(b)
     }
@@ -285,6 +292,9 @@ class WallpaperPickerPanel(
         intervalRow.visibility = if (on) View.VISIBLE else View.GONE
         intervalRow.text = "Change every   ‹  ${formatInterval(currentInterval())}  ›"
         dimRow.text = "Dim   ‹  ${settings.dimPercent} %  ›"
+        // Only meaningful once notification chips are switched on (Settings); off by default.
+        textRow.visibility = if (settings.notificationsEnabled) View.VISIBLE else View.GONE
+        textRow.text = "Show notification text:  ${if (settings.showNotificationText) "On" else "Off"}"
         emptyText.visibility = if (userFiles.isEmpty()) View.VISIBLE else View.GONE
         emptyText.text = "No pictures of your own yet. Built-in wallpapers are shown above."
     }

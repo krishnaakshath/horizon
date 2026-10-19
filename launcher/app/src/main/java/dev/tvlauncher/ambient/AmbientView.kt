@@ -40,7 +40,7 @@ class AmbientView(
     context: Context,
     private val profile: DeviceProfile,
     private var settings: WallpaperSettings,
-    private val weatherSource: WeatherSource = ContentProviderWeatherSource(context),
+    private val weatherSource: WeatherSource = TimeoutWeatherSource(ContentProviderWeatherSource(context)),
     private val feed: NotificationFeed = NotificationFeed.shared,
     accent: Int = BuiltInWallpapers.DEFAULT_ACCENT
 ) : FrameLayout(context) {
@@ -371,6 +371,8 @@ class AmbientView(
     }
 
     private fun syncFeedListener() {
+        // Opted out: stop feeding the in-memory feed and clear it right away.
+        if (feed === NotificationFeed.shared) feed.setEnabled(settings.notificationsEnabled)
         val on = settings.notificationsEnabled && NotificationAccess.isEnabled(context)
         if (on) feed.addListener(feedListener) else feed.removeListener(feedListener)
         renderChips()
@@ -379,7 +381,7 @@ class AmbientView(
     private fun renderChips() {
         chips.removeAllViews()
         val on = settings.notificationsEnabled && NotificationAccess.isEnabled(context)
-        val list = if (on) feed.chips(settings.privacyAppNameOnly, model.maxChips) else emptyList()
+        val list = if (on) feed.chips(settings.privacyAppNameOnly, settings.showNotificationText, model.maxChips) else emptyList()
         if (list.isEmpty()) { chips.visibility = GONE; return }
         chips.visibility = VISIBLE
         list.forEachIndexed { i, c ->
@@ -398,6 +400,11 @@ class AmbientView(
                     val start = sb.length
                     sb.append("  ").append(c.title)
                     sb.setSpan(ForegroundColorSpan(Theme.TEXT_2), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                if (c.time.isNotEmpty()) {
+                    val start = sb.length
+                    sb.append("  ").append(c.time)
+                    sb.setSpan(ForegroundColorSpan(0x99A7B0C0.toInt()), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
                 text = sb
             }

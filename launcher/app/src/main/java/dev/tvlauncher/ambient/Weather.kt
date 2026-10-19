@@ -11,6 +11,9 @@ object WeatherContract {
     const val ACTION_SETTINGS = "dev.tvlauncher.weather.action.SETTINGS"
     const val ACTION_REFRESH = "dev.tvlauncher.weather.action.REFRESH"
     const val MAX_DAYS = 5
+    val CURRENT_COLUMNS = listOf("location", "temp_c", "feels_c", "code", "condition", "is_day", "high_c", "low_c",
+        "humidity", "wind_kmh", "updated_ms", "unit")
+    val DAILY_COLUMNS = listOf("day_ms", "code", "condition", "high_c", "low_c")
 }
 
 data class WeatherCurrent(
@@ -205,6 +208,37 @@ data class WeatherDisplay(
                 location = c.location.takeIf { it.isNotBlank() },
                 freshness = WeatherFreshness.label(c.updatedMs, nowMs)
             )
+        }
+    }
+}
+
+/**
+ * Runs each query of [delegate] on its own daemon thread and gives up after [timeoutMs]
+ * (the worker is interrupted), so a hung provider cannot block ambient or other queries.
+ * Never throws; a timeout or failure reads as "provider missing" (null).
+ */
+class TimeoutWeatherSource(
+    private val delegate: WeatherSource,
+    private val timeoutMs: Long = DEFAULT_TIMEOUT_MS
+) : WeatherSource {
+    override fun queryCurrent(): List<Map<String, Any?>>? = bounded { delegate.queryCurrent() }
+    override fun queryDaily(): List<Map<String, Any?>>? = bounded { delegate.queryDaily() }
+
+    private fun bounded(q: () -> List<Map<String, Any?>>?): List<Map<String, Any?>>? {
+        val f = try { pool.submit(java.util.concurrent.Callable { q() }) } catch (e: Exception) { return null }
+        return try {
+            f.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+        } catch (e: Exception) {
+            f.cancel(true)
+            null
+        }
+    }
+
+    companion object {
+        const val DEFAULT_TIMEOUT_MS = 3_000L
+        /** Cached pool: a hung worker never blocks the next query. */
+        private val pool = java.util.concurrent.Executors.newCachedThreadPool { r ->
+            Thread(r, "weather-query").apply { isDaemon = true }
         }
     }
 }

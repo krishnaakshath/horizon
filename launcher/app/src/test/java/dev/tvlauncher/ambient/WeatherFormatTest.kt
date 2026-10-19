@@ -53,10 +53,20 @@ class WeatherFormatTest {
         assertEquals(WxIcon.CLOUDY, WeatherFormat.iconFor(100, false))
     }
 
-    @Test fun iconKeys_matchDrawableNames() {
-        assertEquals("ic_wx_clear_day", WxIcon.CLEAR_DAY.key)
-        assertEquals("ic_wx_storm", WxIcon.STORM.key)
-        assertEquals(10, WxIcon.values().size)
+    @Test fun everyIconKey_hasAVectorDrawable() {
+        val dir = listOf(java.io.File("src/main/res/drawable"), java.io.File("app/src/main/res/drawable")).first { it.isDirectory }
+        for (icon in WxIcon.values()) {
+            val f = java.io.File(dir, icon.key + ".xml")
+            org.junit.Assert.assertTrue("missing ${f.path}", f.isFile)
+            org.junit.Assert.assertTrue(f.readText().contains("<vector"))
+        }
+    }
+
+    @Test fun everyWmoCode_mapsToAnIcon_dayAndNightDifferOnlyForClearAndPartly() {
+        for (code in -1..100) {
+            val d = WeatherFormat.iconFor(code, true); val n = WeatherFormat.iconFor(code, false)
+            if (code in 0..2) org.junit.Assert.assertNotEquals(d, n) else assertEquals(d, n)
+        }
     }
 
     @Test fun conditionFor_fallbackText() {

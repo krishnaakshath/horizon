@@ -73,6 +73,16 @@ class AmbientLayoutModelTest {
         assertEquals(b, a)
     }
 
+    @Test fun tinyCanvas_contentBoxNeverInverted() {
+        for ((w, h) in listOf(100 to 50, 120 to 120, 1 to 1, 200 to 90)) {
+            val l = AmbientLayoutModel.compute(w, h, 1f)
+            assertTrue("$w x $h", l.contentLeft <= l.contentRight)
+            assertTrue("$w x $h", l.contentTop <= l.contentBottom)
+            assertTrue(l.contentLeft >= 0 && l.contentRight <= l.widthPx)
+            assertTrue(l.contentTop >= 0 && l.contentBottom <= l.heightPx)
+        }
+    }
+
     @Test fun zeroSize_isSafe() {
         val l = AmbientLayoutModel.compute(0, 0, 0f)
         assertTrue(l.clockSp in 96f..140f)

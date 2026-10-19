@@ -30,6 +30,7 @@ object HomeWallpaperProvider {
             is WallpaperSource.Slideshow -> {
                 val d = WallpaperDrawable(BuiltInWallpapers.meta(WallpaperSource.DEFAULT_ID).baseColor)
                 WallpaperLoader.background({ UserWallpapers.list(s.folder).firstOrNull() }) { first ->
+                    if (d.isReleased) return@background
                     val job = if (first == null) WallpaperLoader.builtIn(WallpaperSource.DEFAULT_ID, size, accent) { d.setBitmap(it) }
                     else WallpaperLoader.file(first, size) { d.setBitmap(it) }
                     d.attachJob(job)

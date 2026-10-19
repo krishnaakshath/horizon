@@ -72,7 +72,17 @@ class WallpaperSettingsTest {
         assertEquals(120, WallpaperSettings.fromJson("""{"idleMinutes":999}""").idleMinutes)
     }
 
-    @Test fun builtInIds_areTheSixOriginals() {
-        assertEquals(listOf("aurora", "dusk", "ocean", "graphite", "nebula", "mono"), WallpaperSource.BUILT_IN_IDS)
+    @Test fun everyBuiltIn_roundTripsThroughJson() {
+        for (id in listOf("aurora", "dusk", "ocean", "graphite", "nebula", "mono")) {
+            val s = WallpaperSettings(source = WallpaperSource.BuiltIn(id))
+            assertEquals(s, WallpaperSettings.fromJson(s.toJson()))
+        }
+    }
+
+    @Test fun showNotificationText_defaultsOff_andRoundTrips() {
+        assertEquals(false, WallpaperSettings().showNotificationText)
+        assertEquals(false, WallpaperSettings.fromJson("""{"notifications":true}""").showNotificationText)
+        val s = WallpaperSettings(notificationsEnabled = true, privacyAppNameOnly = false, showNotificationText = true)
+        assertEquals(s, WallpaperSettings.fromJson(s.toJson()))
     }
 }

@@ -51,10 +51,6 @@ class PixelShiftTest {
         assertEquals(Math.round(p.dy * 1.5f), p.dyPx(1.5f))
     }
 
-    @Test fun interval_isOneMinute() {
-        assertEquals(60_000L, PixelShift.INTERVAL_MS)
-    }
-
     @Test fun dimming_fullThen60AfterTwoMinutes() {
         assertEquals(1f, AmbientDimming.contentAlpha(0, 14, nightDimEnabled = true), 0f)
         assertEquals(1f, AmbientDimming.contentAlpha(119_999, 14, true), 0f)

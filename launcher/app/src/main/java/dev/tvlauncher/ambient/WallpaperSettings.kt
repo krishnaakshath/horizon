@@ -16,6 +16,21 @@ sealed class WallpaperSource {
     }
 }
 
+/** Canonical-path containment check for wallpaper files read back from stored JSON. */
+object PathGuard {
+    /** True when [candidate] resolves (symlinks, "..") strictly inside [base] (or equals it when [allowSame]). */
+    fun isInside(base: File?, candidate: File, allowSame: Boolean = false): Boolean {
+        if (base == null) return false
+        return try {
+            val b = base.canonicalFile.path.trimEnd(File.separatorChar)
+            val c = candidate.canonicalFile.path.trimEnd(File.separatorChar)
+            (allowSame && c == b) || c.startsWith(b + File.separator)
+        } catch (e: Exception) {
+            false
+        }
+    }
+}
+
 enum class ClockPosition { BOTTOM_LEFT, CENTER, TOP_LEFT }
 
 /**
@@ -32,6 +47,8 @@ data class WallpaperSettings(
     /** Notification chips are opt-in; the listener permission is a separate system grant. */
     val notificationsEnabled: Boolean = false,
     val privacyAppNameOnly: Boolean = true,
+    /** Owner opted in to showing message text (public notifications only). Default off. */
+    val showNotificationText: Boolean = false,
     /** Minutes of no key input on Home before ambient starts. */
     val idleMinutes: Int = 10
 ) {
@@ -44,6 +61,13 @@ data class WallpaperSettings(
             else -> source
         }
     )
+
+    /** Drops any user path that does not resolve inside [wallpaperDir] (falls back to the default built-in). */
+    fun sanitizedFor(wallpaperDir: File?): WallpaperSettings = when (val s = source) {
+        is WallpaperSource.BuiltIn -> this
+        is WallpaperSource.UserImage -> if (PathGuard.isInside(wallpaperDir, s.file)) this else copy(source = WallpaperSource.DEFAULT)
+        is WallpaperSource.Slideshow -> if (PathGuard.isInside(wallpaperDir, s.folder, allowSame = true)) this else copy(source = WallpaperSource.DEFAULT)
+    }
 
     fun toJson(): String {
         val s = normalized()
@@ -65,6 +89,7 @@ data class WallpaperSettings(
             .put("nightDim", s.nightDim)
             .put("notifications", s.notificationsEnabled)
             .put("privacyAppOnly", s.privacyAppNameOnly)
+            .put("showText", s.showNotificationText)
             .put("idleMinutes", s.idleMinutes)
             .toString()
     }
@@ -87,6 +112,7 @@ data class WallpaperSettings(
                 nightDim = json.optBoolean("nightDim", d.nightDim),
                 notificationsEnabled = json.optBoolean("notifications", d.notificationsEnabled),
                 privacyAppNameOnly = json.optBoolean("privacyAppOnly", d.privacyAppNameOnly),
+                showNotificationText = json.optBoolean("showText", d.showNotificationText),
                 idleMinutes = json.optInt("idleMinutes", d.idleMinutes)
             ).normalized()
         }

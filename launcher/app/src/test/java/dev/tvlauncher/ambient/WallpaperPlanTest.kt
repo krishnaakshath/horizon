@@ -67,16 +67,6 @@ class WallpaperPlanTest {
         assertEquals("p23.jpg", out.last().name)
     }
 
-    @Test fun inSampleSize_powersOfTwo_neverBelowTarget() {
-        assertEquals(1, WallpaperPlan.inSampleSize(1920, 1080, 1920, 1080))
-        assertEquals(2, WallpaperPlan.inSampleSize(3840, 2160, 1920, 1080))
-        assertEquals(2, WallpaperPlan.inSampleSize(4000, 3000, 1920, 1080))
-        assertEquals(4, WallpaperPlan.inSampleSize(8000, 6000, 1920, 1080))
-        assertEquals(4, WallpaperPlan.inSampleSize(6000, 4000, 1280, 720))
-        assertEquals(1, WallpaperPlan.inSampleSize(800, 600, 1920, 1080))
-        assertEquals(1, WallpaperPlan.inSampleSize(0, 0, 1920, 1080))
-    }
-
     @Test fun targetSize_capsByMode_andKeepsAspect() {
         assertEquals(WallpaperPlan.Size(1920, 1080), WallpaperPlan.targetSize(3840, 2160, lite = false))
         assertEquals(WallpaperPlan.Size(1280, 720), WallpaperPlan.targetSize(3840, 2160, lite = true))
@@ -85,15 +75,6 @@ class WallpaperPlanTest {
         // Portrait-reported metrics are treated as landscape.
         assertEquals(WallpaperPlan.Size(1920, 1080), WallpaperPlan.targetSize(1080, 1920, lite = false))
         assertEquals(WallpaperPlan.Size(1920, 1080), WallpaperPlan.targetSize(0, 0, lite = false))
-    }
-
-    @Test fun thumbSize_fitsWithin320x180() {
-        assertEquals(WallpaperPlan.Size(320, 180), WallpaperPlan.thumbSize())
-    }
-
-    @Test fun bitmapBytes_argb8888() {
-        assertEquals(1920L * 1080 * 4, WallpaperPlan.bitmapBytes(1920, 1080))
-        assertEquals(1280L * 720 * 4, WallpaperPlan.bitmapBytes(1280, 720))
     }
 
     @Test fun crossfadeAndDrift_perMode() {

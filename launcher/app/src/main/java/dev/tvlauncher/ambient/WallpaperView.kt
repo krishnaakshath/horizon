@@ -88,8 +88,10 @@ class WallpaperView(context: Context, private val lite: Boolean) : View(context)
         val old = current
         current = b
         if (width > 0) centerCrop(curMatrix, b, width, height)
-        if (old != null && old !== b) old.recycle()
+        BitmapRecycler.keep(b)
         invalidate()
+        // Recycled only after the frame that stops drawing it (and the crossfade) is done.
+        if (old != null && old !== b) BitmapRecycler.defer(old)
     }
 
     fun setDrift(enabled: Boolean) {
@@ -155,9 +157,10 @@ class WallpaperView(context: Context, private val lite: Boolean) : View(context)
         fade?.let { it.removeAllListeners(); it.cancel() }
         fade = null
         drift?.cancel(); drift = null
-        next?.recycle(); next = null
-        current?.recycle(); current = null
+        val n = next; val c = current
+        next = null; current = null
         invalidate()
+        BitmapRecycler.defer(n); BitmapRecycler.defer(c)
     }
 
     private companion object {
@@ -174,15 +177,22 @@ class WallpaperDrawable(private var baseColor: Int) : Drawable() {
     private val matrix = Matrix()
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
     private var job: WallpaperLoader.Job? = null
+    /** Set by [release]; late async results are dropped instead of shown. */
+    var isReleased = false
+        private set
 
-    internal fun attachJob(j: WallpaperLoader.Job) { job = j }
+    internal fun attachJob(j: WallpaperLoader.Job) {
+        if (isReleased) { j.cancel(); return }
+        job = j
+    }
 
     fun setBitmap(b: Bitmap?) {
+        if (isReleased && b != null) { BitmapRecycler.defer(b); return }
         val old = bitmap
         bitmap = b
         if (b != null && !bounds.isEmpty) centerCrop(matrix, b, bounds.width(), bounds.height())
-        if (old != null && old !== b) old.recycle()
         invalidateSelf()
+        if (old != null && old !== b) BitmapRecycler.defer(old)
     }
 
     val isReady: Boolean get() = bitmap != null
@@ -209,6 +219,7 @@ class WallpaperDrawable(private var baseColor: Int) : Drawable() {
     fun release() {
         job?.cancel(); job = null
         setBitmap(null)
+        isReleased = true
     }
 }
 

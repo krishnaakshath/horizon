@@ -69,7 +69,10 @@ object WallpaperLoader {
         val swap = deg == 90 || deg == 270
         val srcW = if (swap) bounds.outHeight else bounds.outWidth
         val srcH = if (swap) bounds.outWidth else bounds.outHeight
-        val sample = WallpaperPlan.inSampleSize(srcW, srcH, w, h)
+        val sample = when (val plan = SampleSizePlanner.plan(srcW, srcH, w, h)) {
+            is SamplePlan.Reject -> return null // corrupt, > 64 MP or a side > 65535: never decode
+            is SamplePlan.Sample -> plan.n
+        }
         val opts = BitmapFactory.Options().apply {
             inSampleSize = sample
             // JPEG/most photos have no alpha: decode the intermediate at half the memory.
@@ -113,6 +116,34 @@ object WallpaperLoader {
     }
 }
 
+/**
+ * Main-thread [RecycleGate] for bitmaps: a replaced bitmap is recycled only after at least one
+ * more frame interval, so neither the UI thread nor the RenderThread can still be drawing it.
+ * Ticks run on a Handler (not the view), so they also complete after the view is detached.
+ */
+object BitmapRecycler {
+    private val main = Handler(Looper.getMainLooper())
+    private val gate = RecycleGate<Bitmap> { if (!it.isRecycled) it.recycle() }
+    private const val TICK_MS = 50L // > one 60 Hz frame (16.7 ms), also safe at 24/30 Hz
+    private val tick = object : Runnable {
+        override fun run() {
+            gate.frame()
+            if (gate.pendingCount > 0) main.postDelayed(this, TICK_MS)
+        }
+    }
+
+    fun defer(b: Bitmap?) {
+        if (b == null) return
+        if (Looper.myLooper() != Looper.getMainLooper()) { main.post { defer(b) }; return }
+        gate.defer(b)
+        main.removeCallbacks(tick)
+        main.postDelayed(tick, TICK_MS)
+    }
+
+    /** [b] is being shown again: keep it. */
+    fun keep(b: Bitmap) { gate.cancel(b) }
+}
+
 /** The user wallpaper folder: app-specific external storage, no storage permission needed. */
 object UserWallpapers {
     const val DEVICE_PATH = "/sdcard/Android/data/dev.tvlauncher/files/wallpapers/"
@@ -135,12 +166,17 @@ object UserWallpapers {
 
 /** SharedPreferences "wallpaper_settings" holding one tolerant JSON blob. */
 class WallpaperStore(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val app = context.applicationContext
+    private val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun load(): WallpaperSettings = WallpaperSettings.fromJson(prefs.getString(KEY, null))
+    /** Stored paths that do not resolve inside the wallpaper folder are ignored (default built-in). */
+    fun load(): WallpaperSettings =
+        WallpaperSettings.fromJson(prefs.getString(KEY, null)).sanitizedFor(UserWallpapers.folder(app))
 
+    /** Single write path: also turns the in-memory notification feed on/off (off clears it). */
     fun save(settings: WallpaperSettings) {
         prefs.edit().putString(KEY, settings.toJson()).apply()
+        NotificationFeed.shared.setEnabled(settings.notificationsEnabled)
     }
 
     companion object {

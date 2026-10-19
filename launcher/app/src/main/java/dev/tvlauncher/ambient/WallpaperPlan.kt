@@ -44,14 +44,6 @@ object WallpaperPlan {
         .sortedBy { it.name.lowercase() }
         .take(MAX_FILES)
 
-    /** Largest power-of-two sample size that keeps the decoded image at least the target size. */
-    fun inSampleSize(srcW: Int, srcH: Int, dstW: Int, dstH: Int): Int {
-        if (srcW <= 0 || srcH <= 0 || dstW <= 0 || dstH <= 0) return 1
-        var s = 1
-        while (srcW / (s * 2) >= dstW && srcH / (s * 2) >= dstH) s *= 2
-        return s
-    }
-
     /** Pre-render size: screen size in landscape, capped at 1920x1080 (FULL) or 1280x720 (LITE). */
     fun targetSize(screenW: Int, screenH: Int, lite: Boolean): Size {
         val cap = if (lite) Size(1280, 720) else Size(1920, 1080)
@@ -70,6 +62,38 @@ object WallpaperPlan {
     fun crossfadeMs(lite: Boolean): Long = if (lite) 400L else 800L
 
     fun clampInterval(sec: Int): Int = sec.coerceIn(MIN_INTERVAL_SEC, MAX_INTERVAL_SEC)
+}
+
+sealed class SamplePlan {
+    object Reject : SamplePlan() { override fun toString() = "Reject" }
+    data class Sample(val n: Int) : SamplePlan()
+}
+
+/**
+ * Decode budget for user images (decompression-bomb guard). Rejects bad or huge sources
+ * (> [DEFAULT_MAX_SRC_PIXELS] or a side > 65535) using Long math, otherwise picks the smallest
+ * power-of-two sample whose decoded pixel count fits [maxDecodedPixels] (default 4x target).
+ * The smallest such n is also the least downsampling, so the result never gets needlessly
+ * smaller than the target. Used for full-screen wallpapers, slideshow and picker thumbnails.
+ */
+object SampleSizePlanner {
+    const val DEFAULT_MAX_SRC_PIXELS = 64_000_000L
+    const val MAX_SIDE = 65_535
+    private const val FALLBACK_BUDGET = 4L * 1920 * 1080
+    private const val MAX_SAMPLE = 1 shl 16
+
+    fun plan(
+        srcW: Int, srcH: Int, targetW: Int, targetH: Int,
+        maxSrcPixels: Long = DEFAULT_MAX_SRC_PIXELS,
+        maxDecodedPixels: Long = 4L * targetW * targetH
+    ): SamplePlan {
+        if (srcW <= 0 || srcH <= 0 || srcW > MAX_SIDE || srcH > MAX_SIDE) return SamplePlan.Reject
+        if (srcW.toLong() * srcH.toLong() > maxSrcPixels) return SamplePlan.Reject
+        val budget = if (maxDecodedPixels > 0) maxDecodedPixels else FALLBACK_BUDGET
+        var n = 1
+        while (n < MAX_SAMPLE && (srcW / n).toLong() * (srcH / n).toLong() > budget) n *= 2
+        return SamplePlan.Sample(n)
+    }
 }
 
 /** Deterministic star field for the "nebula" wallpaper: x, y, radius, alpha per star. */

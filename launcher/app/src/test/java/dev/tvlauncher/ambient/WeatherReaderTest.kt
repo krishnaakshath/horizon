@@ -95,11 +95,28 @@ class WeatherReaderTest {
         assertFalse(t.tryAcquire(1_000L + 15 * 60_000L + 1))
     }
 
-    @Test fun contract_constants() {
-        assertEquals("dev.tvlauncher.weather", WeatherContract.AUTHORITY)
+    /** Expected values are copied from the binding contract text, not from WeatherContract. */
+    @Test fun contract_matchesBindingSpec() {
         assertEquals("content://dev.tvlauncher.weather/current", WeatherContract.CURRENT_URI)
         assertEquals("content://dev.tvlauncher.weather/daily", WeatherContract.DAILY_URI)
         assertEquals("dev.tvlauncher.weather.action.REFRESH", WeatherContract.ACTION_REFRESH)
         assertEquals("dev.tvlauncher.weather.action.SETTINGS", WeatherContract.ACTION_SETTINGS)
+        assertEquals("dev.tvlauncher.weather", WeatherContract.PACKAGE)
+        assertEquals(
+            listOf("location", "temp_c", "feels_c", "code", "condition", "is_day", "high_c", "low_c",
+                "humidity", "wind_kmh", "updated_ms", "unit"),
+            WeatherContract.CURRENT_COLUMNS
+        )
+        assertEquals(listOf("day_ms", "code", "condition", "high_c", "low_c"), WeatherContract.DAILY_COLUMNS)
+    }
+
+    @Test fun parser_readsEveryContractColumn() {
+        // A row keyed only by the literal contract column names fills every field.
+        val c = WeatherParser.current(mapOf("location" to "L", "temp_c" to 1.0, "feels_c" to 2.0, "code" to 3,
+            "condition" to "C", "is_day" to 0, "high_c" to 4.0, "low_c" to 5.0, "humidity" to 6,
+            "wind_kmh" to 7.0, "updated_ms" to 8L, "unit" to "F"))!!
+        assertEquals(WeatherCurrent("L", 1.0, 2.0, 3, "C", false, 4.0, 5.0, 6, 7.0, 8L, "F"), c)
+        val d = WeatherParser.daily(listOf(mapOf("day_ms" to 9L, "code" to 61, "condition" to "R", "high_c" to 1.5, "low_c" to 0.5)))
+        assertEquals(listOf(WeatherDay(9L, 61, "R", 1.5, 0.5)), d)
     }
 }

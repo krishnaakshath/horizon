@@ -49,8 +49,9 @@ object AmbientLayoutModel {
         val hDp = h / d
         fun px(dp: Float): Int = (dp * d + 0.5f).toInt()
         val shift = px(SHIFT_DP.toFloat())
-        val left = px(SAFE_H_DP.toFloat()) + shift
-        val top = px(SAFE_V_DP.toFloat()) + shift
+        // Tiny canvases: never let the content box invert (left <= right, top <= bottom).
+        val left = minOf(px(SAFE_H_DP.toFloat()) + shift, w / 2)
+        val top = minOf(px(SAFE_V_DP.toFloat()) + shift, h / 2)
         val clock = (hDp * CLOCK_HEIGHT_RATIO).coerceIn(MIN_CLOCK_SP, MAX_CLOCK_SP)
         return AmbientLayout(
             widthPx = w,

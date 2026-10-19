@@ -1,6 +1,7 @@
 package dev.tvlauncher.ambient
 
 import android.app.Notification
+import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -18,12 +19,17 @@ class AmbientNotificationService : NotificationListenerService() {
     private val labels = HashMap<String, String>()
 
     override fun onListenerConnected() {
+        // Process may have restarted: the stored opt-in decides whether anything is kept.
+        val enabled = try { WallpaperStore(this).load().notificationsEnabled } catch (e: Exception) { false }
+        NotificationFeed.shared.setEnabled(enabled)
+        if (!enabled) return
         val active = try { activeNotifications } catch (e: Exception) { null } ?: return
         active.sortedBy { it.postTime }.forEach { post(it) }
     }
 
     override fun onListenerDisconnected() {
         NotificationFeed.shared.clear()
+        labels.clear()
     }
 
     override fun onDestroy() {
@@ -41,6 +47,7 @@ class AmbientNotificationService : NotificationListenerService() {
     }
 
     private fun post(sbn: StatusBarNotification) {
+        if (!NotificationFeed.shared.isEnabled) return // opted out: do not even read the content
         try {
             NotificationFeed.shared.post(toInfo(sbn))
         } catch (e: Exception) {
@@ -83,8 +90,7 @@ class AmbientNotificationService : NotificationListenerService() {
 
 /** One-time user grant for [AmbientNotificationService]. */
 object NotificationAccess {
-    const val ADB_ALLOW =
-        "adb shell cmd notification allow_listener dev.tvlauncher/dev.tvlauncher.ambient.AmbientNotificationService"
+    val ADB_ALLOW = NotificationAccessText.adbLine("dev.tvlauncher", "dev.tvlauncher.ambient.AmbientNotificationService")
 
     fun component(context: Context) = ComponentName(context, AmbientNotificationService::class.java)
 
@@ -96,9 +102,19 @@ object NotificationAccess {
         false
     }
 
-    /** The system listener-access screen, or null when the TV build does not ship one. */
-    fun settingsIntent(context: Context): Intent? {
-        val i = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return try { if (i.resolveActivity(context.packageManager) != null) i else null } catch (e: Exception) { null }
+    /** The system listener-access screen intent (may not exist on some TV builds; see [openSettings]). */
+    fun settingsIntent(): Intent =
+        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+    /** Starts the access screen; false when the TV has none (show [instructions] with the ADB line). */
+    fun openSettings(context: Context): Boolean = try {
+        context.startActivity(settingsIntent())
+        true
+    } catch (e: ActivityNotFoundException) {
+        false
+    } catch (e: SecurityException) {
+        false
     }
+
+    fun instructions(settingsOpened: Boolean): String = NotificationAccessText.instructions(settingsOpened, ADB_ALLOW)
 }
