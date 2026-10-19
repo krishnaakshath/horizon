@@ -195,10 +195,18 @@ class PanelHeaderView(context: Context) : LinearLayout(context) {
     }
 
     fun bind(h: PanelHeader) {
+        icon.imageTintList = ColorStateList.valueOf(PanelStyle.TEXT)
         if (h.icon != null) { icon.setImageResource(h.icon); icon.visibility = VISIBLE } else icon.visibility = GONE
         title.text = h.title
         subtitle.text = h.subtitle
         subtitle.visibility = if (h.subtitle.isEmpty()) GONE else VISIBLE
+    }
+
+    /** A full-colour icon (an app icon) in place of the tinted glyph. */
+    fun setIcon(d: android.graphics.drawable.Drawable) {
+        icon.imageTintList = null
+        icon.setImageDrawable(d)
+        icon.visibility = VISIBLE
     }
 }
 
