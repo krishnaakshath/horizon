@@ -29,6 +29,8 @@
              browser is installed; the Settings screen detects the helper and browser. -->
         <package android:name="dev.tvlauncher.helper" />
         <package android:name="dev.tvlauncher.browser" />
+        <!-- Safe mode offers the stock launcher only while it is installed and enabled. -->
+        <package android:name="com.google.android.tvlauncher" />
     </queries>
 
     <application
@@ -55,6 +57,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+        <!-- Fallback after repeated crashes. Reached only through HomeActivity's redirect:
+             deliberately not a HOME candidate. -->
+        <activity
+            android:name=".safemode.SafeModeActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:stateNotNeeded="true" />
         <activity
             android:name=".insights.InsightsActivity"
             android:exported="false" />

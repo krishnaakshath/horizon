@@ -19,6 +19,7 @@ import dev.tvlauncher.home.ModeTracker
 import dev.tvlauncher.home.RecentMode
 import dev.tvlauncher.launch.AndroidLaunchBackend
 import dev.tvlauncher.launch.AppLauncher
+import dev.tvlauncher.safemode.SafeMode
 import dev.tvlauncher.settings.Prefs
 import dev.tvlauncher.ui.BackdropView
 import dev.tvlauncher.ui.FocusRules
@@ -72,6 +73,7 @@ class HomeActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (SafeMode.redirectIfTripped(this)) return // repeated crashes: the tiny safe-mode launcher
         repo = AppRepository(applicationContext)
         prefs = Prefs(applicationContext)
         look = HomeLook(this, DeviceProfileReader.read(this))
@@ -293,6 +295,7 @@ class HomeActivity : Activity() {
     }
 
     override fun onDestroy() {
+        if (!::modes.isInitialized) return super.onDestroy() // redirected to safe mode
         tileMenu.dismiss()
         repo.unregister()
         loader.shutdownNow()
