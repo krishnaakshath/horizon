@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .adb import Adb, AdbError, SubprocessAdb
 from .planner import plan
-from .profile import Profile, load_profile
+from .profile import PKG_RE, Profile, load_profile
 
 PROFILES_DIR = Path(__file__).resolve().parents[2] / "profiles"
 SCALE_KEYS = ("window_animation_scale", "transition_animation_scale", "animator_duration_scale")
@@ -22,12 +22,28 @@ PUT_RE = re.compile(r"^adb -s (?P<host>[A-Za-z0-9.\-]+):5555 shell settings put 
                     r"(?P<val>[0-9]+(?:\.[0-9]+)?)$")
 
 
+HOST_RE = re.compile(r'^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$')
+NUM_RE = re.compile(r'^[0-9]+(\.[0-9]+)?$')
+
+
 class Stop(Exception):
     pass
 
 
 def _pkgs(out: str) -> set[str]:
-    return {l[8:].strip() for l in out.splitlines() if l.startswith("package:") and l[8:].strip()}
+    res = set()
+    for l in out.splitlines():
+        if not l.strip():
+            continue
+        name = l[8:].strip() if l.startswith("package:") else None
+        if name is None or not PKG_RE.match(name):
+            raise ValueError(f"device returned an invalid package line {l!r}; aborting")
+        res.add(name)
+    return res
+
+
+def _safe_name(s: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]", "_", s) or "unknown"
 
 
 def _meminfo(adb: Adb) -> dict[str, int]:
@@ -59,9 +75,16 @@ def _match(profiles: list[Profile], info: dict) -> Profile | None:
 
 
 def _write_script(out_dir: Path, name: str, header: list[str], lines: list[str]) -> Path:
+    for l in lines:
+        if not (ENABLE_RE.match(l) or PUT_RE.match(l)):
+            raise ValueError(f"refusing to write unsafe rollback line {l!r}")
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / name
-    with open(path, "w", encoding="utf-8") as f:
+    stem, ext = name.rsplit(".", 1)
+    path, n = out_dir / name, 1
+    while path.exists():
+        n += 1
+        path = out_dir / f"{stem}_{n}.{ext}"
+    with open(path, "x", encoding="utf-8") as f:
         f.write("#!/bin/sh\n" + "".join(f"# {h}\n" for h in header) + "".join(l + "\n" for l in lines))
         f.flush()
         import os
@@ -78,7 +101,7 @@ def cmd_scan(a, adb, info, profile, say, **_):
               "profileMatched": profile.model if profile else None}
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    path = out / f"scan_{info['model'] or 'unknown'}_{datetime.now():%Y%m%d-%H%M%S}.json"
+    path = out / f"scan_{_safe_name(info['model'])}_{datetime.now():%Y%m%d-%H%M%S}.json"
     path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     say(f"{info['manufacturer']} {info['model']} Android {info['release']}: "
         f"{len(installed)} packages, {len(disabled)} disabled, "
@@ -128,8 +151,8 @@ def cmd_apply(a, adb, info, profile, say, input_fn, **_):
         return 0
     mem_before = _meminfo(adb).get("MemAvailable")
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    path = _write_script(Path(a.out), f"rollback_{profile.model}_{stamp}.sh",
-                         [f"Rollback for {profile.model}, host {a.host}", "Re-enables every package apply will change."],
+    path = _write_script(Path(a.out), f"rollback_{_safe_name(profile.model)}_{stamp}.sh",
+                         [f"Rollback for {profile.model}, host {a.host}", "Re-enables every package apply PLANS to change (a superset of what was changed)."],
                          [f"adb -s {a.host}:5555 shell pm enable {p}" for p in flat])
     say(f"Rollback script written: {path}")
     code = 0
@@ -166,16 +189,21 @@ def cmd_tune(a, adb, info, profile, say, **_):
     for k in SCALE_KEYS:
         v = adb.shell("settings", "get", "global", k).strip()
         originals[k] = "1.0" if v in ("", "null") else v
+        if not NUM_RE.match(originals[k]):
+            say(f"Aborting before any change: unexpected current value for {k}: {v!r}")
+            return 1
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    path = _write_script(Path(a.out), f"rollback_tune_{profile.model}_{stamp}.sh",
+    path = _write_script(Path(a.out), f"rollback_tune_{_safe_name(profile.model)}_{stamp}.sh",
                          [f"Restores animation scales for {profile.model}, host {a.host}"],
                          [f"adb -s {a.host}:5555 shell settings put global {k} {v}" for k, v in originals.items()])
     say(f"Rollback script written: {path}")
     try:
         for k in SCALE_KEYS:
-            adb.shell("settings", "put", "global", k, a.scale_str)
+            res = adb.shell("settings", "put", "global", k, a.scale_str)
+            if res.strip():
+                raise Stop(f"unexpected output setting {k}: {res.strip()!r}")
             say(f"  {k}: {originals[k]} -> {a.scale_str}")
-    except AdbError as e:
+    except (AdbError, Stop) as e:
         say(f"STOPPED: {e}. Originals are in {path}")
         return 1
     return 0
@@ -238,9 +266,15 @@ def main(argv=None, adb: Adb | None = None, input_fn=input, print_fn=print) -> i
         if not (0 < scale <= 2):
             say(f"Invalid --scale {a.scale!r}: must satisfy 0 < scale <= 2")
             return 2
-        a.scale_str = str(scale)
+        a.scale_str = format(scale, 'f').rstrip('0').rstrip('.') if '.' in format(scale, 'f') else format(scale, 'f')
+        if not a.scale_str or float(a.scale_str) <= 0:
+            say(f"Invalid --scale {a.scale!r}: too small")
+            return 2
     if a.command == "rollback" and not a.script:
         say("rollback requires --script FILE")
+        return 2
+    if not HOST_RE.match(a.host):
+        say(f"Invalid --host {a.host!r}: use an IPv4 address or hostname only (no port, no leading '-', no special characters)")
         return 2
     try:
         if adb is None:
@@ -262,3 +296,6 @@ def main(argv=None, adb: Adb | None = None, input_fn=input, print_fn=print) -> i
     except ValueError as e:
         say(f"error: {e}")
         return 2
+    except OSError as e:
+        say(f"file error: {e}")
+        return 1

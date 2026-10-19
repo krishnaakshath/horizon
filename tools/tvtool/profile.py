@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
+
+PKG_RE = re.compile(r'^[A-Za-z0-9_.]+$')
 
 GLOBAL_NEVER: frozenset[str] = frozenset({
     "android",
@@ -64,8 +67,8 @@ def _str(d: dict, key: str, where: str = "profile") -> str:
 
 def _str_list(d: dict, key: str) -> list[str]:
     v = d.get(key)
-    if not isinstance(v, list) or not all(isinstance(x, str) and x for x in v):
-        raise ValueError(f"profile: '{key}' must be a list of package names")
+    if not isinstance(v, list) or not all(isinstance(x, str) and PKG_RE.match(x) for x in v):
+        raise ValueError(f"profile: '{key}' must be a list of valid package names (A-Z a-z 0-9 _ . only, no whitespace)")
     return list(v)
 
 
@@ -91,5 +94,8 @@ def load_profile(path) -> Profile:
     for item in raw:
         if not isinstance(item, dict):
             raise ValueError("profile: each 'optional' entry must be an object")
-        optional.append(OptionalPkg(_str(item, "pkg", "optional"), _str(item, "breaks", "optional")))
+        pkg = _str(item, "pkg", "optional")
+        if not PKG_RE.match(pkg):
+            raise ValueError(f"profile: invalid package name in 'optional': {pkg!r}")
+        optional.append(OptionalPkg(pkg, _str(item, "breaks", "optional")))
     return Profile(model, manufacturer, prefix, safe, optional, never)

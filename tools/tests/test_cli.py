@@ -270,3 +270,62 @@ def test_rollback_refusesUnexpectedLines(tmp_path):
     code, out = run(["rollback", "--script", str(p)], adb, tmp_path)
     assert code != 0
     assert adb.writes() == []
+
+
+def test_host_with_semicolon_rejected_before_any_adb_call(tmp_path):
+    adb = FakeAdb([])
+    out = []
+    code = cli.main(["scan", "--host", "1.2.3.4;rm -rf ~", "--out", str(tmp_path)], adb=adb, print_fn=lambda *a: out.append(a))
+    assert code == 2 and adb.calls == []
+
+
+@pytest.mark.parametrize("h", ["-oProxy", "1.2.3.4:5555", "$(x)", ""])
+def test_host_leading_dash_rejected(tmp_path, h):
+    adb = FakeAdb([])
+    code = cli.main(["scan", f"--host={h}", "--out", str(tmp_path)], adb=adb, print_fn=lambda *a: None)
+    assert code == 2 and adb.calls == []
+
+
+def test_package_name_with_shell_metachar_from_device_aborts_apply_and_writes_nothing(tmp_path):
+    safe, _ = profile_pkgs()
+    adb = FakeAdb(safe + ["com.x;reboot"])
+    code, out = run(["apply", "--yes"], adb, tmp_path)
+    assert code != 0 and adb.disables() == [] and rollback_files(tmp_path) == []
+
+
+def test_profile_rejects_whitespace_padded_package(tmp_path):
+    from tvtool.profile import load_profile
+    prof = json.loads(PROFILE_PATH.read_text())
+    prof["safe"].append(" com.x")
+    p = tmp_path / "p.json"
+    p.write_text(json.dumps(prof))
+    with pytest.raises(ValueError):
+        load_profile(p)
+
+
+def test_tune_nonnumeric_original_aborts_before_any_change(tmp_path):
+    adb = FakeAdb([], scales={"window_animation_scale": "1.0E-4"})
+    code, _ = run(["tune"], adb, tmp_path)
+    assert code != 0 and adb.writes() == [] and rollback_files(tmp_path) == []
+
+
+def test_unwritable_out_dir_exits_cleanly_without_changes(tmp_path):
+    safe, _ = profile_pkgs()
+    blocker = tmp_path / "f"
+    blocker.write_text("x")
+    adb = FakeAdb(safe)
+    code = cli.main(["apply", "--yes", "--host", HOST, "--out", str(blocker / "sub"), "--profile", str(PROFILE_PATH)],
+                    adb=adb, input_fn=lambda p="": "", print_fn=lambda *a: None)
+    assert code == 1 and adb.disables() == []
+
+
+def test_rollback_file_not_overwritten_on_same_second_rerun(tmp_path, monkeypatch):
+    class D:
+        @staticmethod
+        def now():
+            import datetime
+            return datetime.datetime(2026, 1, 1, 0, 0, 0)
+    monkeypatch.setattr(cli, "datetime", D)
+    for _ in range(2):
+        run(["tune"], FakeAdb([]), tmp_path)
+    assert len(rollback_files(tmp_path)) == 2
