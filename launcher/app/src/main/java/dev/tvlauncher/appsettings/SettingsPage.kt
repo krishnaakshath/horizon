@@ -22,7 +22,10 @@ import dev.tvlauncher.ui.dp
  * indicator on the right shows the position when the page is taller than the pane.
  * At most one collapsed "Advanced" block per page ([advanced]).
  */
-class SettingsPage(context: Context, val style: SettingsStyle) : ScrollView(context) {
+class SettingsPage(context: Context, val style: SettingsStyle, spec: PageSpec? = null) : ScrollView(context) {
+    /** Enforces [spec] (declared keys only, at most [PageSpec.MAX_PRIMARY] primary rows); null for free lists. */
+    private val guard = spec?.let { RowGuard(it) }
+
     val column = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         clipChildren = false
@@ -31,7 +34,7 @@ class SettingsPage(context: Context, val style: SettingsStyle) : ScrollView(cont
     }
 
     /** Rows, notes and labels added to a container: the page itself or its Advanced block. */
-    inner class Block internal constructor(val container: LinearLayout) {
+    inner class Block internal constructor(val container: LinearLayout, private val advancedBlock: Boolean = false) {
         fun add(view: View): View {
             container.addView(view, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = context.dp(SettingsLayout.ROW_GAP_DP)
@@ -45,7 +48,10 @@ class SettingsPage(context: Context, val style: SettingsStyle) : ScrollView(cont
             kind: RowKind,
             subtitle: String? = null,
             iconRes: Int = 0
-        ): SettingsRow = SettingsRow(context, style, key, title, subtitle, iconRes, kind).also { add(it) }
+        ): SettingsRow {
+            guard?.claim(key, advancedBlock)
+            return SettingsRow(context, style, key, title, subtitle, iconRes, kind).also { add(it) }
+        }
 
         /** A short, non-focusable note (at most [maxLines] lines, ellipsized). */
         fun note(text: String, maxLines: Int = 3): TextView =
@@ -144,7 +150,7 @@ class SettingsPage(context: Context, val style: SettingsStyle) : ScrollView(cont
             })
         body.add(toggle)
         column.addView(box, LinearLayout.LayoutParams(-1, -2))
-        fill(Block(box))
+        fill(Block(box, advancedBlock = true))
         apply()
         return toggle
     }
@@ -184,7 +190,7 @@ class SettingsPage(context: Context, val style: SettingsStyle) : ScrollView(cont
     }
 
     private companion object {
-        const val PAD_DP = 22
+        const val PAD_DP = SettingsLayout.PANE_PAD_DP
         const val LEAD_SP = 16f
         const val GROUP_SP = 13f
         const val NOTE_SP = 14f

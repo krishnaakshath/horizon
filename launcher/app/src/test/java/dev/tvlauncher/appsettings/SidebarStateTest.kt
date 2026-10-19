@@ -119,4 +119,48 @@ class SidebarStateTest {
         assertEquals("Home › Home layout", Breadcrumb.of("Home", "Home layout", listOf("Favorites")))
         assertEquals("Sound › Sounds › Sound lab", Breadcrumb.of("Sound", "Sounds", listOf("Sound lab", "Play")))
     }
+
+    @Test
+    fun regroup_keepsAGroupTheUserCollapsed_collapsed() {
+        val collapsed = SidebarState.initial(groups, "sounds").toggle(SOUND)
+        val more = groups.map { (g, ids) -> if (g == APPS) g to ids + "weather" else g to ids }
+        val r = SidebarState.regroup(collapsed, more, "sounds")
+        assertNull(r.expanded)
+    }
+
+    @Test
+    fun regroup_keepsTheOpenGroup_evenIfItIsNotTheCurrentPagesGroup() {
+        val browsing = SidebarState.initial(groups, "appearance").toggle(SYSTEM)
+        val fewer = groups.map { (g, ids) -> if (g == APPS) g to ids - "browser" else g to ids }
+        assertEquals(SYSTEM, SidebarState.regroup(browsing, fewer, "appearance").expanded)
+    }
+
+    @Test
+    fun regroup_opensTheCurrentGroup_onlyWhenTheOpenGroupDisappeared() {
+        val open = SidebarState.initial(groups, "appearance").toggle(SOUND)
+        val noSound = groups.filter { it.first != SOUND }
+        assertEquals(HOME, SidebarState.regroup(open, noSound, "appearance").expanded)
+    }
+
+    @Test
+    fun indexOf_mapsOldEntriesIntoTheNewList_headersStayHeaders() {
+        val old = SidebarState.initial(groups, "browser")
+        val header = Header(SYSTEM, false)
+        val fewer = groups.map { (g, ids) -> if (g == APPS) g to ids - "helper" else g to ids }
+        val now = SidebarState.regroup(old, fewer, "browser")
+        assertEquals(now.indexOfHeader(SYSTEM), now.indexOf(header))
+        assertEquals(now.indexOfHeader(APPS), now.indexOf(Page("helper", APPS)))
+        assertEquals(now.indexOfPage("insights"), now.indexOf(Page("insights", APPS)))
+    }
+
+    @Test
+    fun aSixEntryAppsGroup_isFullyReachable_byDown() {
+        val big = groups.map { (g, ids) -> if (g == APPS) g to ids + "weather" else g to ids }
+        val s = SidebarState.initial(big, "browser")
+        assertEquals(11, s.entries.size)
+        var i = 0
+        val seen = HashSet<Int>()
+        repeat(20) { seen += i; i = s.move(i, +1) }
+        assertEquals((0 until 11).toSet(), seen)
+    }
 }

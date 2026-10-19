@@ -20,7 +20,7 @@ object AboutSection : SettingsSection, SpecifiedPage {
     override val spec = PageSpec(ID, listOf("about.version", "about.license", "about.notices", "about.tv"))
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
-        val page = SettingsPage(context, nav.style)
+        val page = SettingsPage(context, nav.style, spec)
         page.row("about.version", "Version", RowKind.Info(version(context)),
             subtitle = "© ${Branding.COPYRIGHT_YEAR} ${Branding.COPYRIGHT_HOLDER}", iconRes = R.drawable.ic_set_about)
         page.row("about.license", "License", RowKind.Action(Branding.LICENSE) {
@@ -82,7 +82,7 @@ object BackupSection : SettingsSection, SpecifiedPage {
     override val spec = PageSpec(ID, listOf("backup.export", "backup.import"))
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
-        val page = SettingsPage(context, nav.style)
+        val page = SettingsPage(context, nav.style, spec)
         val app = context.applicationContext
         val prefs = Prefs(app)
         page.row("backup.export", "Export settings", RowKind.Action(chevron = false) {

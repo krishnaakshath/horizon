@@ -36,15 +36,31 @@ object SoundsPage {
     }
 
     /** A page with its own preview player; [latest] is what the player plays with. */
-    private class Host(context: Context, nav: SettingsNav) {
+    private class Host(context: Context, nav: SettingsNav, spec: PageSpec? = null) {
         val prefs = SoundPrefs(context)
         val latest = AtomicReference(prefs.load())
         val player = SoundPlayer(context.applicationContext, settings = { latest.get() })
-        val page = SettingsPage(context, nav.style)
+        val page = SettingsPage(context, nav.style, spec)
+
+        private var pending: Runnable? = null
 
         init {
             player.prewarm()
-            page.doOnDetach { player.release() }
+            page.doOnDetach {
+                pending?.let { page.removeCallbacks(it) }
+                player.release()
+            }
+        }
+
+        /** Plays [event] after a short pause; a newer call replaces an older one (no sound spam). */
+        fun previewSoon(event: SoundEvent, before: () -> Unit = {}) {
+            pending?.let { page.removeCallbacks(it) }
+            val r = Runnable {
+                before()
+                player.preview(event)
+            }
+            pending = r
+            page.postDelayed(r, PREVIEW_DELAY_MS)
         }
 
         val s: SoundSettings get() = latest.get()
@@ -57,7 +73,7 @@ object SoundsPage {
     }
 
     fun build(context: Context, nav: SettingsNav): View {
-        val h = Host(context, nav)
+        val h = Host(context, nav, SPEC)
         val page = h.page
         val s = h.s
         page.row("sounds.enabled", "Sound effects", RowKind.Toggle(s.enabled) { on ->
@@ -72,7 +88,7 @@ object SoundsPage {
         val volumeStep = (s.volume + 5) / 10
         page.row("sounds.volume", "Volume", RowKind.Stepper(volumeStep, 0, 10, { "${it * 10}%" }, bar = true) { v ->
             h.save(h.s.copy(volume = v * 10))
-            h.player.preview(SoundEvent.SELECT)
+            h.previewSoon(SoundEvent.SELECT)
         }, iconRes = R.drawable.ic_set_status)
 
         page.advanced(nav, "sounds.advanced", "Sound events, sound lab, your own files") { adv ->
@@ -105,13 +121,15 @@ object SoundsPage {
         return page
     }
 
-    /** One row per theme; focusing a row plays it (debounced), OK picks it and goes back. */
+    /**
+     * One row per theme; focusing a row plays it (debounced, and not for the initial focus on the
+     * current theme), OK picks it and goes back.
+     */
     private fun chooser(context: Context, nav: SettingsNav, slot: Slot): View {
         val h = Host(context, nav)
         val saved = h.prefs.load()
         val chosen = slot.current(saved)
-        var pending: Runnable? = null
-        h.page.doOnDetach { pending?.let { h.page.removeCallbacks(it) } }
+        var restored = false
         for (theme in SoundThemes.all) {
             val row = h.page.row("sounds.theme.${theme.id}", theme.name,
                 RowKind.Action(if (theme.id == chosen) "Current" else null, chevron = false) {
@@ -121,14 +139,13 @@ object SoundsPage {
                 })
             row.setOnFocusChangeListener { _, has ->
                 if (!has) return@setOnFocusChangeListener
-                pending?.let { h.page.removeCallbacks(it) }
-                val r = Runnable {
-                    // Preview only: the player hears the focused theme, prefs keep the saved one.
-                    h.latest.set(slot.with(h.prefs.load(), theme.id))
-                    h.player.preview(slot.preview)
+                // The first focus is the screen restoring focus on the current theme: stay quiet.
+                if (!restored) {
+                    restored = true
+                    return@setOnFocusChangeListener
                 }
-                pending = r
-                h.page.postDelayed(r, PREVIEW_DELAY_MS)
+                // Preview only: the player hears the focused theme, prefs keep the saved one.
+                h.previewSoon(slot.preview) { h.latest.set(slot.with(h.prefs.load(), theme.id)) }
             }
         }
         h.page.preferredFocus = "sounds.theme.$chosen"

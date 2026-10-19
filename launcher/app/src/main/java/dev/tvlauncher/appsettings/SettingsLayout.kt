@@ -22,10 +22,11 @@ data class SettingsLayout(
     val scrollbar: Box?,
     val marginH: Int,
     val marginV: Int,
-    val gap: Int,
-    val rowMinHeight: Int,
-    val rowGap: Int
+    val gap: Int
 ) {
+    /** Horizontal inset of the pane's content (header text and rows) from the pane's left edge. */
+    val paneInset: Int get() = paneContent.left - pane.left
+
     /** The trailing value text may take at most this much of a row. */
     fun valueMaxWidth(rowWidth: Int): Int = (rowWidth * VALUE_MAX_FRACTION).toInt()
 
@@ -47,8 +48,11 @@ data class SettingsLayout(
             fun dp(v: Int) = (v * density).roundToInt()
             val mh = dp(MARGIN_H_DP)
             val mv = dp(MARGIN_V_DP)
-            val sideW = (widthPx * SIDEBAR_FRACTION).roundToInt()
-                .coerceIn((widthPx * SIDEBAR_MIN_FRACTION).toInt() + 1, (widthPx * SIDEBAR_MAX_FRACTION).toInt())
+            val min = (widthPx * SIDEBAR_MIN_FRACTION).toInt() + 1
+            val max = (widthPx * SIDEBAR_MAX_FRACTION).toInt()
+            val wanted = (widthPx * SIDEBAR_FRACTION).roundToInt()
+            // Degenerate widths (a few px) can make min > max; never throw from coerceIn then.
+            val sideW = if (min > max) wanted else wanted.coerceIn(min, max)
             val sidebar = Box(mh, mv, mh + sideW, heightPx - mv)
             val gap = dp(GAP_DP)
             val pane = Box(sidebar.right + gap, mv, widthPx - mh, heightPx - mv)
@@ -60,7 +64,7 @@ data class SettingsLayout(
             // The thumb lives in the pane's right padding; rows never reach it.
             val contentRight = minOf(pane.right - pad, bar?.let { it.left - dp(SCROLLBAR_GAP_DP) } ?: Int.MAX_VALUE)
             val content = Box(pane.left + pad, pane.top + pad, contentRight, pane.bottom - pad)
-            return SettingsLayout(sidebar, pane, content, bar, mh, mv, gap, dp(ROW_MIN_DP), dp(ROW_GAP_DP))
+            return SettingsLayout(sidebar, pane, content, bar, mh, mv, gap)
         }
     }
 }

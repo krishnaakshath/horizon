@@ -8,6 +8,12 @@ package dev.tvlauncher.appsettings
  * The sidebar shows these grouped ([GroupedRegistry]): by [SettingsSection.group] in
  * [SettingsGroup] order, and within a group in this registry order, so a section registered
  * later lands at the end of its group.
+ *
+ * For modules registering pages (e.g. WaveTwoSections): set [SettingsSection.group] explicitly.
+ * Ambient/wallpaper go to [SettingsGroup.HOME] and Devices ("devices") to
+ * [SettingsGroup.CONNECTIONS]; a Weather page belongs to [SettingsGroup.APPS] (override
+ * `group = SettingsGroup.APPS`, which is also the default for the id "weather"). The Add-ons page
+ * lists the Weather companion on its own and does not depend on that section.
  */
 class SettingsRegistry(builtIns: List<SettingsSection>) {
     private val entries = ArrayList(builtIns)

@@ -31,7 +31,7 @@ object AppearanceSection : SettingsSection, SpecifiedPage {
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val prefs = AppearancePrefs(context)
         val a = prefs.load()
-        val page = SettingsPage(context, nav.style)
+        val page = SettingsPage(context, nav.style, spec)
         page.row(
             "appearance.accentMode", "Backdrop and highlights",
             RowKind.Choice(listOf("Auto from app", "Fixed"), a.accentMode.ordinal) { i ->

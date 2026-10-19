@@ -24,7 +24,7 @@ object HomeLayoutSection : SettingsSection, SpecifiedPage {
     override val spec = PageSpec(ID, listOf("home.favorites", "home.hidden", "home.reset"))
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
-        val page = SettingsPage(context, nav.style)
+        val page = SettingsPage(context, nav.style, spec)
         val prefs = Prefs(context.applicationContext)
         val s = prefs.load()
         page.row("home.favorites", "Favorites", RowKind.Action(count(s.favorites.size)) {
@@ -74,7 +74,7 @@ object HomeLayoutSection : SettingsSection, SpecifiedPage {
                 prefs.save(HomeLayoutEdits.removeFavorite(prefs.load(), pkg))
                 nav.notify("$label is no longer a favorite")
                 nav.refresh()
-            }, subtitle = if (pkg in labels) null else "Not installed", iconRes = R.drawable.ic_set_star)
+            }, subtitle = if (pkg in labels) null else "App removed", iconRes = R.drawable.ic_set_star)
         }
     }
 

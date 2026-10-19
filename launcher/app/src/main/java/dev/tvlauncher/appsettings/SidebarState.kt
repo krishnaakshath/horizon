@@ -34,12 +34,29 @@ data class SidebarState(
 
     fun indexOfHeader(group: SettingsGroup): Int = entries.indexOfFirst { it is SidebarEntry.Header && it.group == group }
 
+    /** Where [entry] (from an earlier state) is now: a header by group, a page by id, else its group's header. */
+    fun indexOf(entry: SidebarEntry): Int = when (entry) {
+        is SidebarEntry.Header -> indexOfHeader(entry.group)
+        is SidebarEntry.Page -> indexOfPage(entry.id).takeIf { it >= 0 } ?: indexOfHeader(entry.group)
+    }
+
     fun move(from: Int, delta: Int): Int = if (entries.isEmpty()) -1 else (from + delta).coerceIn(0, entries.lastIndex)
 
     companion object {
         fun initial(groups: List<Pair<SettingsGroup, List<String>>>, current: String?): SidebarState {
             val s = SidebarState(groups, current, null)
             return s.copy(expanded = s.groupOf(current))
+        }
+
+        /**
+         * New groups (an app was installed or removed) without undoing the user's choice: the open
+         * group stays open while it still exists, a collapsed one stays collapsed; only when the
+         * open group is gone does the current page's group open.
+         */
+        fun regroup(old: SidebarState, groups: List<Pair<SettingsGroup, List<String>>>, current: String?): SidebarState {
+            val keep = old.expanded?.takeIf { g -> groups.any { it.first == g } }
+            val s = SidebarState(groups, current, keep)
+            return if (old.expanded != null && keep == null) s.copy(expanded = s.groupOf(current)) else s
         }
 
         /** Restored state, then the page asked for by the caller, then the last page, then the first. */

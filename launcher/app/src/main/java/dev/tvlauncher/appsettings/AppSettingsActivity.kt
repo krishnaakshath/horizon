@@ -17,7 +17,6 @@ import android.text.TextUtils
 import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import dev.tvlauncher.device.DeviceProfile
 import dev.tvlauncher.device.DeviceProfileReader
@@ -103,10 +102,14 @@ class AppSettingsActivity : Activity(), SettingsNav {
         // Back from a system page, an installer or the home screen: apps and status may have changed.
         val groups = loadGroups()
         if (groups != sidebarState.groups) {
-            val inSidebar = currentFocus?.let { isInside(it, sidebarList) } == true
+            // Remember what had focus in the sidebar (a header stays a header).
+            val focused = currentFocus?.takeIf { isInside(it, sidebarList) }
+            val entry = focused?.let { f -> sidebarViews.indexOfFirst { isInside(f, it) } }
+                ?.let { sidebarState.entries.getOrNull(it) }
             val cur = selected?.takeIf { id -> groups.any { id in it.second } } ?: groups.firstOrNull()?.second?.firstOrNull()
-            sidebarState = SidebarState(groups, cur, sidebarState.expanded).let { if (it.groupOf(cur) == null) it else it.reveal() }
-            renderSidebar(if (inSidebar) cur?.let { sidebarState.indexOfPage(it) } else null)
+            sidebarState = SidebarState.regroup(sidebarState, groups, cur)
+            val index = entry?.let { sidebarState.indexOf(it) }?.takeIf { it >= 0 }
+            renderSidebar(if (focused != null) index ?: 0 else null)
             if (cur != null && cur != selected) { select(cur); return }
         }
         refresh()
@@ -183,7 +186,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
             clipToPadding = false
             setPadding(dp(6), dp(4), dp(10), dp(12))
         }
-        val sideScroll = ScrollView(this).apply {
+        val sideScroll = FocusScrollView(this, dp(SIDEBAR_FOCUS_MARGIN_DP)).apply {
             isVerticalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_NEVER
             clipChildren = false
@@ -202,7 +205,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
             clipChildren = false
             setPadding(0, dp(22), 0, 0)
         }
-        val inset = dp(SettingsLayout.PANE_PAD_DP + 4)
+        val inset = layout.paneInset
         crumb = TextView(this).apply {
             style(13f, Theme.medium, Theme.TEXT_2)
             letterSpacing = 0.04f
@@ -594,6 +597,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
         private const val STATE_SECTION = "section"
         private const val PREFS_UI = "settings_ui"
         private const val PREF_LAST_PAGE = "last_page"
+        private const val SIDEBAR_FOCUS_MARGIN_DP = 16
         private const val SELECT_DEBOUNCE_MS = 110L
         private const val TOAST_MS = 2600L
         private const val GLOW_RADIUS_DP = 560

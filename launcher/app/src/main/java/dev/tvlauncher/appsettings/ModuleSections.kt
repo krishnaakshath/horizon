@@ -56,7 +56,7 @@ object InsightsSection : SettingsSection, SpecifiedPage {
     override val spec = PageSpec(id, listOf("insights.open", "insights.access"), listOf("insights.adb"))
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
-        val page = SettingsPage(context, nav.style)
+        val page = SettingsPage(context, nav.style, spec)
         page.row("insights.open", "Open Insights", RowKind.Action {
             if (!SystemActions.insights(context)) nav.notify("Insights could not be opened")
         }, subtitle = "Today, this week and your top apps", iconRes = R.drawable.ic_set_insights)
@@ -106,7 +106,7 @@ internal object ModulePage {
     fun spec(sectionId: String, prefix: String) = PageSpec(sectionId, listOf("$prefix.status", "$prefix.action"))
 
     fun build(context: Context, nav: SettingsNav, m: ModuleUi, prefix: String = m.addOn.id): SettingsPage {
-        val page = SettingsPage(context, nav.style)
+        val page = SettingsPage(context, nav.style, spec(m.addOn.sectionId ?: m.addOn.id, prefix))
         val a = m.addOn
         val installed = ModuleProbe.isAppInstalled(context, a.packageName)
         val act = {
@@ -164,7 +164,7 @@ object AddOnsSection : SettingsSection, SpecifiedPage {
     override val spec get() = PageSpec(ID, AddOns.all.map { "addons.${it.id}" })
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
-        val page = SettingsPage(context, nav.style)
+        val page = SettingsPage(context, nav.style, spec)
         for (m in ModuleUis.all) {
             val a = m.addOn
             val installed = ModuleProbe.isAppInstalled(context, a.packageName)

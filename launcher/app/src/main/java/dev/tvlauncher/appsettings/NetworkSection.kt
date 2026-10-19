@@ -26,7 +26,7 @@ object NetworkSection : SettingsSection, SpecifiedPage {
     override val spec = PageSpec(ID, listOf("network.wifi", "network.network"))
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
-        val page = SettingsPage(context, nav.style)
+        val page = SettingsPage(context, nav.style, spec)
         val b = page.body
         val wifi = b.shortcut(context, nav, "network", Shortcut("wifi", "Wi-Fi", Settings.ACTION_WIFI_SETTINGS, R.drawable.ic_sc_wifi))
         b.shortcut(context, nav, "network", Shortcut("network", "Network & internet", Settings.ACTION_WIRELESS_SETTINGS,
@@ -47,7 +47,7 @@ object BluetoothSection : SettingsSection, SpecifiedPage {
     override val spec = PageSpec(ID, listOf("bluetooth.settings"))
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
-        val page = SettingsPage(context, nav.style)
+        val page = SettingsPage(context, nav.style, spec)
         val row = page.body.shortcut(context, nav, "bluetooth",
             Shortcut("settings", "Bluetooth", Settings.ACTION_BLUETOOTH_SETTINGS, R.drawable.ic_sc_bluetooth, "Pair and manage devices"))
         nav.background({ NetworkStatusReader.read(context) }) { st -> row.setValue(st.bluetooth) }
@@ -80,7 +80,7 @@ object SystemSection : SettingsSection, SpecifiedPage {
     override val spec = PageSpec(ID, main.map { "system.${it.key}" }, advanced.map { "system.${it.key}" })
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
-        val page = SettingsPage(context, nav.style)
+        val page = SettingsPage(context, nav.style, spec)
         val b = page.body
         val rows = main.associate { it.key to b.shortcut(context, nav, ID, it) }
         page.advanced(nav, "system.advanced", "Developer options, all system settings") { adv ->

@@ -62,9 +62,8 @@ class SettingsLayoutTest {
     @Test
     fun rowsAreTallEnough_andSpacedForFocus() {
         for (s in screens) {
-            val l = SettingsLayout.compute(s.w, s.h, s.density, true)
-            assertTrue(l.rowMinHeight >= dp(56, s) - 1)
-            assertTrue(l.rowGap >= dp(8, s) - 1)
+            assertTrue(SettingsLayout.ROW_MIN_DP * s.density >= dp(56, s))
+            assertTrue(SettingsLayout.ROW_GAP_DP * s.density >= dp(8, s))
         }
         assertTrue(SettingsLayout.ROW_MIN_DP >= 56)
         assertTrue(SettingsLayout.ROW_GAP_DP >= 8)
@@ -82,6 +81,18 @@ class SettingsLayoutTest {
         val a = SettingsLayout.compute(1280, 720, 1280 / 960f, true)
         val b = SettingsLayout.compute(3840, 2160, 4f, true)
         assertEquals(a.sidebar.width / (1280 / 960f), b.sidebar.width / 4f, 2f)
+    }
+
+    @Test
+    fun tinyWidths_doNotThrow() {
+        for (w in 0..8) SettingsLayout.compute(w, 10, 1f, true)
+    }
+
+    @Test
+    fun paneInset_matchesTheContentBox() {
+        val l = SettingsLayout.compute(1280, 720, 213 / 160f, true)
+        assertEquals(l.paneContent.left - l.pane.left, l.paneInset)
+        assertTrue(l.paneInset >= dp(24, screens[0]) - 1)
     }
 
     @Test

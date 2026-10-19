@@ -148,7 +148,8 @@ class SettingsRow(
                 addView(valueView, valueParams())
                 valueView.text = kind.value.orEmpty()
                 kind.chip?.let { tone ->
-                    valueView.background = Glass.pill(context, if (tone == Chip.POSITIVE) style.tint(0.45f) else Glass.CHIP)
+                    valueView.background = Glass.pill(context, ChipColors.fill(tone, style.accent))
+                    valueView.setTextColor(ChipColors.text(tone, rowFocused = false))
                     valueView.setPadding(context.dp(12), context.dp(4), context.dp(12), context.dp(4))
                     valueView.textSize = SP_CHIP
                 }
@@ -278,7 +279,8 @@ class SettingsRow(
 
     override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
-        valueView.setTextColor(if (gainFocus) Theme.TEXT else Theme.TEXT_2)
+        val chip = (kind as? RowKind.Action)?.chip
+        valueView.setTextColor(if (chip != null) ChipColors.text(chip, gainFocus) else if (gainFocus) Theme.TEXT else Theme.TEXT_2)
         subtitleView.setTextColor(if (gainFocus) SUB_FOCUSED else Theme.TEXT_2)
         if (kind is RowKind.Action) arrowRight.alpha = if (gainFocus) 1f else 0.55f
         updateArrows()
