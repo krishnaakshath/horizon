@@ -62,7 +62,45 @@
         </intent>
         <!-- Optional companion apps: Spotlight shows a Browser quick action only when our
              browser is installed; the Settings screen detects the helper and browser. -->
-        <!-- Setup probes for these screens before offering them. -->
+        <!-- Setup probes for these screens before offering them; every system-screen button
+             resolves its intent first (SystemActions.canStart), so each one is declared here. -->
+        <intent>
+            <action android:name="android.settings.SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.APPLICATION_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.BLUETOOTH_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.DATE_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.DEVICE_INFO_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.DISPLAY_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.INTERNAL_STORAGE_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.SOUND_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.WIFI_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.WIRELESS_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.LOCATION_SOURCE_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.APPLICATION_DETAILS_SETTINGS" />
+            <data android:scheme="package" />
+        </intent>
         <intent>
             <action android:name="android.settings.HOME_SETTINGS" />
         </intent>
@@ -168,12 +206,18 @@
         </activity>
 
         <!-- First-run checklist (setup package); also Settings > System > Setup. -->
+        <!-- Exported only for the Helper app's "Finish setup to enable" row; it shows the checklist. -->
         <activity
             android:name=".setup.SetupActivity"
-            android:exported="false"
+            android:exported="true"
             android:excludeFromRecents="true"
             android:launchMode="singleTop"
-            android:configChanges="keyboard|keyboardHidden|navigation" />
+            android:configChanges="keyboard|keyboardHidden|navigation">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.action.SETUP" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
         <receiver
             android:name=".setup.SetupBootReceiver"
             android:exported="false">

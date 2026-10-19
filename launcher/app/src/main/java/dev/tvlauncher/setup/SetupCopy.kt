@@ -13,7 +13,7 @@ object SetupCopy {
     const val ALL_SET = "All set. Enjoy your TV."
 
     /** One calm line wherever something can only be switched on by the one-time setup helper. */
-    const val HELPER_LINE = "This TV has no screen for this. It is switched on once with the setup helper."
+    const val HELPER_LINE = "Finish setup to enable. This TV has no screen for this; the one-time setup helper switches it on."
 
     const val HOME_TITLE = "Home button"
     const val HOME_DONE = "Pressing Home opens TV Launcher."
@@ -32,7 +32,7 @@ object SetupCopy {
     const val SC_DONE = "Double-Back to Home is ready."
     const val SC_AUTO = "Turn on the Helper app's remote shortcuts."
     const val SC_ACTION = "Turn on Launcher Helper in the list that opens, then press Back."
-    const val SC_LABEL = "Turn on shortcuts"
+    const val SC_LABEL = "Turn on double-Back and power-on help"
     const val SC_HELPER = HELPER_LINE
 
     const val NEAR_TITLE = "Wi-Fi and Bluetooth lists"

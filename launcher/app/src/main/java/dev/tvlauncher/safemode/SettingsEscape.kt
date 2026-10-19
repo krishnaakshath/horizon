@@ -30,6 +30,7 @@ object SettingsEscape {
                     is Target.Package -> context.packageManager.getLaunchIntentForPackage(t.pkg)
                         ?: context.packageManager.getLeanbackLaunchIntentForPackage(t.pkg)
                 } ?: continue
+                if (context.packageManager.resolveActivity(i, 0) == null) continue
                 context.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 return true
             } catch (e: Throwable) {

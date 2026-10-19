@@ -8,6 +8,22 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
+    <!-- Granted only by the one-time setup helper; lets this app switch its own service on
+         on TVs without an accessibility screen. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        xmlns:tools="http://schemas.android.com/tools"
+        tools:ignore="ProtectedPermissions" />
+
+    <queries>
+        <intent>
+            <action android:name="android.settings.ACCESSIBILITY_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="dev.tvlauncher.action.SETUP" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="false"
         android:banner="@drawable/banner"

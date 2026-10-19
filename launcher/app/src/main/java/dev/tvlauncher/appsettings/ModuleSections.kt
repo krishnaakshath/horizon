@@ -87,7 +87,7 @@ internal object ModuleUis {
             "weather" -> ModuleUi(a, R.drawable.ic_set_weather, "Location and units") { c ->
                 WeatherCompanion.settingsIntent(c)?.let { SystemActions.start(c, it) } ?: SystemActions.launchPackage(c, a.packageName)
             }
-            else -> ModuleUi(a, R.drawable.ic_set_helper, "Turn it on under Settings › Accessibility") { c ->
+            else -> ModuleUi(a, R.drawable.ic_set_helper, "Double-Back and a shortcut key in every app") { c ->
                 SystemActions.start(c, Intent().setClassName(ModuleSections.HELPER_PACKAGE, ModuleSections.HELPER_ACTIVITY))
             }
         }

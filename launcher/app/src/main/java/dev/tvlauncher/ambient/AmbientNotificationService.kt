@@ -116,8 +116,8 @@ object NotificationAccess {
             tryStart(context, Intent(SHORT_ACTION).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 
     private fun tryStart(context: Context, i: Intent): Boolean = try {
-        context.startActivity(i)
-        true
+        if (context.packageManager.resolveActivity(i, 0) == null) false
+        else { context.startActivity(i); true }
     } catch (e: ActivityNotFoundException) {
         false
     } catch (e: SecurityException) {

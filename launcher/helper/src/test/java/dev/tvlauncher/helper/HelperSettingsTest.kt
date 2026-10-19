@@ -2,12 +2,13 @@ package dev.tvlauncher.helper
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HelperSettingsTest {
-    @Test fun defaults_are_off() {
+    @Test fun defaults_doubleBackOn_noShortcut() {
         val d = HelperSettings()
-        assertFalse(d.doubleBackEnabled)
+        assertTrue(d.doubleBackEnabled)
         assertEquals(0, d.shortcutKey)
         assertEquals(500L, d.windowMs)
         assertEquals(ExclusionList.DEFAULTS, d.exclusions)
@@ -26,7 +27,7 @@ class HelperSettingsTest {
 
     @Test fun tolerant_of_wrong_types_and_clamps() {
         val s = HelperSettings.fromJson("""{"doubleBack":"yes","windowMs":99999,"shortcutKey":"x","exclusions":5}""")
-        assertFalse(s.doubleBackEnabled)
+        assertTrue(s.doubleBackEnabled) // wrong type: the default
         assertEquals(900L, s.windowMs)
         assertEquals(0, s.shortcutKey)
         assertEquals(ExclusionList.DEFAULTS, s.exclusions)

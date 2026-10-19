@@ -4,7 +4,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 data class HelperSettings(
-    val doubleBackEnabled: Boolean = false,
+    /** On by default: the service itself only runs once it is switched on. */
+    val doubleBackEnabled: Boolean = true,
     val windowMs: Long = DoubleBackDetector.DEFAULT_MS,
     val shortcutKey: Int = 0,
     val exclusions: Set<String> = ExclusionList.DEFAULTS,

@@ -1,4 +1,4 @@
-"""tvtool command line: scan | plan | apply | rollback | tune."""
+"""tvtool command line: scan | plan | apply | rollback | tune | provision."""
 from __future__ import annotations
 
 import argparse
@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .adb import Adb, AdbError, SubprocessAdb
+from . import provision
 from .planner import plan
 from .profile import PKG_RE, Profile, load_profile
 
@@ -223,6 +224,10 @@ def cmd_rollback(a, adb, say, **_):
         if m:
             steps.append((m["host"], ("settings", "put", "global", m["key"], m["val"])))
             continue
+        m = provision.UNDO_LINE.match(line)
+        if m and provision.undo_allowed(m["cmd"]):
+            steps.append((m["host"], tuple(m["cmd"].split(" "))))
+            continue
         say(f"Refusing rollback script: unexpected line {n}: {raw!r}")
         return 1
     for h, _s in steps:
@@ -231,7 +236,7 @@ def cmd_rollback(a, adb, say, **_):
             return 1
     for _h, argv in steps:
         out = adb.shell(*argv)
-        if argv[0] == "pm" and "enabled" not in out:
+        if argv[:2] == ("pm", "enable") and "enabled" not in out:
             say(f"STOPPED: unexpected output enabling {argv[2]}: {out.strip()!r}")
             return 1
         say(f"  ok: {' '.join(argv)}")
@@ -241,7 +246,7 @@ def cmd_rollback(a, adb, say, **_):
 
 def _parser():
     p = argparse.ArgumentParser(prog="tvtool")
-    p.add_argument("command", choices=["scan", "plan", "apply", "rollback", "tune"])
+    p.add_argument("command", choices=["scan", "plan", "apply", "rollback", "tune", "provision"])
     p.add_argument("--host", required=True)
     p.add_argument("--tiers", default="safe,optional")
     p.add_argument("--yes", action="store_true")
@@ -250,6 +255,12 @@ def _parser():
     p.add_argument("--out", default="./scans-out/")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--script")
+    # provision
+    p.add_argument("--apks", help="folder with the launcher and companion APKs to install")
+    p.add_argument("--apply", action="store_true", help="make the changes (default: dry run)")
+    p.add_argument("--take-over-home", action="store_true",
+                   help="also turn off the stock launcher (writes an undo script first)")
+    p.add_argument("--provision-profiles", help=argparse.SUPPRESS)
     return p
 
 
@@ -282,6 +293,8 @@ def main(argv=None, adb: Adb | None = None, input_fn=input, print_fn=print) -> i
         adb.connect(a.host)
         if a.command == "rollback":
             return cmd_rollback(a, adb, say=say)
+        if a.command == "provision":
+            return provision.run(a, adb, say)
         info = _identify(adb)
         profile = _match(_load_profiles(a.profile), info)
         if a.command == "scan":

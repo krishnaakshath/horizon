@@ -5,6 +5,7 @@ import subprocess
 from typing import Protocol
 
 TIMEOUT_S = 30
+INSTALL_TIMEOUT_S = 180
 
 
 class AdbError(Exception):
@@ -14,6 +15,7 @@ class AdbError(Exception):
 class Adb(Protocol):
     def shell(self, *args: str) -> str: ...
     def connect(self, host: str) -> None: ...
+    def install(self, apk_path: str) -> str: ...
 
 
 class SubprocessAdb:
@@ -22,10 +24,11 @@ class SubprocessAdb:
         self.serial = f"{host}:5555"
 
     def _run(self, argv: list[str]) -> str:
+        limit = INSTALL_TIMEOUT_S if "install" in argv[3:4] else TIMEOUT_S
         try:
-            r = subprocess.run(argv, capture_output=True, text=True, timeout=TIMEOUT_S)
+            r = subprocess.run(argv, capture_output=True, text=True, timeout=limit)
         except subprocess.TimeoutExpired as e:
-            raise AdbError(f"timeout after {TIMEOUT_S}s: {' '.join(argv)}") from e
+            raise AdbError(f"timeout after {limit}s: {' '.join(argv)}") from e
         except OSError as e:
             raise AdbError(f"cannot run adb: {e}") from e
         if r.returncode != 0:
@@ -37,3 +40,7 @@ class SubprocessAdb:
 
     def shell(self, *args: str) -> str:
         return self._run(["adb", "-s", self.serial, "shell", *args])
+
+    def install(self, apk_path: str) -> str:
+        """Installs or updates (-r keeps data) one APK from this computer."""
+        return self._run(["adb", "-s", self.serial, "install", "-r", apk_path])
