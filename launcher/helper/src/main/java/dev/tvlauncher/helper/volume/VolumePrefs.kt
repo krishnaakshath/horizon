@@ -17,6 +17,11 @@ class VolumePrefs(context: Context) {
         get() = sp.getBoolean(KEY_ENABLED, true)
         set(v) { sp.edit().putBoolean(KEY_ENABLED, v).apply() }
 
+    /** "Replace the TV's volume popup" (the launcher's Settings switch; on by default). */
+    var cover: Boolean
+        get() = sp.getBoolean(KEY_COVER, true)
+        set(v) { sp.edit().putBoolean(KEY_COVER, v).apply() }
+
     /** "full", "lite", "off" or null (never told). */
     var launcherMotion: String?
         get() = sp.getString(KEY_MOTION, null)
@@ -44,6 +49,7 @@ class VolumePrefs(context: Context) {
     companion object {
         const val NAME = "volume_prefs"
         private const val KEY_ENABLED = "enabled"
+        private const val KEY_COVER = "cover"
         private const val KEY_MOTION = "launcher_motion"
         private const val KEY_SEEN = "keys_seen"
         private const val KEY_TAKEN = "keys_taken"

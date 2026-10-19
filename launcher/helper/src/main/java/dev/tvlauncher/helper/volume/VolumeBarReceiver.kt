@@ -12,17 +12,20 @@ import dev.tvlauncher.helper.HelperService
  * The launcher's Settings > Volume & output asks here (ordered broadcast, same signer only via
  * dev.tvlauncher.permission.VOLUME_BAR): optionally sets the "Use launcher volume bar" switch
  * ([EXTRA_SET_ENABLED]) and the launcher's animation level ([EXTRA_MOTION]), and answers with
- * the switch ([setResultCode] 1/0) plus whether the service is running ([EXTRA_BOUND]).
+ * the switch ([setResultCode] 1/0) plus whether the service is running ([EXTRA_BOUND]). It also
+ * carries "Replace the TV's volume popup" ([EXTRA_SET_COVER] in, [EXTRA_COVER] out).
  */
 class VolumeBarReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION) return
         val prefs = VolumePrefs(context)
         if (intent.hasExtra(EXTRA_SET_ENABLED)) prefs.enabled = intent.getBooleanExtra(EXTRA_SET_ENABLED, true)
+        if (intent.hasExtra(EXTRA_SET_COVER)) prefs.cover = intent.getBooleanExtra(EXTRA_SET_COVER, true)
         intent.getStringExtra(EXTRA_MOTION)?.takeIf { it in setOf("full", "lite", "off") }?.let { prefs.launcherMotion = it }
         val extras = Bundle().apply {
             putBoolean(EXTRA_BOUND, HelperService.current != null)
             putBoolean(EXTRA_SERVICE_ON, serviceEnabled(context))
+            putBoolean(EXTRA_COVER, prefs.cover)
             putInt(EXTRA_KEYS_SEEN, prefs.keysSeen)
             putInt(EXTRA_KEYS_TAKEN, prefs.keysTaken)
         }
@@ -33,6 +36,8 @@ class VolumeBarReceiver : BroadcastReceiver() {
         const val ACTION = "dev.tvlauncher.helper.action.VOLUME_BAR"
         const val EXTRA_SET_ENABLED = "set_enabled"
         const val EXTRA_MOTION = "motion"
+        const val EXTRA_SET_COVER = "set_cover"
+        const val EXTRA_COVER = "cover"
         const val EXTRA_BOUND = "bound"
         const val EXTRA_SERVICE_ON = "service_on"
         const val EXTRA_KEYS_SEEN = "keys_seen"
