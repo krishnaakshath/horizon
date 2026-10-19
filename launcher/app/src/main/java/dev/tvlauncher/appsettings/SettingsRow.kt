@@ -265,6 +265,6 @@ class SettingsRow(
         const val FOCUS_SCALE = 1.015f
         const val ARROW_ON = 0.95f
         const val ARROW_DIM = 0.25f
-        const val SUB_FOCUSED = 0xFFC9D0DC.toInt()
+        const val SUB_FOCUSED = Theme.TEXT_SUB_FOCUSED
     }
 }

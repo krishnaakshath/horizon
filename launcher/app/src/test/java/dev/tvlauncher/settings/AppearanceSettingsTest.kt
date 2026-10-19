@@ -38,4 +38,10 @@ class AppearanceSettingsTest {
         assertEquals(false, a.clock24h)
         assertEquals(AppearanceSettings().fixedAccent, a.fixedAccent)
     }
+
+    @Test
+    fun appearance_transparentAccent_forcedOpaque() {
+        assertEquals(0xFF0000FF.toInt(), AppearanceSettings.fromJson("""{"fixedAccent":255}""").fixedAccent)
+        assertEquals(0xFF4C8DFF.toInt(), AppearanceSettings.fromJson("""{"fixedAccent":${0x004C8DFF}}""").fixedAccent)
+    }
 }

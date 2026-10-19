@@ -2,16 +2,18 @@ package dev.tvlauncher.appsettings
 
 import android.content.Context
 import android.graphics.drawable.GradientDrawable
+import dev.tvlauncher.ui.Theme
 import dev.tvlauncher.ui.dp
 
 /** Flat "glass" shapes: translucent fills and hairline strokes, no blur (LITE-friendly). */
 internal object Glass {
-    const val PANEL = 0xD9151922.toInt()
-    const val ROW = 0x0FFFFFFF
-    const val ROW_FOCUS = 0x26FFFFFF
-    const val CHIP = 0x14FFFFFF
-    const val HAIRLINE = 0x1FFFFFFF
-    const val SCRIM = 0xF2101319.toInt()
+    const val PANEL = Theme.GLASS_PANEL
+    const val ROW = Theme.GLASS_ROW
+    const val ROW_FOCUS = Theme.GLASS_ROW_FOCUS
+    const val CHIP = Theme.GLASS_CHIP
+    const val SHEEN = Theme.GLASS_SHEEN
+    const val HAIRLINE = Theme.STROKE
+    const val SCRIM = Theme.GLASS_SCRIM
 
     const val RADIUS_PANEL = 28
     const val RADIUS_ROW = 16

@@ -13,7 +13,7 @@ class SettingsRegistryTest {
     }
 
     private val builtInOrder = listOf(
-        "appearance", "home_layout", "network", "sounds", "insights", "helper", "browser", "about"
+        "appearance", "home_layout", "network", "sounds", "insights", "helper", "browser", "devices", "about"
     )
 
     @Test
@@ -40,6 +40,11 @@ class SettingsRegistryTest {
         val list = r.sections()
         assertEquals(builtInOrder, list.map { it.id })
         assertSame(sounds, list[3])
+    }
+
+    @Test
+    fun registry_builtInIdsConstant_matchesDefault() {
+        assertEquals(SettingsRegistry.BUILT_IN_IDS, SettingsRegistry.newDefault().sections().map { it.id })
     }
 
     @Test

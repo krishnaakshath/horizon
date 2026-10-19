@@ -22,7 +22,8 @@ class SettingsRegistry(builtIns: List<SettingsSection>) {
         val BUILT_IN_IDS = listOf(
             AppearanceSection.ID, HomeLayoutSection.ID, NetworkSection.ID,
             ModulePlaceholderSection.SOUNDS, ModulePlaceholderSection.INSIGHTS,
-            ModulePlaceholderSection.HELPER, ModulePlaceholderSection.BROWSER, AboutSection.ID
+            ModulePlaceholderSection.HELPER, ModulePlaceholderSection.BROWSER,
+            ModulePlaceholderSection.DEVICES, AboutSection.ID
         )
 
         fun newDefault(): SettingsRegistry = SettingsRegistry(
@@ -34,6 +35,7 @@ class SettingsRegistry(builtIns: List<SettingsSection>) {
                 ModulePlaceholderSection.insights(),
                 ModulePlaceholderSection.helper(),
                 ModulePlaceholderSection.browser(),
+                ModulePlaceholderSection.devices(),
                 AboutSection
             )
         )

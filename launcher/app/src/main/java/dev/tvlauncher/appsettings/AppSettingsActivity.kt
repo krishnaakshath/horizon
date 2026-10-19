@@ -18,6 +18,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import dev.tvlauncher.device.DeviceProfile
 import dev.tvlauncher.device.DeviceProfileReader
 import dev.tvlauncher.device.EffectsMode
 import dev.tvlauncher.settings.AppearancePrefs
@@ -39,7 +40,9 @@ class AppSettingsActivity : Activity(), SettingsNav {
     private class Level(val title: String, val build: (Context, SettingsNav) -> View, val returnKey: String?)
     private class FocusTarget(val key: String?, val index: Int)
 
-    private var device = EffectsMode.LITE
+    override lateinit var profile: DeviceProfile
+        private set
+    private val device: EffectsMode get() = profile.effectsMode
     override var style = SettingsStyle(0, null)
         private set
 
@@ -69,7 +72,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        device = DeviceProfileReader.read(this).effectsMode
+        profile = DeviceProfileReader.read(this)
         style = readStyle()
         buildUi()
         setContentView(root)
@@ -208,7 +211,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
     private fun applyGlow() {
         glow.background = GradientDrawable().apply {
             gradientType = GradientDrawable.RADIAL_GRADIENT
-            colors = intArrayOf((style.accent and 0x00FFFFFF) or GLOW_ALPHA, 0x00000000)
+            colors = intArrayOf((style.accent and 0x00FFFFFF) or Theme.GLOW_ALPHA, 0)
             gradientRadius = dp(GLOW_RADIUS_DP).toFloat()
             setGradientCenter(0.12f, 0.0f)
         }
@@ -224,7 +227,6 @@ class AppSettingsActivity : Activity(), SettingsNav {
         val s = sidebar.animate().alpha(1f).translationX(0f).setDuration(style.entryMs).setInterpolator(d)
         val p = panel.animate().alpha(1f).translationX(0f).setDuration(style.entryMs)
             .setStartDelay(style.entryStaggerMs).setInterpolator(d)
-        if (style.full) { s.withLayer(); p.withLayer() }
         s.start(); p.start()
     }
 
@@ -306,6 +308,26 @@ class AppSettingsActivity : Activity(), SettingsNav {
     }
 
     override fun contentReady() = applyPendingFocus()
+
+    override fun refreshCurrent() {
+        if (!isDestroyed) refresh()
+    }
+
+    override fun <T> task(work: () -> T, onResult: (T) -> Unit) {
+        try {
+            worker.execute {
+                val result = try {
+                    work()
+                } catch (e: Exception) {
+                    main.post { if (!isDestroyed) notify("Something went wrong") }
+                    return@execute
+                }
+                main.post { if (!isDestroyed) onResult(result) }
+            }
+        } catch (e: RuntimeException) {
+            // Executor already shut down: the screen is closing.
+        }
+    }
 
     override fun notify(message: String) {
         toast.text = message
@@ -460,7 +482,6 @@ class AppSettingsActivity : Activity(), SettingsNav {
         private const val SELECT_DEBOUNCE_MS = 110L
         private const val TOAST_MS = 2600L
         private const val GLOW_RADIUS_DP = 560
-        private const val GLOW_ALPHA = 0x2E000000
 
         /** Intent the home screen uses to open Settings (optionally on [sectionId]). */
         fun intent(context: Context, sectionId: String? = null): Intent =

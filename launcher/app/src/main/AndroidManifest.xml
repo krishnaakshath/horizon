@@ -21,6 +21,9 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- Optional companion apps detected by the Settings screen. -->
+        <package android:name="dev.tvlauncher.helper" />
+        <package android:name="dev.tvlauncher.browser" />
     </queries>
 
     <application

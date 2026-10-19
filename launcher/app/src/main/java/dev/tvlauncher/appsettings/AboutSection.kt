@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.view.View
 import dev.tvlauncher.R
-import dev.tvlauncher.device.DeviceProfileReader
 import dev.tvlauncher.settings.Branding
 import dev.tvlauncher.settings.Prefs
 import dev.tvlauncher.settings.SettingsBackup
@@ -21,6 +20,8 @@ object AboutSection : SettingsSection {
         val page = SettingsPage(context, nav.style)
         page.group(Branding.NAME)
         page.row("about.version", "Version", RowKind.Info(version(context)), iconRes = R.drawable.ic_set_about)
+        page.row("about.copyright", "Copyright", RowKind.Info("© ${Branding.COPYRIGHT_YEAR} ${Branding.COPYRIGHT_HOLDER}"),
+            iconRes = R.drawable.ic_set_license)
         page.row("about.license", "License", RowKind.Action(Branding.LICENSE) {
             nav.push("License") { c, n -> textPage(c, n, R.raw.license_mit) }
         }, iconRes = R.drawable.ic_set_license)
@@ -28,7 +29,7 @@ object AboutSection : SettingsSection {
             nav.push("Third-party notices") { c, n -> textPage(c, n, R.raw.third_party_notices) }
         }, subtitle = "AndroidX RecyclerView and Kotlin, Apache-2.0", iconRes = R.drawable.ic_set_license)
 
-        val profile = DeviceProfileReader.read(context)
+        val profile = nav.profile
         page.group("This TV")
         page.row("about.ram", "Memory", RowKind.Info(AboutText.ram(profile.totalRamKb)), iconRes = R.drawable.ic_sc_device)
         page.row("about.abi", "Processor", RowKind.Info(profile.abi), iconRes = R.drawable.ic_sc_developer)
@@ -41,7 +42,7 @@ object AboutSection : SettingsSection {
         val app = context.applicationContext
         val prefs = Prefs(app)
         page.row("about.export", "Export settings", RowKind.Action(chevron = false) {
-            nav.background({ backupFile(app)?.let { f -> SettingsBackup.export(prefs.load(), f) } }) { ok ->
+            nav.task({ backupFile(app)?.let { f -> SettingsBackup.export(prefs.load(), f) } }) { ok ->
                 nav.notify(
                     when (ok) {
                         null -> "Storage is not available"
@@ -53,9 +54,10 @@ object AboutSection : SettingsSection {
         }, subtitle = "Favorites, order and hidden apps to ${SettingsBackup.FILE_NAME} in the launcher's folder",
             iconRes = R.drawable.ic_set_export)
         page.row("about.import", "Import settings", RowKind.Action(chevron = false) {
-            nav.background({ backupFile(app)?.let { f -> SettingsBackup.importOrNull(f)?.also { prefs.save(it) } } }) { s ->
+            // importOrNull only returns a fully validated file; nothing is saved otherwise.
+            nav.task({ backupFile(app)?.let { f -> SettingsBackup.importOrNull(f)?.also { prefs.save(it) } } }) { s ->
                 nav.notify(if (s != null) "Settings restored" else "No valid ${SettingsBackup.FILE_NAME} found")
-                if (s != null) nav.refresh()
+                if (s != null) nav.refreshCurrent()
             }
         }, subtitle = "Reads the same file; an invalid file changes nothing", iconRes = R.drawable.ic_set_import)
 
@@ -81,6 +83,7 @@ object AboutSection : SettingsSection {
         nav.background({
             try {
                 context.resources.openRawResource(raw).bufferedReader().use { it.readText() }
+                    .replace(Branding.HOLDER_TOKEN, Branding.COPYRIGHT_HOLDER)
             } catch (e: Exception) {
                 "Could not read this text."
             }

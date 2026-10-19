@@ -64,6 +64,6 @@ internal class ToggleSwitch(context: Context, private var accent: Int, private v
     private companion object {
         const val W_DP = 48
         const val H_DP = 28
-        const val OFF_TRACK = 0x40FFFFFF
+        const val OFF_TRACK = Theme.TOGGLE_OFF
     }
 }

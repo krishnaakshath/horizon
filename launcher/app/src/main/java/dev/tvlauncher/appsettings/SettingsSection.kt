@@ -2,6 +2,7 @@ package dev.tvlauncher.appsettings
 
 import android.content.Context
 import android.view.View
+import dev.tvlauncher.device.DeviceProfile
 
 /**
  * One entry of the Settings sidebar. Other modules implement this and call
@@ -24,6 +25,9 @@ interface SettingsNav {
     /** Current accent and motion, already resolved against the device and system scale. */
     val style: SettingsStyle
 
+    /** This TV's profile, read once by the screen (do not re-read it per page). */
+    val profile: DeviceProfile
+
     /** Opens a sub-page inside the content pane; BACK returns to the row that opened it. */
     fun push(title: String, build: (Context, SettingsNav) -> View)
 
@@ -41,6 +45,16 @@ interface SettingsNav {
 
     /** Runs [work] off the main thread; [onResult] runs on the main thread only if the page is still shown. */
     fun <T> background(work: () -> T, onResult: (T) -> Unit)
+
+    /** Rebuilds whatever page is shown now (independent of the page that started a task). */
+    fun refreshCurrent()
+
+    /**
+     * Like [background], but [onResult] is delivered on the main thread even if the user has moved
+     * to another page meanwhile (skipped only once the screen is destroyed). For work whose
+     * outcome must always be reported, such as backup import/export.
+     */
+    fun <T> task(work: () -> T, onResult: (T) -> Unit)
 
     /** Call after a page filled itself asynchronously so pending focus can be restored. */
     fun contentReady()

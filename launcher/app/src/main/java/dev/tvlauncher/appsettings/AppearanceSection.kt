@@ -3,7 +3,6 @@ package dev.tvlauncher.appsettings
 import android.content.Context
 import android.view.View
 import dev.tvlauncher.R
-import dev.tvlauncher.device.DeviceProfileReader
 import dev.tvlauncher.settings.AccentMode
 import dev.tvlauncher.settings.AnimationLevel
 import dev.tvlauncher.settings.AppearanceFormat
@@ -44,7 +43,7 @@ object AppearanceSection : SettingsSection {
         }
 
         page.group("Motion")
-        val device = DeviceProfileReader.read(context).effectsMode
+        val device = nav.profile.effectsMode
         page.row(
             "appearance.animation", "Animations",
             RowKind.Choice(listOf("Auto", "Full", "Lite", "Off"), a.animationLevel.ordinal) { i ->

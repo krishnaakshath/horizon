@@ -83,7 +83,8 @@ data class AppearanceSettings(
         private fun colorOr(json: JSONObject, key: String, fallback: Int): Int {
             val n = json.opt(key) as? Number ?: return fallback
             val v = n.toLong()
-            return if (v in 0L..0xFFFFFFFFL) v.toInt() else fallback
+            // Always opaque: a corrupt value like 255 must not make highlights invisible.
+            return if (v in 0L..0xFFFFFFFFL) v.toInt() or 0xFF000000.toInt() else fallback
         }
     }
 }
