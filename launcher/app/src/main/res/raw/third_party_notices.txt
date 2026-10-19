@@ -7,6 +7,11 @@ Kotlin Standard Library (org.jetbrains.kotlin:kotlin-stdlib)
 Copyright JetBrains s.r.o. and Kotlin Programming Language contributors
 Licensed under the Apache License, Version 2.0.
 
+Inter typeface (Inter Display Light, Inter Regular, Medium, SemiBold, Bold; Latin subset)
+Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter)
+Licensed under the SIL Open Font License, Version 1.1 (https://openfontlicense.org).
+Full text: font_license_ofl.txt.
+
 Apache License, Version 2.0 - summary of the notice
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not

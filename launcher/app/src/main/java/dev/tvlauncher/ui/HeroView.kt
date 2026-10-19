@@ -19,7 +19,7 @@ class HeroView(context: Context, private val pm: PackageManager) : LinearLayout(
         style(Theme.SP_HERO, Theme.semibold)
         maxLines = 1
         ellipsize = TextUtils.TruncateAt.END
-        letterSpacing = -0.01f
+        letterSpacing = -0.015f
         setShadowLayer(context.dp(12).toFloat(), 0f, 0f, 0x40000000)
     }
     val subtitle = TextView(context).apply {
