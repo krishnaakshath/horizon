@@ -42,6 +42,23 @@ class HostAllowlistTest {
         assertFalse(HostAllowlist.isGithubAssetUrl("https://github.com./o/r/a.apk"))
     }
 
+    @Test fun onlyDocumentedAssetStorageHostsAreRedirectTargets() {
+        assertTrue(HostAllowlist.isGithubRedirectTarget("https://objects.githubusercontent.com/a"))
+        assertTrue(HostAllowlist.isGithubRedirectTarget("https://release-assets.githubusercontent.com/a"))
+        assertFalse(HostAllowlist.isGithubRedirectTarget("https://raw.githubusercontent.com/o/r/main/a.apk"))
+        assertFalse(HostAllowlist.isGithubRedirectTarget("https://evil.githubusercontent.com/a"))
+        assertFalse(HostAllowlist.isGithubAssetUrl("https://raw.githubusercontent.com/o/r/main/a.apk"))
+        assertFalse(HostAllowlist.isGithubAssetUrl("https://gist.githubusercontent.com/x/a.apk"))
+    }
+
+    @Test fun releaseDownloadUrlIsBoundToRepoTagAndName() {
+        val u = "https://github.com/Jellyfin/Jellyfin-AndroidTV/releases/download/v0.19.10/app.apk"
+        assertTrue(HostAllowlist.isGithubReleaseDownloadUrl(u, "jellyfin", "jellyfin-androidtv", "v0.19.10", "app.apk"))
+        assertFalse(HostAllowlist.isGithubReleaseDownloadUrl(u, "jellyfin", "other", "v0.19.10", "app.apk"))
+        assertFalse(HostAllowlist.isGithubReleaseDownloadUrl(u, "jellyfin", "jellyfin-androidtv", "v0.19.9", "app.apk"))
+        assertFalse(HostAllowlist.isGithubReleaseDownloadUrl(u + "#x", "jellyfin", "jellyfin-androidtv", "v0.19.10", "app.apk"))
+    }
+
     @Test fun githubApiHostIsExact() {
         assertTrue(HostAllowlist.isGithubApiUrl("https://api.github.com/repos/o/r/releases/latest"))
         assertFalse(HostAllowlist.isGithubApiUrl("https://api.github.com.evil.com/repos/o/r"))

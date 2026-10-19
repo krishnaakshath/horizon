@@ -13,7 +13,7 @@ import java.io.File
 import java.io.FileNotFoundException
 
 /**
- * Minimal read-only provider for the ACTION_VIEW install fallback (no androidx dependency). Not exported;
+ * Minimal read-only provider for the legacy ACTION_INSTALL_PACKAGE fallback (no androidx dependency). Not exported;
  * access only through a per-intent URI grant. Serves nothing but "<uuid>.apk" files directly inside
  * cacheDir/downloads, verified by canonical path.
  */

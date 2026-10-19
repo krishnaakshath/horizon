@@ -7,6 +7,9 @@ import android.content.pm.Signature
 import android.graphics.drawable.Drawable
 import android.os.Build
 import dev.tvlauncher.store.core.ApkFacts
+import dev.tvlauncher.store.core.ComponentRisk
+import dev.tvlauncher.store.core.DisplayText
+import dev.tvlauncher.store.core.InstalledState
 import dev.tvlauncher.store.core.FdroidIndexParser
 import dev.tvlauncher.store.core.LeanbackDetector
 import dev.tvlauncher.store.core.Sha256Stream
@@ -41,7 +44,9 @@ class ApkInspector(private val context: Context) {
         expectedSigner: String?,
     ): Inspected {
         val path = file.absolutePath
-        var flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_CONFIGURATIONS
+        // Services/receivers carry the BIND_* permissions that grant accessibility, device admin, VPN, keyboard...
+        var flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_CONFIGURATIONS or
+            PackageManager.GET_SERVICES or PackageManager.GET_RECEIVERS
         flags = if (Build.VERSION.SDK_INT >= 28) {
             flags or PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
         } else {
@@ -57,7 +62,7 @@ class ApkInspector(private val context: Context) {
         if (info == null) {
             val facts = ApkFacts(null, null, 0, 1, emptySet(), emptyList(), null, null, null,
                 expectedPackage, expectedSigner, hashVerified, sdk)
-            return Inspected(facts, file.name, null, file.length(), sha256, hashVerified)
+            return Inspected(facts, DisplayText.sanitize(file.name, DisplayText.LABEL), null, file.length(), sha256, hashVerified)
         }
         val app = info.applicationInfo
         var label = info.packageName
@@ -65,7 +70,7 @@ class ApkInspector(private val context: Context) {
         if (app != null) {
             app.sourceDir = path
             app.publicSourceDir = path
-            try { label = app.loadLabel(pm).toString().trim().ifEmpty { info.packageName } } catch (_: Exception) {}
+            try { label = app.loadLabel(pm).toString() } catch (_: Exception) {}
             try { icon = app.loadIcon(pm) } catch (_: Exception) {}
         }
         val scan = scanManifest(info)
@@ -75,31 +80,58 @@ class ApkInspector(private val context: Context) {
             featureLeanback -> true
             else -> null
         }
-        val installed = installedInfo(info.packageName)
+        val (state, installed) = installedLookup(info.packageName)
+        val incoming = signersOf(info)
+        val installedSigners = installed?.let { signersOf(it).current }
+        val components = ArrayList<Pair<ComponentRisk.Kind, String?>>()
+        info.services?.forEach { components += ComponentRisk.Kind.SERVICE to it.permission }
+        info.receivers?.forEach { components += ComponentRisk.Kind.RECEIVER to it.permission }
         val facts = ApkFacts(
             packageName = info.packageName,
             versionName = info.versionName,
             versionCode = versionCodeOf(info),
             minSdk = app?.minSdkVersion ?: 1,
-            signers = signersOf(info),
+            signers = incoming.current,
             permissions = info.requestedPermissions?.toList() ?: emptyList(),
             tvReady = tvReady,
             installedVersionCode = installed?.let { versionCodeOf(it) },
-            installedSigners = installed?.let { signersOf(it) },
+            installedSigners = installedSigners,
             expectedPackage = expectedPackage,
             expectedSigner = expectedSigner,
             sourceHadHash = hashVerified,
             deviceSdk = sdk,
+            signerHistory = incoming.history,
+            capabilities = ComponentRisk.collect(components),
+            installedState = state,
         )
-        return Inspected(facts, label.take(80), icon, file.length(), sha256, hashVerified)
+        val shown = DisplayText.sanitize(label, DisplayText.LABEL).ifEmpty { info.packageName }
+        return Inspected(facts, shown, icon, file.length(), sha256, hashVerified)
     }
+
+    /**
+     * INSTALLED with its info; NOT_INSTALLED only when the answer can be trusted (before API 30 there is no
+     * package-visibility filtering); otherwise UNKNOWN, because on API 30+ "not found" may just mean "hidden"
+     * (we only query launchable apps).
+     */
+    fun installedLookup(packageName: String): Pair<InstalledState, PackageInfo?> {
+        val info = installedInfo(packageName)
+        return when {
+            info != null -> InstalledState.INSTALLED to info
+            Build.VERSION.SDK_INT < 30 && lastLookupWasNotFound -> InstalledState.NOT_INSTALLED to null
+            else -> InstalledState.UNKNOWN to null
+        }
+    }
+
+    @Volatile private var lastLookupWasNotFound = false
 
     @Suppress("DEPRECATION")
     fun installedInfo(packageName: String): PackageInfo? = try {
+        lastLookupWasNotFound = false
         val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
         if (Build.VERSION.SDK_INT >= 33) pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags.toLong()))
         else pm.getPackageInfo(packageName, flags)
     } catch (_: PackageManager.NameNotFoundException) {
+        lastLookupWasNotFound = true
         null
     } catch (_: Exception) {
         null
@@ -144,18 +176,27 @@ class ApkInspector(private val context: Context) {
         fun versionCodeOf(info: PackageInfo): Long =
             if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
 
+        /** current = signers of the APK contents now; history = proven lineage (oldest → current), incl. current. */
+        data class SignerSet(val current: Set<String>, val history: Set<String>)
+
         @Suppress("DEPRECATION")
-        fun signersOf(info: PackageInfo): Set<String> {
-            val sigs = ArrayList<Signature>()
+        fun signersOf(info: PackageInfo): SignerSet {
+            fun fp(sigs: Array<Signature>?) = sigs?.map { Sha256Stream.of(it.toByteArray()) }?.toCollection(LinkedHashSet()) ?: LinkedHashSet()
             if (Build.VERSION.SDK_INT >= 28) {
                 val si = info.signingInfo
                 if (si != null) {
-                    if (si.hasMultipleSigners()) si.apkContentsSigners?.let { sigs += it }
-                    else si.signingCertificateHistory?.let { sigs += it }
+                    val current = fp(si.apkContentsSigners)
+                    if (current.isNotEmpty()) {
+                        val history = if (si.hasMultipleSigners()) current else fp(si.signingCertificateHistory) + current
+                        return SignerSet(current, history)
+                    }
+                    // Lineage is ordered oldest → current: the CURRENT signer is the last entry.
+                    val hist = fp(si.signingCertificateHistory)
+                    if (hist.isNotEmpty()) return SignerSet(setOf(hist.last()), hist)
                 }
             }
-            if (sigs.isEmpty()) info.signatures?.let { sigs += it }
-            return sigs.map { Sha256Stream.of(it.toByteArray()) }.toSet()
+            val legacy = fp(info.signatures)
+            return SignerSet(legacy, legacy)
         }
     }
 }

@@ -25,6 +25,11 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- Legacy fallback only: find the SYSTEM package installer to target it explicitly. -->
+        <intent>
+            <action android:name="android.intent.action.INSTALL_PACKAGE" />
+            <data android:mimeType="application/vnd.android.package-archive" />
+        </intent>
     </queries>
 
     <application
@@ -56,7 +61,7 @@
             android:name=".install.InstallStatusReceiver"
             android:exported="false" />
 
-        <!-- Read-only APK provider for the ACTION_VIEW fallback; serves cache/downloads only, via URI grants. -->
+        <!-- Read-only APK provider for the legacy fallback (explicit intent to the system installer); serves cache/downloads only, via URI grants. -->
         <provider
             android:name=".install.ApkShareProvider"
             android:authorities="dev.tvlauncher.store.apk"

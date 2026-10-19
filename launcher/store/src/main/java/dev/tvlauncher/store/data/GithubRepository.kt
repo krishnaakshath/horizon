@@ -4,6 +4,8 @@ import dev.tvlauncher.store.core.GithubRelease
 import dev.tvlauncher.store.core.GithubReleaseParser
 import dev.tvlauncher.store.core.GithubRepoRef
 import dev.tvlauncher.store.core.HostAllowlist
+import dev.tvlauncher.store.core.HttpError
+import dev.tvlauncher.store.core.SafeFetcher
 import dev.tvlauncher.store.net.SecureHttp
 import java.io.IOException
 import java.text.DateFormat
@@ -18,23 +20,22 @@ class GithubRepository(private val http: SecureHttp) {
         val body = try {
             val conn = http.open(
                 ref.latestReleaseApiUrl,
-                hopAllowed = { HostAllowlist.isGithubApiUrl(it) },
-                accept = "application/vnd.github+json",
-                extraHeaders = mapOf("X-GitHub-Api-Version" to "2022-11-28"),
+                rule = { url, _ -> HostAllowlist.isGithubApiUrl(url) },
+                headers = mapOf("Accept" to "application/vnd.github+json", "X-GitHub-Api-Version" to "2022-11-28"),
             )
             try {
-                SecureHttp.readBounded(conn.inputStream, 2 * 1024 * 1024)
+                SafeFetcher.readBounded(conn.body(), 2 * 1024 * 1024)
             } finally {
-                conn.disconnect()
+                conn.close()
             }
-        } catch (e: SecureHttp.HttpError) {
+        } catch (e: HttpError) {
             throw FriendlyError(describe(e, ref))
         }
-        return GithubReleaseParser.parse(body)
+        return GithubReleaseParser.parse(body, ref)
             ?: throw FriendlyError("${ref.slug} has no published release yet.")
     }
 
-    private fun describe(e: SecureHttp.HttpError, ref: GithubRepoRef): String {
+    private fun describe(e: HttpError, ref: GithubRepoRef): String {
         val remaining = e.header("X-RateLimit-Remaining")
         val reset = e.header("X-RateLimit-Reset")?.toLongOrNull()
         return when {

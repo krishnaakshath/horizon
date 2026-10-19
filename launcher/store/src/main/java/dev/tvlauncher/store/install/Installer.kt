@@ -4,11 +4,14 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import dev.tvlauncher.store.core.InstallFallbackPolicy
+import dev.tvlauncher.store.core.ReceiverTokenPolicy
 import java.io.File
 import java.io.FileInputStream
 
@@ -25,6 +28,10 @@ object Installer {
     /** One install in flight at a time; [token] ties status broadcasts to the request that started them. */
     @Volatile var currentToken: String? = null
         private set
+    @Volatile var tokenIssuedAt: Long = 0L
+        private set
+    @Volatile var currentSessionId: Int = -1
+        private set
 
     /** Receives forwarded status broadcasts while the UI is alive (main thread). */
     interface Listener {
@@ -33,6 +40,10 @@ object Installer {
     }
 
     @Volatile var listener: Listener? = null
+
+    /** A session step failed; [stage] tells whether the legacy fallback may be tried. */
+    class StageFailure(val stage: InstallFallbackPolicy.Stage, cause: Throwable) :
+        Exception(cause.message ?: cause.javaClass.simpleName, cause)
 
     fun canRequestInstalls(context: Context): Boolean =
         Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls()
@@ -51,18 +62,23 @@ object Installer {
     }
 
     /**
-     * Streams [apk] into a new session and commits it. Returns the session id. Throws on failure (the session
-     * is abandoned). The caller deletes the file afterwards: the bytes are in the session by then.
+     * Streams [apk] into a new session and commits it. Returns the session id. Throws [StageFailure] (the
+     * session is abandoned). The caller deletes the file afterwards: the bytes are in the session by then.
      */
     fun commitSession(context: Context, apk: File, packageName: String, token: String): Int {
         val pi = context.packageManager.packageInstaller
-        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-        params.setAppPackageName(packageName)
-        params.setSize(apk.length())
-        if (Build.VERSION.SDK_INT >= 26) params.setInstallReason(PackageManager.INSTALL_REASON_USER)
-        if (Build.VERSION.SDK_INT >= 31) params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
-        val id = pi.createSession(params)
+        val id = try {
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            params.setAppPackageName(packageName)
+            params.setSize(apk.length())
+            if (Build.VERSION.SDK_INT >= 26) params.setInstallReason(PackageManager.INSTALL_REASON_USER)
+            if (Build.VERSION.SDK_INT >= 31) params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
+            pi.createSession(params)
+        } catch (e: Exception) {
+            throw StageFailure(InstallFallbackPolicy.Stage.CREATE_SESSION, e)
+        }
         var session: PackageInstaller.Session? = null
+        var stage = InstallFallbackPolicy.Stage.WRITE
         try {
             session = pi.openSession(id)
             FileInputStream(apk).use { input ->
@@ -76,7 +92,10 @@ object Installer {
                     session.fsync(out)
                 }
             }
+            stage = InstallFallbackPolicy.Stage.COMMIT
             currentToken = token
+            tokenIssuedAt = System.currentTimeMillis()
+            currentSessionId = id
             val intent = Intent(context, InstallStatusReceiver::class.java)
                 .setAction(ACTION_STATUS)
                 .setPackage(context.packageName)
@@ -91,30 +110,50 @@ object Installer {
         } catch (e: Exception) {
             try { session?.abandon() } catch (_: Exception) {}
             try { session?.close() } catch (_: Exception) {}
-            currentToken = null
-            throw e
+            try { pi.abandonSession(id) } catch (_: Exception) {}
+            clearToken()
+            throw StageFailure(stage, e)
         }
     }
+
+    /** Gives up on an install whose confirmation never resolved: abandon the session and forget the token. */
+    fun abandonCurrent(context: Context) {
+        val id = currentSessionId
+        clearToken()
+        if (id >= 0) try { context.packageManager.packageInstaller.abandonSession(id) } catch (_: Exception) {}
+    }
+
+    enum class FallbackResult { STARTED, NO_SYSTEM_INSTALLER, FAILED }
 
     /**
-     * Fallback for builds where PackageInstaller sessions are unavailable: the classic system installer UI
-     * via ACTION_VIEW and a read-only content URI from [ApkShareProvider] (cache/downloads only).
+     * Legacy path, used only when sessions are unsupported/forbidden (see [InstallFallbackPolicy]):
+     * ACTION_INSTALL_PACKAGE sent EXPLICITLY to the system package installer (MATCH_SYSTEM_ONLY + FLAG_SYSTEM),
+     * so no third-party app can receive the APK or the read grant. No system installer → don't install.
      */
-    fun viewIntentFallback(context: Context, apk: File): Boolean {
+    @Suppress("DEPRECATION")
+    fun systemInstallerFallback(context: Context, apk: File): FallbackResult {
         return try {
-            val uri = ApkShareProvider.uriFor(context, apk) ?: return false
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW)
-                    .setDataAndType(uri, ApkShareProvider.MIME_APK)
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
-            )
-            true
+            val uri = ApkShareProvider.uriFor(context, apk) ?: return FallbackResult.FAILED
+            val intent = Intent(Intent.ACTION_INSTALL_PACKAGE)
+                .setDataAndType(uri, ApkShareProvider.MIME_APK)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            val pm = context.packageManager
+            val candidates = pm.queryIntentActivities(intent, PackageManager.MATCH_SYSTEM_ONLY).map {
+                val ai = it.activityInfo.applicationInfo
+                InstallFallbackPolicy.Candidate(it.activityInfo.packageName, (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0)
+            }
+            val target = InstallFallbackPolicy.pickSystemInstaller(candidates) ?: return FallbackResult.NO_SYSTEM_INSTALLER
+            context.startActivity(intent.setPackage(target))
+            FallbackResult.STARTED
         } catch (_: Exception) {
-            false
+            FallbackResult.FAILED
         }
     }
 
-    internal fun clearToken() { currentToken = null }
+    internal fun clearToken() {
+        currentToken = null
+        currentSessionId = -1
+    }
 }
 
 /** Not exported: only our own PendingIntent (filled in by the system installer) can reach it. */
@@ -122,7 +161,7 @@ class InstallStatusReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Installer.ACTION_STATUS) return
         val token = intent.getStringExtra(Installer.EXTRA_TOKEN)
-        if (token == null || token != Installer.currentToken) return
+        if (!ReceiverTokenPolicy.accepts(token, Installer.currentToken, Installer.tokenIssuedAt, System.currentTimeMillis())) return
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
         val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
         val pkg = intent.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME)

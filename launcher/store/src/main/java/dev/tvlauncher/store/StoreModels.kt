@@ -3,6 +3,8 @@ package dev.tvlauncher.store
 import dev.tvlauncher.store.core.FdroidApp
 import dev.tvlauncher.store.core.GithubRelease
 import dev.tvlauncher.store.core.GithubRepoRef
+import dev.tvlauncher.store.core.DisplayText
+import dev.tvlauncher.store.core.HashExpectation
 import dev.tvlauncher.store.core.HostAllowlist
 import dev.tvlauncher.store.core.InstalledRecord
 import dev.tvlauncher.store.core.UrlPolicy
@@ -21,16 +23,23 @@ data class DownloadJob(
     val expectedPackage: String?,
     val expectedSigner: String?,
 ) {
-    /** Per-source rule applied to the first URL and every redirect hop. */
-    fun hopAllowed(u: String): Boolean = when (source) {
+    /**
+     * Per-source rule applied to the first URL (hop 0) and every redirect hop. GitHub: hop 0 must be exactly the
+     * repo-bound github.com release URL the parser validated; later hops only the documented asset storage hosts.
+     */
+    fun hopAllowed(u: String, hop: Int): Boolean = when (source) {
         InstalledRecord.Source.LINK -> UrlPolicy.check(u, maxLength = 8192) is UrlPolicy.Verdict.Allowed
         InstalledRecord.Source.FDROID -> HostAllowlist.isFdroidUrl(u)
-        InstalledRecord.Source.GITHUB -> HostAllowlist.isGithubAssetUrl(u)
+        InstalledRecord.Source.GITHUB ->
+            if (hop == 0) u == url && HostAllowlist.isGithubAssetUrl(u) else HostAllowlist.isGithubRedirectTarget(u)
     }
+
+    /** What the source published about the file hash (fail-closed when present but malformed). */
+    val published: HashExpectation get() = HashExpectation.of(expectedSha256)
 
     companion object {
         fun fromLink(url: String) = DownloadJob(
-            title = url.substringAfterLast('/').substringBefore('?').ifEmpty { "Download" }.take(60),
+            title = DisplayText.sanitize(url.substringBefore('?').substringBefore('#').substringAfterLast('/'), 60).ifEmpty { "Download" },
             url = url, source = InstalledRecord.Source.LINK, ref = url, releaseTag = null,
             expectedSha256 = null, declaredSize = -1, expectedPackage = null, expectedSigner = null,
         )
@@ -42,7 +51,7 @@ data class DownloadJob(
         )
 
         fun fromGithub(ref: GithubRepoRef, release: GithubRelease, asset: dev.tvlauncher.store.core.GithubAsset) = DownloadJob(
-            title = asset.name, url = asset.url, source = InstalledRecord.Source.GITHUB, ref = ref.slug,
+            title = DisplayText.sanitize(asset.name, 60), url = asset.url, source = InstalledRecord.Source.GITHUB, ref = ref.slug,
             releaseTag = release.tag, expectedSha256 = asset.sha256, declaredSize = asset.size,
             expectedPackage = null, expectedSigner = null,
         )

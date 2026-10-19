@@ -6,6 +6,7 @@ import dev.tvlauncher.store.core.FdroidApp
 import dev.tvlauncher.store.core.FdroidCatalogCodec
 import dev.tvlauncher.store.core.FdroidIndexParser
 import dev.tvlauncher.store.core.HostAllowlist
+import dev.tvlauncher.store.core.JsonGuardReader
 import dev.tvlauncher.store.net.AndroidJsonTokenSource
 import dev.tvlauncher.store.net.SecureHttp
 import java.io.BufferedInputStream
@@ -27,14 +28,13 @@ class FdroidRepository(private val files: StoreFiles, private val http: SecureHt
     fun refresh(isCancelled: () -> Boolean, onProgress: (done: Long, total: Long) -> Unit): FdroidCatalogCodec.Catalog {
         val conn = http.open(
             FdroidIndexParser.INDEX_URL,
-            hopAllowed = { HostAllowlist.isFdroidUrl(it) },
-            accept = "application/json",
-            allowGzip = true,
+            rule = { url, _ -> HostAllowlist.isFdroidUrl(url) },
+            headers = mapOf("Accept" to "application/json", "Accept-Encoding" to "gzip"),
         )
         try {
-            val total = conn.contentLengthLong
+            val total = conn.contentLength
             if (total > MAX_WIRE_BYTES) throw IOException("The F-Droid index is unexpectedly large.")
-            val wire = CountingStream(BufferedInputStream(conn.inputStream, 64 * 1024), MAX_WIRE_BYTES) { onProgress(it, total) }
+            val wire = CountingStream(BufferedInputStream(conn.body(), 64 * 1024), MAX_WIRE_BYTES) { onProgress(it, total) }
             val body: InputStream = if ("gzip".equals(conn.contentEncoding, ignoreCase = true)) GZIPInputStream(wire, 64 * 1024) else wire
             val json = CountingStream(body, MAX_JSON_BYTES) {}
             val config = FdroidIndexParser.Config(
@@ -42,7 +42,8 @@ class FdroidRepository(private val files: StoreFiles, private val http: SecureHt
                 sdkInt = Build.VERSION.SDK_INT,
                 curated = FdroidCatalogCodec.CURATED,
             )
-            val result = JsonReader(InputStreamReader(json, Charsets.UTF_8)).use { reader ->
+            // The guard aborts on any single string > 64 KB or nesting > 64 before JsonReader buffers it.
+            val result = JsonReader(JsonGuardReader(InputStreamReader(json, Charsets.UTF_8))).use { reader ->
                 FdroidIndexParser(config).parse(AndroidJsonTokenSource(reader), isCancelled)
             }
             if (result.error == "cancelled") throw IOException("Cancelled")
@@ -54,7 +55,7 @@ class FdroidRepository(private val files: StoreFiles, private val http: SecureHt
             files.write(CATALOG_FILE, text)
             return FdroidCatalogCodec.decode(text) ?: FdroidCatalogCodec.Catalog(now, result.apps)
         } finally {
-            conn.disconnect()
+            conn.close()
         }
     }
 
@@ -93,6 +94,7 @@ class FdroidRepository(private val files: StoreFiles, private val http: SecureHt
     companion object {
         const val CATALOG_FILE = "fdroid-catalog.json"
         private const val MAX_WIRE_BYTES = 120L * 1024 * 1024
-        private const val MAX_JSON_BYTES = 400L * 1024 * 1024
+        /** Decompressed JSON cap: the index is ~66 MB today (≈ 21 MB gzip); anything beyond 100 MB is refused. */
+        const val MAX_JSON_BYTES = 100L * 1024 * 1024
     }
 }

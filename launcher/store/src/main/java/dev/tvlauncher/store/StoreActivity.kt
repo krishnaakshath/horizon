@@ -22,6 +22,13 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import dev.tvlauncher.store.core.AbiPicker
+import dev.tvlauncher.store.core.ApkFetch
+import dev.tvlauncher.store.core.ComponentRisk
+import dev.tvlauncher.store.core.DisplayText
+import dev.tvlauncher.store.core.HashExpectation
+import dev.tvlauncher.store.core.InstallFallbackPolicy
+import dev.tvlauncher.store.core.InstalledState
+import dev.tvlauncher.store.core.ReceiverTokenPolicy
 import dev.tvlauncher.store.core.FdroidApp
 import dev.tvlauncher.store.core.FdroidCatalogCodec
 import dev.tvlauncher.store.core.Format
@@ -151,6 +158,13 @@ class StoreActivity : Activity(), Installer.Listener {
         generation++
         io.shutdownNow()
         discardPending()
+        if (installing != null && fallbackStartedAt == 0L) {
+            // Nobody is left to show the result: abandon the pending session and clean up.
+            installing = null
+            Installer.abandonCurrent(this)
+            ApkDownloader.cleanStale(this)
+        }
+        main.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
 
@@ -320,7 +334,7 @@ class StoreActivity : Activity(), Installer.Listener {
         if (history.isNotEmpty()) {
             body.addView(sectionTitle("Recent links"))
             for (url in history) {
-                body.addView(glass(text(url, 15f, Kit.TEXT), 18, 12) {
+                body.addView(glass(text(DisplayText.sanitize(url, DisplayText.URL), 15f, Kit.TEXT), 18, 12) {
                     field.setText(url)
                     field.setSelection(url.length)
                     go()
@@ -551,10 +565,10 @@ class StoreActivity : Activity(), Installer.Listener {
                 main.post {
                     if (gen != generation) return@post
                     if (installedTag != null && Format.sameRelease(installedTag, release.tag)) {
-                        showInfo("You're up to date", "${ref.slug} ${release.tag} is the latest release and it's what you installed.")
+                        showInfo("You're up to date", "${ref.slug} ${release.displayTag} is the latest release and it's what you installed.")
                         return@post
                     }
-                    val note = installedTag?.let { "New release ${release.tag} (you installed $it)." }
+                    val note = installedTag?.let { "New release ${release.displayTag} (you installed ${DisplayText.sanitize(it, DisplayText.TAG)})." }
                     modal = null
                     push(Screen.Release(ref, release, expectedPackage, note))
                 }
@@ -570,7 +584,7 @@ class StoreActivity : Activity(), Installer.Listener {
     private fun releaseScreen(s: Screen.Release): View {
         val body = vertical(this, 14)
         body.addView(text(s.ref.slug, 28f, Kit.TEXT, Kit.medium))
-        body.addView(text("Latest release: ${s.release.tag}" + if (s.release.name != s.release.tag) " — ${s.release.name}" else "",
+        body.addView(text("Latest release: ${s.release.displayTag}" + if (s.release.name != s.release.displayTag) " — ${s.release.name}" else "",
             16f, Kit.TEXT_2))
         s.note?.let { body.addView(callout(it, Kit.ACCENT, Kit.OK_BG)) }
         val ranked = AbiPicker.rank(s.release.apkAssets, Build.SUPPORTED_ABIS.toList()) { it.name }
@@ -587,7 +601,7 @@ class StoreActivity : Activity(), Installer.Listener {
             row.addView(iconTile(getDrawable(R.drawable.ic_release), 44))
             val mid = vertical(this, 4)
             val tr = horizontal(this, 8)
-            tr.addView(text(asset.name, 17f, Kit.TEXT, Kit.medium).apply { maxLines = 1 })
+            tr.addView(text(DisplayText.sanitize(asset.name, DisplayText.NAME), 17f, Kit.TEXT, Kit.medium).apply { maxLines = 1 })
             if (i == 0) tr.addView(chip("Best for this TV", Kit.ON_ACCENT, Kit.ACCENT))
             mid.addView(tr)
             mid.addView(text(
@@ -760,14 +774,16 @@ class StoreActivity : Activity(), Installer.Listener {
         discardPending()
         val gen = ++generation
         val cancel = AtomicBoolean(false).also { cancelFlag = it }
+        val check = if (job.published is HashExpectation.Sha256) "will be verified against the published checksum"
+        else "hashed while downloading (no checksum published)"
         val (view, bar, label) = progressView("Downloading ${job.title}",
-            hostOf(job.url)?.let { "From $it · secure https · checked while downloading" } ?: "") { abortDownload(cancel) }
+            hostOf(job.url)?.let { "From $it · secure https · $check" } ?: "") { abortDownload(cancel) }
         showModal(view) { abortDownload(cancel) }
         var lastUi = 0L
         io.execute {
-            var downloaded: ApkDownloader.Downloaded? = null
+            var downloaded: ApkFetch.Result? = null
             try {
-                val d = downloader.download(job.url, { job.hopAllowed(it) }, job.expectedSha256, job.declaredSize, { cancel.get() }) { done, total ->
+                val d = downloader.download(job.url, { u, hop -> job.hopAllowed(u, hop) }, job.published, job.declaredSize, { cancel.get() }) { done, total ->
                     val now = SystemClock.uptimeMillis()
                     if (now - lastUi > 150 || done == total) {
                         lastUi = now
@@ -820,7 +836,11 @@ class StoreActivity : Activity(), Installer.Listener {
         t.addView(text(ins.label, 28f, Kit.TEXT, Kit.medium).apply { maxLines = 2 })
         t.addView(text(f.packageName ?: "unknown package", 14f, Kit.TEXT_3, Kit.mono))
         val chips = horizontal(this, 8)
-        chips.addView(if (review.isUpdate) chip("Update", Kit.ACCENT_2, 0x265B8CFF) else chip("New install", Kit.TEXT_2, Kit.SURFACE_2))
+        chips.addView(when (review.installedState) {
+            InstalledState.INSTALLED -> chip("Update", Kit.ACCENT_2, 0x265B8CFF)
+            InstalledState.NOT_INSTALLED -> chip("New install", Kit.TEXT_2, Kit.SURFACE_2)
+            InstalledState.UNKNOWN -> chip("Install status unknown", Kit.WARN, Kit.WARN_BG)
+        })
         when (f.tvReady) {
             true -> chips.addView(chip("TV-ready", Kit.ACCENT, Kit.OK_BG))
             false -> chips.addView(chip("Not designed for TV", Kit.WARN, Kit.WARN_BG))
@@ -843,7 +863,11 @@ class StoreActivity : Activity(), Installer.Listener {
             installedVer?.let { "Installed now" to it },
             "Size" to Format.size(ins.fileSize),
             "SHA-256" to Sha256Stream.short(ins.sha256) + if (ins.hashVerified) "  ✓ matches source" else "",
-            "Signer" to (f.signers.firstOrNull()?.let { SignerCompare.shortFingerprint(it) } ?: "none"),
+            "Signer (current)" to when (f.signers.size) {
+                0 -> "none"
+                1 -> SignerCompare.shortFingerprint(f.signers.first())
+                else -> "${f.signers.size} signers: " + f.signers.joinToString(", ") { SignerCompare.shortFingerprint(it) }
+            },
             "From" to (hostOf(job.url) ?: job.url),
         )), lp())
 
@@ -861,9 +885,24 @@ class StoreActivity : Activity(), Installer.Listener {
 
         val perms = PermissionRisk.sort(f.permissions)
         val right = vertical(this, 8)
-        val sensitive = perms.count { PermissionRisk.isSensitive(it) }
-        right.addView(text(if (perms.isEmpty()) "Requests no permissions" else "Permissions (${perms.size})", 17f, Kit.TEXT, Kit.medium))
-        if (sensitive > 0) right.addView(text("▲ highlighted = sensitive ($sensitive)", 13f, Kit.WARN))
+        // Capabilities first (they never appear as permissions), then permissions riskiest-first.
+        right.addView(text(
+            if (review.sensitiveCount > 0) InstallReview.summary(review.sensitiveCount) else "No sensitive capabilities or permissions",
+            15f, if (review.sensitiveCount > 0) Kit.WARN else Kit.TEXT_2, Kit.medium,
+        ))
+        for (c in f.capabilities) {
+            val color = when (c.severity) {
+                ComponentRisk.Severity.HIGH -> Kit.DANGER
+                ComponentRisk.Severity.MEDIUM -> Kit.WARN
+                ComponentRisk.Severity.INFO -> Kit.TEXT_2
+            }
+            val r = vertical(this, 2)
+            r.addView(text("▲  " + c.text, 15f, if (c.severity == ComponentRisk.Severity.INFO) Kit.TEXT else color, Kit.medium))
+            r.addView(text("Declares a component protected by ${c.key}", 11f, Kit.TEXT_3, Kit.mono).apply { maxLines = 1; setPadding(dp(20), 0, 0, 0) })
+            right.addView(r, lp())
+        }
+        right.addView(text(if (perms.isEmpty()) "Requests no permissions" else "Permissions (${perms.size})", 17f, Kit.TEXT, Kit.medium)
+            .apply { setPadding(0, dp(6), 0, 0) })
         for (p in perms) {
             val level = PermissionRisk.classify(p)
             val color = when (level) {
@@ -935,19 +974,38 @@ class StoreActivity : Activity(), Installer.Listener {
             } catch (e: Throwable) {
                 main.post {
                     if (installing !== inst) { file.delete(); return@post }
-                    // Fallback: classic system installer UI through a read-only content URI.
-                    if (Installer.viewIntentFallback(this, file)) {
+                    val cause = (e as? Installer.StageFailure)?.cause ?: e
+                    val fallbackOk = e is Installer.StageFailure && InstallFallbackPolicy.allowed(e.stage, cause)
+                    val result = if (fallbackOk) Installer.systemInstallerFallback(this, file) else null
+                    if (result == Installer.FallbackResult.STARTED) {
                         fallbackStartedAt = SystemClock.uptimeMillis()
                     } else {
                         installing = null
                         file.delete()
-                        showError("Couldn't start the installer", describeError(e)) { modal = null; render() }
+                        if (result == Installer.FallbackResult.NO_SYSTEM_INSTALLER) {
+                            showError("No system installer found", "This TV has no system app installer Get Apps can hand the app to, so nothing was installed.") { modal = null; render() }
+                        } else {
+                            showError("Couldn't start the installer", describeError(cause)) { modal = null; render() }
+                        }
                     }
                 }
                 return@execute
             }
             file.delete() // the bytes now live in the system's session
+            main.post { scheduleInstallTimeout(inst) }
         }
+    }
+
+    /** If Android's confirmation never resolves, give up after 10 minutes: abandon the session, clean up. */
+    private fun scheduleInstallTimeout(inst: Installing) {
+        main.postDelayed({
+            if (installing === inst) {
+                installing = null
+                Installer.abandonCurrent(this)
+                ApkDownloader.cleanStale(this)
+                if (!isDestroyed) showInfo("Install didn't finish", "Android's confirmation wasn't answered, so the install was cancelled. You can try again any time.")
+            }
+        }, ReceiverTokenPolicy.MAX_PENDING_MILLIS)
     }
 
     /** Status from the system installer (main thread). */
