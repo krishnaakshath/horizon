@@ -189,6 +189,7 @@ class HomeActivity : Activity() {
     }
 
     override fun onDestroy() {
+        tileMenu.dismiss()
         repo.unregister()
         loader.shutdownNow()
         super.onDestroy()

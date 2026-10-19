@@ -12,6 +12,17 @@ object SettingsEdits {
 
     fun moveRight(s: LauncherSettings, pkg: String, current: List<String>) = move(s, pkg, current, 1)
 
+    fun canMoveLeft(s: LauncherSettings, pkg: String, current: List<String>) = canMove(s, pkg, current, -1)
+
+    fun canMoveRight(s: LauncherSettings, pkg: String, current: List<String>) = canMove(s, pkg, current, 1)
+
+    private fun canMove(s: LauncherSettings, pkg: String, current: List<String>, delta: Int): Boolean {
+        val i = current.indexOf(pkg)
+        val j = i + delta
+        if (i < 0 || j !in current.indices) return false
+        return (pkg in s.favorites) == (current[j] in s.favorites)
+    }
+
     fun hide(s: LauncherSettings, pkg: String, current: List<String>): LauncherSettings =
         s.copy(hidden = s.hidden + pkg, favorites = s.favorites - pkg, order = s.order - pkg)
 

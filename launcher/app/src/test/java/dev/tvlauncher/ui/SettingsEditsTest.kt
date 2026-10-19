@@ -3,6 +3,7 @@ package dev.tvlauncher.ui
 import dev.tvlauncher.settings.LauncherSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SettingsEditsTest {
@@ -35,5 +36,36 @@ class SettingsEditsTest {
         assertEquals(setOf("a"), s.hidden)
         assertEquals(listOf("b"), s.favorites)
         assertFalse("a" in s.order)
+    }
+
+    @Test
+    fun canMoveLeft_false_atStart() {
+        assertFalse(SettingsEdits.canMoveLeft(LauncherSettings(), "a", cur))
+    }
+
+    @Test
+    fun canMoveRight_false_atEnd() {
+        assertFalse(SettingsEdits.canMoveRight(LauncherSettings(), "c", cur))
+    }
+
+    @Test
+    fun canMoveRight_false_whenNeighbourIsInOtherGroup() {
+        val s = LauncherSettings(favorites = listOf("a"))
+        assertFalse(SettingsEdits.canMoveRight(s, "a", cur))
+        assertFalse(SettingsEdits.canMoveLeft(s, "b", cur))
+    }
+
+    @Test
+    fun canMove_true_withinSameGroup() {
+        val s = LauncherSettings(favorites = listOf("a", "b"))
+        assertTrue(SettingsEdits.canMoveRight(s, "a", cur))
+        assertTrue(SettingsEdits.canMoveLeft(s, "b", cur))
+        assertTrue(SettingsEdits.canMoveRight(LauncherSettings(), "a", cur))
+    }
+
+    @Test
+    fun canMove_false_whenPackageMissing() {
+        assertFalse(SettingsEdits.canMoveLeft(LauncherSettings(), "zzz", cur))
+        assertFalse(SettingsEdits.canMoveRight(LauncherSettings(), "zzz", cur))
     }
 }
