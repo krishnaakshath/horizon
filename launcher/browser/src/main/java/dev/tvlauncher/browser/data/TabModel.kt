@@ -66,6 +66,16 @@ class TabModel(val max: Int = 3) {
     }
 
     companion object {
+        /** A model holding exactly [tabs] (at least one), with [active] clamped. */
+        fun of(tabs: List<Tab>, active: Int): TabModel {
+            val m = TabModel()
+            if (tabs.isEmpty()) return m
+            m.list.clear(); m.list.addAll(tabs.take(m.max))
+            m.nextId = (m.list.maxOf { it.id }) + 1
+            m.activeIndex = active.coerceIn(0, m.list.size - 1)
+            return m
+        }
+
         /** Tolerant: bad URLs become start-page tabs, extra tabs dropped, active clamped. */
         fun decode(json: String?): TabModel {
             val m = TabModel()

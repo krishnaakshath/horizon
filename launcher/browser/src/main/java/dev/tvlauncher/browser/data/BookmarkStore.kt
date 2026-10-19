@@ -26,6 +26,12 @@ class BookmarkStore(private val file: File, defaults: List<Bookmark>, private va
         return true
     }
 
+    /** Replaces everything with [items] (e.g. defaults after "Clear everything"). */
+    fun reset(items: List<Bookmark>) {
+        list.clear()
+        items.filter { UrlPolicy.isStorable(it.url) }.distinctBy { it.url }.take(max).forEach { list.add(it) }
+    }
+
     fun remove(url: String): Boolean = list.removeAll { it.url == url }
     fun contains(url: String): Boolean = list.any { it.url == url }
 

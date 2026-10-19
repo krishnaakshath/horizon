@@ -13,14 +13,5 @@ internal object JsonFiles {
         ""
     }
 
-    fun writeAtomic(file: File, text: String) {
-        try {
-            file.parentFile?.mkdirs()
-            val tmp = File(file.parentFile, file.name + ".tmp")
-            tmp.writeText(text)
-            if (!tmp.renameTo(file)) { file.delete(); tmp.renameTo(file) }
-        } catch (e: Exception) {
-            // Best effort: a failed write keeps the previous file.
-        }
-    }
+    fun writeAtomic(file: File, text: String) = AtomicText.write(FileOps.Real, file, text)
 }
