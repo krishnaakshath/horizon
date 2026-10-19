@@ -1,6 +1,17 @@
 package dev.tvlauncher.weather
 
-data class DailyForecast(val dayMs: Long, val code: Int, val highC: Double, val lowC: Double)
+/**
+ * One forecast day. [sunriseMs]/[sunsetMs]: epoch ms, both or neither; null for polar day/night,
+ * when Open-Meteo sent none, or for data stored by an older version.
+ */
+data class DailyForecast(
+    val dayMs: Long,
+    val code: Int,
+    val highC: Double,
+    val lowC: Double,
+    val sunriseMs: Long? = null,
+    val sunsetMs: Long? = null,
+)
 
 data class WeatherSnapshot(
     val tempC: Double,

@@ -48,4 +48,27 @@ class StateCodecTest {
         assertEquals(0.0, s.windKmh, 0.0)
         assertNull(s.highC)
     }
+
+    @Test fun sunTimesRoundTrip() {
+        val s = WeatherState(place, "C", snap.copy(daily = listOf(
+            DailyForecast(1000L, 3, 11.0, 2.0, 5_000L, 40_000L), DailyForecast(2000L, 3, 11.0, 2.0))))
+        assertEquals(s, StateCodec.decode(StateCodec.encode(s)))
+    }
+
+    @Test fun stateFromBeforeSunTimesStillDecodes() {
+        val old = """{"unit":"C","place":{"name":"Berlin","admin1":null,"country":null,"lat":52.5,"lon":13.4},
+          "snapshot":{"tempC":5,"code":1,"updatedMs":9,"daily":[{"dayMs":1000,"code":3,"highC":7,"lowC":1}]}}"""
+        val d = StateCodec.decode(old).snapshot!!.daily.single()
+        assertNull(d.sunriseMs)
+        assertNull(d.sunsetMs)
+    }
+
+    @Test fun inconsistentStoredSunIsDropped() {
+        val j = """{"snapshot":{"tempC":5,"code":1,"updatedMs":9,"daily":[
+          {"dayMs":1000,"code":3,"highC":7,"lowC":1,"sunriseMs":9000,"sunsetMs":2000},
+          {"dayMs":2000,"code":3,"highC":7,"lowC":1,"sunriseMs":9000}]}}"""
+        val days = StateCodec.decode(j).snapshot!!.daily
+        assertEquals(2, days.size)
+        days.forEach { assertNull(it.sunriseMs); assertNull(it.sunsetMs) }
+    }
 }

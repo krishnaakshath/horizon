@@ -27,6 +27,9 @@ object StateCodec {
                         put(JSONObject().apply {
                             put("dayMs", d.dayMs); put("code", d.code)
                             put("highC", d.highC); put("lowC", d.lowC)
+                            if (SunParser.validStored(d.sunriseMs, d.sunsetMs)) {
+                                put("sunriseMs", d.sunriseMs); put("sunsetMs", d.sunsetMs)
+                            }
                         })
                     }
                 })
@@ -66,7 +69,11 @@ object StateCodec {
             val c = JsonUtil.num(d, "code")?.toInt() ?: continue
             val hi = JsonUtil.temp(d.opt("highC")) ?: continue
             val lo = JsonUtil.temp(d.opt("lowC")) ?: continue
-            daily += DailyForecast(day, c, hi, lo)
+            // Absent in states saved before sun times existed; both or neither.
+            val rise = (d.opt("sunriseMs") as? Number)?.toLong()
+            val set = (d.opt("sunsetMs") as? Number)?.toLong()
+            daily += if (SunParser.validStored(rise, set)) DailyForecast(day, c, hi, lo, rise, set)
+            else DailyForecast(day, c, hi, lo)
         }
         return WeatherSnapshot(
             tempC = temp, feelsC = JsonUtil.temp(o.opt("feelsC")) ?: temp, code = code,

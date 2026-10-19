@@ -18,7 +18,7 @@ object OpenMeteoClient {
     internal fun forecastUrl(lat: Double, lon: Double): String =
         "https://api.open-meteo.com/v1/forecast?latitude=${coord(lat)}&longitude=${coord(lon)}" +
             "&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,is_day" +
-            "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
+            "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset" +
             "&timezone=auto&forecast_days=5&wind_speed_unit=kmh"
 
     const val MAX_QUERY_CHARS = 64
