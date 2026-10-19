@@ -111,7 +111,9 @@ class StoreActivity : Activity(), Installer.Listener {
     private var pendingFile: File? = null
     private var pendingJob: DownloadJob? = null
     private var pendingInspected: Inspected? = null
-    private var awaitingSystem = false
+    /** The install handed to Android, kept apart from [pendingFile] so a late result is attributed correctly. */
+    private class Installing(val file: File, val inspected: Inspected, val job: DownloadJob)
+    private var installing: Installing? = null
     private var fallbackStartedAt = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -148,7 +150,7 @@ class StoreActivity : Activity(), Installer.Listener {
         cancelFlag.set(true)
         generation++
         io.shutdownNow()
-        if (!awaitingSystem) discardPending()
+        discardPending()
         super.onDestroy()
     }
 
@@ -358,23 +360,27 @@ class StoreActivity : Activity(), Installer.Listener {
         })
         body.addView(search, lp())
         body.addView(results, lp())
-        fillFdroidResults(results)
-        val first = results.getChildAt(0)
-        (first ?: search).primaryFocus()
+        if (!fillFdroidResults(results)) search.primaryFocus()
         return page("F-Droid", body)
     }
 
-    private fun fillFdroidResults(results: LinearLayout) {
+    /** Fills the result rows; true when at least one (focusable) row was added and tagged for first focus. */
+    private fun fillFdroidResults(results: LinearLayout): Boolean {
         results.removeAllViews()
-        val apps = catalog?.apps ?: return
+        val apps = catalog?.apps ?: return false
         val q = fdroidQuery
         results.addView(sectionTitle(if (q.isBlank()) "TV picks" else "Results for “${q.trim()}”"))
         val hits = FdroidCatalogCodec.search(apps, q)
         if (hits.isEmpty()) {
             results.addView(statusLine("No compatible F-Droid app matches. Try another word or a package id."))
-            return
+            return false
         }
-        for (app in hits) results.addView(appRow(app) { push(Screen.FdroidDetail(app)) }, lp())
+        hits.forEachIndexed { i, app ->
+            val row = appRow(app) { push(Screen.FdroidDetail(app)) }
+            if (i == 0) row.primaryFocus()
+            results.addView(row, lp())
+        }
+        return true
     }
 
     private fun appRow(app: FdroidApp, onClick: () -> Unit): View {
@@ -907,36 +913,40 @@ class StoreActivity : Activity(), Installer.Listener {
     private fun confirmInstall() {
         val file = pendingFile ?: return
         val ins = pendingInspected ?: return
+        val job = pendingJob ?: return
         val pkg = ins.facts.packageName ?: return
         if (!InstallReview.evaluate(ins.facts).canInstall) return
-        if (!Installer.canRequestInstalls(this)) { pendingJob?.let { push(Screen.Permission(it)) }; discardPending(); return }
-        val gen = ++generation
+        if (!Installer.canRequestInstalls(this)) { discardPending(); push(Screen.Permission(job)); return }
+        pendingFile = null
+        pendingInspected = null
+        pendingJob = null
+        val inst = Installing(file, ins, job)
+        installing = inst
         // Hiding this screen doesn't cancel anything: a late result from Android is still shown and recorded.
         val (view, bar, _) = progressView("Installing ${ins.label}", "Handing the app to Android's installer. Confirm on the next screen.") {
             modal = null; render()
         }
         bar.progress = -1f
         showModal(view) { modal = null; render() }
-        awaitingSystem = true
         val token = UUID.randomUUID().toString()
         io.execute {
             try {
                 Installer.commitSession(this, file, pkg, token)
-                file.delete() // the bytes now live in the system's session
-                main.post { if (gen == generation) pendingFile = null }
             } catch (e: Throwable) {
                 main.post {
-                    if (gen != generation) return@post
+                    if (installing !== inst) { file.delete(); return@post }
                     // Fallback: classic system installer UI through a read-only content URI.
                     if (Installer.viewIntentFallback(this, file)) {
                         fallbackStartedAt = SystemClock.uptimeMillis()
                     } else {
-                        awaitingSystem = false
-                        discardPending()
+                        installing = null
+                        file.delete()
                         showError("Couldn't start the installer", describeError(e)) { modal = null; render() }
                     }
                 }
+                return@execute
             }
+            file.delete() // the bytes now live in the system's session
         }
     }
 
@@ -946,15 +956,15 @@ class StoreActivity : Activity(), Installer.Listener {
             if (confirm == null) return false
             return try { startActivity(confirm); true } catch (_: Exception) { false }
         }
-        awaitingSystem = false
+        val inst = installing
+        installing = null
+        inst?.file?.delete()
+        val ins = inst?.inspected
         val outcome = InstallStatusMapper.map(status, message)
-        val ins = pendingInspected
-        val job = pendingJob
-        discardPending()
         when (outcome.kind) {
             InstallStatusMapper.Kind.SUCCESS -> {
                 val pkg = packageName ?: ins?.facts?.packageName
-                if (pkg != null && job != null) recordInstall(pkg, ins?.label ?: pkg, job, ins?.facts?.versionCode ?: 0)
+                if (pkg != null && inst != null) recordInstall(pkg, ins?.label ?: pkg, inst.job, ins?.facts?.versionCode ?: 0)
                 showSuccess(ins?.label ?: pkg ?: "App", pkg)
             }
             InstallStatusMapper.Kind.CANCELLED -> { modal = null; render() }
@@ -973,14 +983,14 @@ class StoreActivity : Activity(), Installer.Listener {
         // Called when we come back from the classic installer UI (ACTION_VIEW fallback).
         if (SystemClock.uptimeMillis() - fallbackStartedAt < 500) return
         fallbackStartedAt = 0
-        awaitingSystem = false
-        val ins = pendingInspected
-        val job = pendingJob
-        val pkg = ins?.facts?.packageName
-        discardPending()
-        val now = pkg?.let { inspector.installedInfo(it) }
-        if (pkg != null && now != null && ApkInspector.versionCodeOf(now) == ins.facts.versionCode && job != null) {
-            recordInstall(pkg, ins.label, job, ins.facts.versionCode)
+        val inst = installing ?: return
+        installing = null
+        inst.file.delete()
+        val ins = inst.inspected
+        val pkg = ins.facts.packageName ?: return
+        val now = inspector.installedInfo(pkg)
+        if (now != null && ApkInspector.versionCodeOf(now) == ins.facts.versionCode) {
+            recordInstall(pkg, ins.label, inst.job, ins.facts.versionCode)
             showSuccess(ins.label, pkg)
         } else {
             showInfo("Not installed", "The installer closed without installing the app. You can try again any time.")
