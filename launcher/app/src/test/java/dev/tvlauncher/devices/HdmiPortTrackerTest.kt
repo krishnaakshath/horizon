@@ -1,6 +1,7 @@
 package dev.tvlauncher.devices
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -101,11 +102,13 @@ class HdmiPortTrackerTest {
         assertEquals("Xbox Series X", u.device.name); assertEquals("PlayStation 5", u.previous.name)
     }
 
-    @Test fun compositePort_keepsLabel() {
+    @Test fun analogPorts_withoutDetection_neverCountAsConnected() {
         val t = tracker()
-        t.update(listOf(InputSnapshot("av1", null, "AV 1", 1001, 0)), emit = false)
-        assertEquals(DeviceKind.COMPOSITE_AV, t.devices().single().kind)
-        assertEquals("AV 1", t.devices().single().name)
+        // The TV reports AV/component ports "connected" whether or not a cable is in.
+        t.update(listOf(InputSnapshot("av1", null, "AV 1", 1001, 0), InputSnapshot("yp1", null, "Component", 1004, 0)), emit = false)
+        assertTrue(t.devices().isEmpty())
+        assertTrue(HdmiPortTracker.undetectable(1001))
+        assertFalse(HdmiPortTracker.undetectable(1007))
     }
 }
 

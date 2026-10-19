@@ -5,7 +5,6 @@ import dev.tvlauncher.appsettings.ModuleSections
 import dev.tvlauncher.appsettings.SettingsRegistry
 import dev.tvlauncher.home.WaveTwoSections
 import dev.tvlauncher.power.PowerOn
-import dev.tvlauncher.power.PowerOnSection
 import dev.tvlauncher.safemode.SafeMode
 import dev.tvlauncher.spotlight.SpotlightSection
 import dev.tvlauncher.ui.Theme
@@ -38,10 +37,6 @@ class LauncherApp : Application() {
             // Settings then shows the placeholders; the home screen is unaffected.
         }
         try {
-            PowerOnSection.register() // Settings > System > Power on
-        } catch (e: Throwable) {
-        }
-        try {
             WaveTwoSections.registerAll()
         } catch (e: Throwable) {
             // Same: the wave-2 pages stay placeholders or absent.
@@ -55,6 +50,13 @@ class LauncherApp : Application() {
             SettingsRegistry.register(SpotlightSection) // Settings > Home > Spotlight
         } catch (e: Throwable) {
             // Spotlight keeps its defaults; only the page is missing.
+        }
+        try {
+            // Launcher-owned system pages that are not built in (Devices, Accessibility,
+            // Parental controls, Apps); last, so they take their placeholders' slots.
+            dev.tvlauncher.system.SystemSections.registerAll()
+        } catch (e: Throwable) {
+            // Devices keeps its placeholder; the other pages are missing this run.
         }
     }
 }

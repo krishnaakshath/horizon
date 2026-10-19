@@ -29,7 +29,9 @@ data class WifiNetworkModel(
     val frequencyMhz: Int,
     val security: WifiSecurity,
     val hidden: Boolean,
-    val connected: Boolean = false
+    val connected: Boolean = false,
+    /** Saved on this TV (the launcher can rejoin it without a password). */
+    val saved: Boolean = false
 ) {
     val band: WifiBand get() = bandOf(frequencyMhz)
     val signalLevel: Int get() = levelOf(levelDbm)
@@ -78,9 +80,15 @@ object WifiListBuilder {
 
     /**
      * One entry per SSID (strongest wins, but the connected BSSID's entry wins over a stronger
-     * sibling), all hidden networks collapsed into one, connected first, rest by signal.
+     * sibling), all hidden networks collapsed into one, connected first, then networks saved on
+     * this TV ([saved], unquoted SSIDs), then the rest by signal.
      */
-    fun build(results: List<RawScan>, connectedBssid: String?, connectedSsid: String?): List<WifiNetworkModel> {
+    fun build(
+        results: List<RawScan>,
+        connectedBssid: String?,
+        connectedSsid: String?,
+        saved: Set<String> = emptySet()
+    ): List<WifiNetworkModel> {
         val cb = connectedBssid?.lowercase()
         val cs = connectedSsid?.takeUnless { isHidden(it) }
         val byKey = LinkedHashMap<String, RawScan>()
@@ -101,10 +109,15 @@ object WifiListBuilder {
                 frequencyMhz = r.frequencyMhz,
                 security = WifiNetworkModel.securityOf(r.capabilities),
                 hidden = hidden,
-                connected = isConn
+                connected = isConn,
+                saved = !hidden && r.ssid in saved
             )
         }
-        return models.sortedWith(compareByDescending<WifiNetworkModel> { it.connected }.thenByDescending { it.levelDbm })
+        return models.sortedWith(
+            compareByDescending<WifiNetworkModel> { it.connected }
+                .thenByDescending { it.saved }
+                .thenByDescending { it.levelDbm }
+        )
     }
 
     private fun better(a: RawScan, b: RawScan, connectedBssid: String?): Boolean {

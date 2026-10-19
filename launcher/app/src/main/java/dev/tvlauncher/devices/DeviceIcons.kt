@@ -21,7 +21,8 @@ object DeviceIcons {
         DeviceKind.BT_HEADPHONES -> R.drawable.ic_dev_headphones
         DeviceKind.BT_SPEAKER -> R.drawable.ic_dev_speaker
         DeviceKind.PHONE_CAST -> R.drawable.ic_dev_phonecast
-        DeviceKind.NETWORK_ETHERNET, DeviceKind.NETWORK_WIFI -> R.drawable.ic_dev_ethernet
+        DeviceKind.NETWORK_ETHERNET -> R.drawable.ic_dev_ethernet
+        DeviceKind.NETWORK_WIFI -> R.drawable.ic_sc_wifi
         DeviceKind.BT_OTHER, DeviceKind.UNKNOWN -> R.drawable.ic_dev_generic
     }
 }

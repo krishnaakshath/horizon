@@ -2,7 +2,6 @@ package dev.tvlauncher.home
 
 import android.content.Context
 import android.view.View
-import android.widget.FrameLayout
 import android.widget.ScrollView
 import dev.tvlauncher.R
 import dev.tvlauncher.ambient.AmbientSettingsRows
@@ -12,7 +11,6 @@ import dev.tvlauncher.ambient.WallpaperSettings
 import dev.tvlauncher.ambient.WallpaperStore
 import dev.tvlauncher.ambient.WeatherCompanion
 import dev.tvlauncher.ambient.WeatherContract
-import dev.tvlauncher.appsettings.ModulePlaceholderSection
 import dev.tvlauncher.appsettings.PageSpec
 import dev.tvlauncher.appsettings.RowKind
 import dev.tvlauncher.appsettings.SettingsGroup
@@ -21,8 +19,6 @@ import dev.tvlauncher.appsettings.SettingsPage
 import dev.tvlauncher.appsettings.SettingsRegistry
 import dev.tvlauncher.appsettings.SettingsSection
 import dev.tvlauncher.appsettings.SpecifiedPage
-import dev.tvlauncher.devices.DeviceMonitor
-import dev.tvlauncher.devices.DevicesPanel
 import dev.tvlauncher.discover.DiscoverSettingsRows
 import dev.tvlauncher.discover.DiscoverStore
 import dev.tvlauncher.discover.GetAppsLink
@@ -36,8 +32,9 @@ import dev.tvlauncher.ui.SystemActions
 
 /**
  * Settings pages of the wave-2 modules, registered through the existing [SettingsRegistry] hook
- * (LauncherApp.onCreate calls [registerAll]): "Ambient" and "Home screen" (new ids) and "Devices"
- * (takes the placeholder's slot). Rows are built from the modules' declarative models.
+ * (LauncherApp.onCreate calls [registerAll]): "Ambient" and "Home screen" (new ids). "Devices" is
+ * the launcher's own page (dev.tvlauncher.system.SystemSections). Rows are built from the modules'
+ * declarative models.
  */
 object WaveTwoSections {
     const val AMBIENT_ID = "ambient"
@@ -48,7 +45,6 @@ object WaveTwoSections {
 
     fun registerAll(registry: SettingsRegistry = SettingsRegistry.shared) {
         registry.register(AmbientSection)
-        registry.register(DevicesSection)
         registry.register(HomeExtrasSection)
         registry.register(RoomSection)
     }
@@ -173,34 +169,6 @@ object AmbientSection : SettingsSection, SpecifiedPage {
             adv.note(WaveTwoSections.SCREENSAVER_NOTE, maxLines = 3)
         }
         return page
-    }
-}
-
-/** Settings > Devices: the live [DevicesPanel] fed by its own [DeviceMonitor] while the page is shown. */
-object DevicesSection : SettingsSection {
-    override val id = ModulePlaceholderSection.DEVICES
-    override val title = "Devices"
-    override val iconRes = R.drawable.ic_set_devices
-    override val group = SettingsGroup.CONNECTIONS
-
-    override fun buildPage(context: Context, nav: SettingsNav): View {
-        val panel = DevicesPanel(context)
-        // A failed switch shows inline in the list.
-        val monitor = DeviceMonitor(context) { } // the list only; cards belong to the home screen
-        return object : FrameLayout(context) {
-            override fun onAttachedToWindow() {
-                super.onAttachedToWindow()
-                monitor.onChanged = { panel.setDevices(monitor.devices()) }
-                monitor.start()
-                panel.setDevices(monitor.devices())
-            }
-
-            override fun onDetachedFromWindow() {
-                monitor.onChanged = null
-                monitor.stop()
-                super.onDetachedFromWindow()
-            }
-        }.apply { addView(panel, FrameLayout.LayoutParams(-1, -1)) }
     }
 }
 

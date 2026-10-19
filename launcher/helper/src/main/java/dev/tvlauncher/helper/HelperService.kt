@@ -1,7 +1,10 @@
 package dev.tvlauncher.helper
 
 import android.accessibilityservice.AccessibilityService
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
@@ -10,10 +13,12 @@ class HelperService : AccessibilityService() {
     private var machine: KeyStateMachine? = null
     private var foreground: String? = null
     @Volatile private var lastUserKeyAt = -1L
+    private var actions: BroadcastReceiver? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         current = this
+        registerActions()
         val prefs = HelperPrefs(this)
         machine = KeyStateMachine(
             now = { SystemClock.uptimeMillis() },
@@ -42,6 +47,8 @@ class HelperService : AccessibilityService() {
 
     override fun onDestroy() {
         if (current === this) current = null
+        actions?.let { try { unregisterReceiver(it) } catch (e: Exception) { } }
+        actions = null
         super.onDestroy()
     }
 
@@ -49,6 +56,27 @@ class HelperService : AccessibilityService() {
     fun homeAfterPowerOn(): Boolean {
         if (!PowerOnGate.allow(foreground, lastUserKeyAt, SystemClock.uptimeMillis())) return false
         return performGlobalAction(GLOBAL_ACTION_HOME)
+    }
+
+    /**
+     * The launcher's Power page asks for the TV's power menu here (apps cannot open it themselves).
+     * Only senders holding the signature permission (the launcher) reach this receiver.
+     */
+    private fun registerActions() {
+        if (actions != null) return
+        val r = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, i: Intent?) {
+                if (i?.action == ACTION_POWER_MENU) {
+                    try { performGlobalAction(GLOBAL_ACTION_POWER_DIALOG) } catch (e: Exception) { }
+                }
+            }
+        }
+        try {
+            registerReceiver(r, IntentFilter(ACTION_POWER_MENU), PERMISSION, null)
+            actions = r
+        } catch (e: Exception) {
+            // No power menu from the launcher this session.
+        }
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
@@ -81,6 +109,9 @@ class HelperService : AccessibilityService() {
         @Volatile
         var current: HelperService? = null
             private set
+
+        const val ACTION_POWER_MENU = "dev.tvlauncher.helper.action.POWER_MENU"
+        const val PERMISSION = "dev.tvlauncher.permission.HELPER_ACTIONS"
     }
 
     private fun openSpotlight() {
@@ -94,4 +125,5 @@ class HelperService : AccessibilityService() {
             // Launcher missing or not handling the action: do nothing.
         }
     }
+
 }

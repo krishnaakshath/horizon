@@ -8,17 +8,22 @@ import dev.tvlauncher.panel.Trailing
 
 /**
  * Pure content of the Wi-Fi panel: the header names the current connection and its signal; rows
- * are the Wi-Fi switch, the connected network, nearby networks (signal icon, lock when secured),
- * "Search again" and, always last, the TV's Wi-Fi settings (apps targeting API 29+ cannot join or
- * toggle Wi-Fi, so connecting happens there). Empty, loading and permission states are one-line
- * messages.
+ * are the Wi-Fi switch, the connected network, saved networks, nearby networks (signal icon, lock
+ * when secured), "Search again" and "Add hidden network". OK on a network opens [detail]
+ * (details, Connect, Reconnect, Forget). Everything happens in the launcher (legacy WifiManager,
+ * targetSdk 28); the only screen left to the TV is the device-wide Location switch.
  */
 object WifiPanelModel {
     const val KEY_TOGGLE = "act:toggle"
     const val KEY_SCAN = "act:scan"
-    const val KEY_SETTINGS = "act:settings"
     const val KEY_LOCATION = "act:location"
     const val KEY_ALLOW_LOCATION = "act:allowLocation"
+    const val KEY_HIDDEN = "act:hidden"
+    const val KEY_CONNECT = "act:connect"
+    const val KEY_RECONNECT = "act:reconnect"
+    const val KEY_FORGET = "act:forget"
+    const val KEY_ETHERNET = "info:ethernet"
+    const val INFO = "info:"
     /** Nearby networks listed at most (the strongest; the connected one always stays). */
     const val MAX_NETWORKS = 15
 
@@ -38,31 +43,39 @@ object WifiPanelModel {
         }
     }
 
-    fun build(s: WifiSnapshot): PanelContent {
-        val models = WifiListBuilder.build(s.scans, s.connection.bssid, s.connection.ssid)
+    fun models(s: WifiSnapshot): List<WifiNetworkModel> =
+        WifiListBuilder.build(s.scans, s.connection.bssid, s.connection.ssid, s.saved.keys)
+
+    /** [notice] is one line from the last action ("Wrong password", ...); [joining] the SSID being joined. */
+    fun build(s: WifiSnapshot, notice: String? = null, joining: String? = null): PanelContent {
+        val models = models(s)
         val content = NetworkPanelState.wifi(s.hasLocationPermission, s.locationEnabled, s.wifiEnabled, s.scanning, models.size)
         val e = ArrayList<PanelEntry>()
         e += PanelEntry.Row(KEY_TOGGLE, NetIcons.forWifiLevel(4, s.wifiEnabled), "Wi-Fi", trailing = Trailing.Switch(s.wifiEnabled))
+        notice?.let { e += PanelEntry.Message("msg:notice", it) }
+        if (s.connection.kind == WifiConnection.Kind.ETHERNET) {
+            e += PanelEntry.Row(KEY_ETHERNET, R.drawable.ic_net_ethernet, "Ethernet", value = s.connection.ip ?: "Connected")
+        }
         when (content) {
             WifiContent.PERMISSION_MISSING -> {
                 e += PanelEntry.Message("msg:permission", dev.tvlauncher.setup.SetupCopy.LOCATION_NEEDED)
                 e += allowLocationRow()
             }
             WifiContent.LOCATION_OFF -> {
-                e += PanelEntry.Message("msg:location", "Turn on Location to see nearby networks.")
-                e += PanelEntry.Row(KEY_LOCATION, R.drawable.ic_settings, "Location settings", trailing = Trailing.Chevron)
+                e += PanelEntry.Message("msg:location", "Location is off, so the TV can't list networks.")
+                e += PanelEntry.Row(KEY_LOCATION, R.drawable.ic_settings, "Location", value = "TV settings", trailing = Trailing.Chevron)
             }
-            WifiContent.WIFI_OFF -> e += PanelEntry.Message("msg:off", "Wi-Fi is off. Turn it on in Wi-Fi settings.")
+            WifiContent.WIFI_OFF -> e += PanelEntry.Message("msg:off", "Wi-Fi is off.")
             WifiContent.SCANNING -> e += PanelEntry.Message("msg:scanning", "Looking for networks…", busy = true)
             WifiContent.EMPTY -> e += PanelEntry.Message("msg:empty", "No networks found nearby.")
-            WifiContent.LIST -> networks(models).mapTo(e) { networkRow(it) }
+            WifiContent.LIST -> networks(models).mapTo(e) { networkRow(it, joining) }
         }
         if (s.hasLocationPermission && s.wifiEnabled && content != WifiContent.SCANNING && content != WifiContent.LOCATION_OFF) {
             e += PanelEntry.Row(KEY_SCAN, R.drawable.ic_net_refresh, "Search again",
                 value = if (!s.scanning && s.throttledSeconds > 0) "Wait ${s.throttledSeconds} s" else null,
                 trailing = if (s.scanning) Trailing.Busy else Trailing.None)
         }
-        e += PanelEntry.Row(KEY_SETTINGS, R.drawable.ic_settings, "Wi-Fi settings", value = "Connect", trailing = Trailing.Chevron)
+        if (s.wifiEnabled) e += PanelEntry.Row(KEY_HIDDEN, R.drawable.ic_net_lock, "Add hidden network", trailing = Trailing.Chevron)
         return PanelContent(header(s), e)
     }
 
@@ -72,32 +85,72 @@ object WifiPanelModel {
         return conn + rest.take((MAX_NETWORKS - conn.size).coerceAtLeast(0))
     }
 
-    fun networkRow(m: WifiNetworkModel) = PanelEntry.Row(
+    fun networkRow(m: WifiNetworkModel, joining: String? = null) = PanelEntry.Row(
         netKey(m),
         NetIcons.forWifiLevel(m.signalLevel, true),
         m.ssid,
-        value = if (m.connected) "Connected" else null,
+        value = when {
+            m.connected -> "Connected"
+            !m.hidden && m.ssid == joining -> "Connecting"
+            m.saved -> "Saved"
+            else -> null
+        },
         trailing = when {
             m.connected -> Trailing.Check
+            !m.hidden && m.ssid == joining -> Trailing.Busy
             !m.security.isOpen -> Trailing.Lock
             else -> Trailing.None
         }
     )
+
+    /**
+     * The sub-view for one network. Connected: signal, speed, band and IP address, then Reconnect
+     * and Forget. Otherwise: Connect (asks for a password when needed and not saved) and Forget
+     * when saved.
+     */
+    fun detail(m: WifiNetworkModel, conn: WifiConnection, saved: Boolean, notice: String? = null, joining: Boolean = false): PanelContent {
+        val e = ArrayList<PanelEntry>()
+        notice?.let { e += PanelEntry.Message("msg:notice", it) }
+        val connected = m.connected
+        val sub: String
+        if (connected) {
+            val signal = PanelText.signalWord(conn.rssi?.let { WifiNetworkModel.levelOf(it) } ?: m.signalLevel)
+            val band = (conn.band.takeIf { it != WifiBand.UNKNOWN } ?: m.band).label
+            sub = listOfNotNull("Connected", band.ifEmpty { null }).joinToString(" · ")
+            e += info("signal", R.drawable.ic_net_wifi_4, "Signal", signal)
+            e += info("speed", R.drawable.ic_net_refresh, "Speed", if (conn.linkMbps > 0) "${conn.linkMbps} Mbps" else "Unknown")
+            e += info("band", R.drawable.ic_sc_wifi, "Band", band.ifEmpty { "Unknown" })
+            e += info("ip", R.drawable.ic_set_network, "IP address", conn.ip ?: "Not assigned yet")
+            e += PanelEntry.Row(KEY_RECONNECT, R.drawable.ic_net_refresh, "Reconnect")
+        } else {
+            sub = listOf(m.security.label, PanelText.signalWord(m.signalLevel)).joinToString(" · ")
+            val needsPw = !saved && !m.security.isOpen
+            e += PanelEntry.Row(KEY_CONNECT, R.drawable.ic_set_check, if (joining) "Connecting…" else "Connect",
+                value = if (needsPw && !joining) "Password" else null,
+                trailing = if (joining) Trailing.Busy else Trailing.Chevron,
+                enabled = !joining)
+        }
+        if (saved) e += PanelEntry.Row(KEY_FORGET, R.drawable.ic_net_close, "Forget this network")
+        return PanelContent(PanelHeader(NetIcons.forWifiLevel(m.signalLevel, true), m.ssid, sub), e)
+    }
+
+    private fun info(k: String, icon: Int, label: String, value: String) = PanelEntry.Row(INFO + k, icon, label, value)
 }
 
 /**
  * Pure content of the Bluetooth panel: the header names the connected device; rows are the
- * Bluetooth switch, connected devices, paired devices, nearby devices (OK pairs), "Search for
- * devices" and, always last, the TV's Bluetooth settings. A paired device opens [device], a small
- * sub-view with Forget.
+ * Bluetooth switch, connected devices, paired devices, nearby devices (OK pairs) and "Search for
+ * devices". A paired device opens [device]: Connect or Disconnect (where the TV allows it) and
+ * Forget. Nothing opens the TV's Bluetooth screen.
  */
 object BtPanelModel {
     const val KEY_TOGGLE = "act:toggle"
     const val KEY_SCAN = "act:scan"
-    const val KEY_SETTINGS = "act:settings"
     const val KEY_LOCATION = "act:location"
     const val KEY_ALLOW_LOCATION = "act:allowLocation"
     const val KEY_FORGET = "act:forget"
+    const val KEY_CONNECT = "act:connect"
+    const val KEY_DISCONNECT = "act:disconnect"
 
     fun devKey(d: BtDeviceModel) = "bt:" + d.address
 
@@ -123,7 +176,6 @@ object BtPanelModel {
         val e = ArrayList<PanelEntry>()
         if (!s.present) {
             e += PanelEntry.Message("msg:absent", "This TV has no Bluetooth.")
-            e += settingsRow()
             return PanelContent(header(s, sec), e)
         }
         e += PanelEntry.Row(KEY_TOGGLE, NetIcons.forBluetooth(if (s.enabled) NetIcons.BtState.ON else NetIcons.BtState.OFF),
@@ -137,11 +189,11 @@ object BtPanelModel {
                     e += allowLocationRow()
                 }
                 !s.locationEnabled -> {
-                    e += PanelEntry.Message("msg:location", "Turn on Location to find new devices.")
-                    e += PanelEntry.Row(KEY_LOCATION, R.drawable.ic_settings, "Location settings", trailing = Trailing.Chevron)
+                    e += PanelEntry.Message("msg:location", "Location is off, so the TV can't find new devices.")
+                    e += PanelEntry.Row(KEY_LOCATION, R.drawable.ic_settings, "Location", value = "TV settings", trailing = Trailing.Chevron)
                 }
                 s.note == BluetoothController.Note.SCAN_FAILED -> e += PanelEntry.Message("msg:scanfail",
-                    "Searching didn't start here. Pair in Bluetooth settings.")
+                    "Searching didn't start. Try again in a moment.")
             }
         }
         when (content) {
@@ -160,7 +212,6 @@ object BtPanelModel {
                 if (s.scanning) "Stop searching" else "Search for devices",
                 trailing = if (s.scanning) Trailing.Busy else Trailing.None)
         }
-        e += settingsRow()
         return PanelContent(header(s, sec), e)
     }
 
@@ -176,18 +227,16 @@ object BtPanelModel {
         }
     }
 
-    /** Sub-view for a paired device: Forget, then the TV's settings. */
-    fun device(d: BtDeviceModel): PanelContent = PanelContent(
-        PanelHeader(kindIcon(d.kind), d.name, if (d.connected) "Connected" else "Paired · not connected"),
-        listOf(
-            PanelEntry.Row(KEY_FORGET, R.drawable.ic_net_close, "Forget this device"),
-            PanelEntry.Message("msg:reconnect", "It reconnects by itself when switched on."),
-            settingsRow()
-        )
-    )
-
-    private fun settingsRow() =
-        PanelEntry.Row(KEY_SETTINGS, R.drawable.ic_settings, "Bluetooth settings", value = "Pair or connect", trailing = Trailing.Chevron)
+    /** Sub-view for a paired device: Connect or Disconnect, then Forget. [notice] is the last action's line. */
+    fun device(d: BtDeviceModel, notice: String? = null): PanelContent {
+        val e = ArrayList<PanelEntry>()
+        notice?.let { e += PanelEntry.Message("msg:notice", it) }
+        e += if (d.connected) PanelEntry.Row(KEY_DISCONNECT, R.drawable.ic_net_close, "Disconnect")
+        else PanelEntry.Row(KEY_CONNECT, R.drawable.ic_set_check, "Connect")
+        e += PanelEntry.Row(KEY_FORGET, R.drawable.ic_net_close, "Forget this device")
+        if (!d.connected) e += PanelEntry.Message("msg:reconnect", "It also reconnects by itself when switched on.")
+        return PanelContent(PanelHeader(kindIcon(d.kind), d.name, if (d.connected) "Connected" else "Paired · not connected"), e)
+    }
 
     fun kindIcon(k: BtKind) = when (k) {
         BtKind.HEADPHONES -> R.drawable.ic_net_kind_headphones
@@ -202,7 +251,7 @@ object BtPanelModel {
     }
 }
 
-/** The in-app "Allow" row: Android's own location permission dialog (see [NetworkSettings.requestLocation]). */
+/** The in-app "Allow" row: Android's own location permission dialog (see [dev.tvlauncher.system.SystemPermissions.requestLocation]). */
 internal fun allowLocationRow() = PanelEntry.Row(WifiPanelModel.KEY_ALLOW_LOCATION, R.drawable.ic_settings,
     dev.tvlauncher.setup.SetupCopy.LOCATION_ALLOW, trailing = Trailing.Chevron)
 

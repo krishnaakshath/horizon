@@ -66,6 +66,17 @@ class QuickActionsTest {
         }
     }
 
+    @Test fun systemRoute_alwaysLandsInTheLaunchersOwnPages() {
+        assertEquals(null, QuickActions.launcherSection(Item.SETTINGS))
+        assertEquals("system", QuickActions.launcherSection(Item.SOUND))
+        assertEquals("bluetooth", QuickActions.launcherSection(Item.BLUETOOTH))
+        assertEquals("network", QuickActions.launcherSection(Item.NETWORK))
+        assertEquals("devices", QuickActions.launcherSection(Item.DEVICES))
+        assertEquals("accessibility", QuickActions.launcherSection(Item.ACCESSIBILITY))
+        assertEquals("system", QuickActions.launcherSection(Item.POWER))
+        assertEquals("system", QuickActions.launcherSection(Item.SLEEP_TIMER)) // the launcher's own timer
+    }
+
     @Test fun titles_forNewItems() {
         assertEquals("Devices", Item.DEVICES.title)
         assertEquals("Ambient", Item.AMBIENT.title)

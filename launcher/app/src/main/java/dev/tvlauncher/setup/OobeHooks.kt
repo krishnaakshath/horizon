@@ -4,12 +4,13 @@ import android.app.Activity
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import dev.tvlauncher.network.NetworkSettings
+import dev.tvlauncher.system.SystemSpecs
+import dev.tvlauncher.ui.SystemActions
 
 /**
  * The network page's plug-in point. The launcher's own Wi-Fi component registers itself with
- * [OobeHooks.network] once it exists; until then [SystemNetworkSetup] opens the TV's own Wi-Fi
- * screen (only when it resolves) and reads the connection state.
+ * [OobeHooks.network] once it exists; until then [SystemNetworkSetup] opens the launcher's own
+ * Settings > Wi-Fi & network page (join, hidden networks, Ethernet) and reads the connection state.
  */
 interface OobeNetwork {
     /** Connected to a network that has internet (or validation is unknown). */
@@ -42,7 +43,7 @@ object SystemNetworkSetup : OobeNetwork {
         }
     }
 
-    override fun open(activity: Activity): Boolean = NetworkSettings.openWifi(activity)
+    override fun open(activity: Activity): Boolean = SystemActions.launcherSettings(activity, SystemSpecs.NETWORK)
 }
 
 object OobeHooks {

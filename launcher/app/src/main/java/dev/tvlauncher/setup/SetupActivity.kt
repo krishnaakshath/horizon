@@ -229,7 +229,7 @@ class SetupActivity : Activity() {
                 if (next != null) return run(next)
             }
             OobePage.NETWORK -> if (snap.network?.startsWith("Connected") != true) {
-                if (!OobeHooks.network.open(this)) hint.text = "Connect in the TV's own settings, then come back."
+                if (!OobeHooks.network.open(this)) hint.text = "Wi-Fi settings didn't open. Try again."
                 return
             }
             else -> Unit
@@ -313,7 +313,7 @@ class SetupActivity : Activity() {
         OobePage.RESTORE -> listOf(Row("restore", "Saved setup", snap.backup?.let { "${it.name} · ${it.parentFile?.name}" } ?: "None found"))
         OobePage.NETWORK -> listOf(
             Row("net", "Network", snap.network ?: "Not connected", done = snap.network?.startsWith("Connected") == true,
-                action = { if (!OobeHooks.network.open(this)) hint.text = "Connect in the TV's own settings, then come back." })
+                action = { if (!OobeHooks.network.open(this)) hint.text = "Wi-Fi settings didn't open. Try again." })
         )
         OobePage.TIME -> timeRows()
         OobePage.ACCOUNT -> listOf(

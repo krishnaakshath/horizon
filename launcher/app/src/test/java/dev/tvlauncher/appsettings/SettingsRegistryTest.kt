@@ -57,4 +57,21 @@ class SettingsRegistryTest {
         assertEquals(builtInOrder + "weather", r.sections().map { it.id })
         assertSame(second, r.sections().last())
     }
+
+    /** LauncherApp's registrations: every section id comes from exactly one place (a placeholder may be replaced once). */
+    @Test
+    fun launcherRegistrations_eachSectionRegisteredOnce() {
+        fun ids(block: (SettingsRegistry) -> Unit) = SettingsRegistry(emptyList()).also(block).sections().map { it.id }
+        val builtIns = SettingsRegistry.newDefault().sections().filter { it !is ModulePlaceholderSection }.map { it.id }
+        val sources = listOf(
+            builtIns,
+            ids { ModuleSections.registerAll(it) },
+            ids { dev.tvlauncher.home.WaveTwoSections.registerAll(it) },
+            ids { dev.tvlauncher.setup.SetupSection.register(it) }.filter { it != BackupSection.ID }, // takes the built-in Backup slot
+            ids { it.register(dev.tvlauncher.spotlight.SpotlightSection) },
+            ids { dev.tvlauncher.system.SystemSections.registerAll(it) }
+        )
+        val all = sources.flatten()
+        assertEquals(all.groupingBy { it }.eachCount().filterValues { it > 1 }, emptyMap<String, Int>())
+    }
 }

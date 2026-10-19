@@ -78,7 +78,6 @@ class SpotlightPanel(
     private var config: SpotlightConfig = SpotlightConfig.DEFAULT
     private var settingsHits: List<SettingsHit> = emptyList()
     private var recent: List<String> = emptyList()
-    private var sleepTimer: Boolean? = null
 
     /**
      * Set when "Close after an action" is off and an action left the home screen: the panel is
@@ -301,8 +300,7 @@ class SpotlightPanel(
     }
 
     private fun currentItems(): List<Item> {
-        val sleep = sleepTimer ?: (SystemActions.sleepTimerIntent(context) != null).also { sleepTimer = it }
-        return QuickActions.items(QuickActions.Availability(installedPackages, sleep), config)
+        return QuickActions.items(QuickActions.Availability(installedPackages), config)
     }
 
     /** The launcher's Settings pages listed in its sidebar on this TV. */

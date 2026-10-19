@@ -14,14 +14,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WaveTwoSectionsTest {
-    @Test fun registerAll_replacesDevicesPlaceholder_andAppendsAmbientAndHome() {
+    @Test fun registerAll_appendsAmbientAndHome_devicesComeFromSystemSections() {
         val r = SettingsRegistry.newDefault()
         val before = r.sections().map { it.id }
         WaveTwoSections.registerAll(r)
+        dev.tvlauncher.system.SystemSections.registerAll(r)
         val after = r.sections()
         val ids = after.map { it.id }
         assertEquals(before.indexOf(ModulePlaceholderSection.DEVICES), ids.indexOf(ModulePlaceholderSection.DEVICES))
-        assertTrue(after.first { it.id == ModulePlaceholderSection.DEVICES } !is ModulePlaceholderSection)
+        assertTrue(after.first { it.id == ModulePlaceholderSection.DEVICES } === dev.tvlauncher.system.DevicesSettingsSection)
         assertTrue(WaveTwoSections.AMBIENT_ID in ids)
         assertTrue(WaveTwoSections.HOME_EXTRAS_ID in ids)
         WaveTwoSections.registerAll(r) // idempotent
@@ -63,7 +64,7 @@ class WaveTwoSectionsTest {
     @Test fun sections_declareTheirSidebarGroups() {
         assertEquals(SettingsGroup.HOME, AmbientSection.group)
         assertEquals(SettingsGroup.HOME, HomeExtrasSection.group)
-        assertEquals(SettingsGroup.CONNECTIONS, DevicesSection.group)
+        assertEquals(SettingsGroup.CONNECTIONS, dev.tvlauncher.system.DevicesSettingsSection.group)
     }
 
     @Test fun specs_stayWithinTheBudget_andCoverEveryModelRow() {

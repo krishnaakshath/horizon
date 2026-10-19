@@ -150,8 +150,7 @@ object SpotlightSection : SettingsSection, SpecifiedPage {
         val prefs = SpotlightPrefs(context)
         val c = prefs.load()
         val availability = QuickActions.Availability(
-            installedPackages = setOf(QuickActions.BROWSER_PACKAGE, QuickActions.GET_APPS_PACKAGE).filterTo(HashSet()) { installed(context, it) },
-            sleepTimer = SystemActions.sleepTimerIntent(context) != null
+            installedPackages = setOf(QuickActions.BROWSER_PACKAGE, QuickActions.GET_APPS_PACKAGE).filterTo(HashSet()) { installed(context, it) }
         )
         page.note("OK shows or hides a button. Left and Right move it in the row.")
         for (item in c.order) {

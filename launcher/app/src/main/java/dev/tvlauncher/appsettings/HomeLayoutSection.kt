@@ -88,20 +88,29 @@ object HomeLayoutSection : SettingsSection, SpecifiedPage {
         }
         if (hidden.size > 1) {
             page.row("home.hidden.all", "Unhide all", RowKind.Action("${hidden.size} apps", chevron = false) {
-                prefs.save(HomeLayoutEdits.unhideAll(prefs.load(), apps))
-                nav.notify("All apps are back on the home row")
-                nav.refresh()
+                pinGate(context, nav) {
+                    prefs.save(HomeLayoutEdits.unhideAll(prefs.load(), apps))
+                    nav.notify("All apps are back on the home row")
+                    nav.refresh()
+                }
             }, iconRes = R.drawable.ic_set_eye)
         }
         for (app in hidden) {
             val pkg = app.packageName
             page.row("home.hidden.$pkg", app.label, RowKind.Action("Unhide", chevron = false) {
-                prefs.save(HomeLayoutEdits.unhide(prefs.load(), pkg, apps))
-                nav.notify("${app.label} is back on the home row")
-                nav.refresh()
+                pinGate(context, nav) {
+                    prefs.save(HomeLayoutEdits.unhide(prefs.load(), pkg, apps))
+                    nav.notify("${app.label} is back on the home row")
+                    nav.refresh()
+                }
             }, subtitle = if (pkg in s.hidden) null else "Setup app, hidden by default", iconRes = R.drawable.ic_set_eye)
         }
     }
+
+    /** Settings > Parental PIN, when set, guards bringing hidden apps back. */
+    private fun pinGate(context: Context, nav: SettingsNav, action: () -> Unit) =
+        dev.tvlauncher.system.PinGate.run(context, (context as? android.app.Activity)?.findViewById(android.R.id.content),
+            nav.profile.effectsMode == dev.tvlauncher.device.EffectsMode.LITE, action)
 
     /** Two rows under Reset: confirm (destructive) and cancel; focus lands on cancel. */
     private fun showConfirm(context: Context, page: SettingsPage, nav: SettingsNav, prefs: Prefs, anchor: SettingsRow) {

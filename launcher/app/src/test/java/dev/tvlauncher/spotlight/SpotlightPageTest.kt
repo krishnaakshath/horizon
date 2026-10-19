@@ -88,10 +88,12 @@ class SpotlightPageTest {
 
     @Test fun availability_browserGetAppsSleep() {
         val c = SpotlightConfig.DEFAULT.copy(hidden = emptySet())
-        val none = QuickActions.items(QuickActions.Availability(emptySet()), c)
+        val none = QuickActions.items(QuickActions.Availability(emptySet(), sleepTimer = false), c)
         assertFalse(Item.BROWSER in none || Item.GET_APPS in none || Item.SLEEP_TIMER in none)
-        assertTrue(Item.ACCESSIBILITY in none && Item.RESTART in none && Item.DISCOVER in none)
-        val all = QuickActions.items(QuickActions.Availability(setOf(QuickActions.BROWSER_PACKAGE, QuickActions.GET_APPS_PACKAGE), sleepTimer = true), c)
+        assertTrue(Item.ACCESSIBILITY in none && Item.POWER in none && Item.RESTART in none && Item.DISCOVER in none)
+        // The sleep timer is the launcher's own (TV & system > Power & sleep), so it is there by default.
+        assertTrue(Item.SLEEP_TIMER in QuickActions.items(QuickActions.Availability(emptySet()), c))
+        val all = QuickActions.items(QuickActions.Availability(setOf(QuickActions.BROWSER_PACKAGE, QuickActions.GET_APPS_PACKAGE)), c)
         assertEquals(Item.values().toList(), all)
     }
 
@@ -109,7 +111,7 @@ class SpotlightPageTest {
     @Test fun newRoutes_andRoomStaysOpen() {
         assertEquals(QuickActions.Route.DISCOVER, QuickActions.route(Item.DISCOVER, true))
         assertEquals(QuickActions.Route.RESTART, QuickActions.route(Item.RESTART, true))
-        for (i in listOf(Item.ACCESSIBILITY, Item.SLEEP_TIMER, Item.GET_APPS)) assertEquals(QuickActions.Route.SYSTEM, QuickActions.route(i, true))
+        for (i in listOf(Item.ACCESSIBILITY, Item.POWER, Item.SLEEP_TIMER, Item.GET_APPS)) assertEquals(QuickActions.Route.SYSTEM, QuickActions.route(i, true))
         assertFalse(QuickActions.closesSpotlight(Item.ROOM))
         assertTrue(Item.values().filter { it != Item.ROOM }.all { QuickActions.closesSpotlight(it) })
         assertEquals(Item.values().size, Item.values().map { QuickActions.iconRes(it) }.size)

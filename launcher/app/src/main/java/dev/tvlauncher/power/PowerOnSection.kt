@@ -14,7 +14,11 @@ import dev.tvlauncher.appsettings.SettingsSection
 import dev.tvlauncher.appsettings.SpecifiedPage
 import dev.tvlauncher.ui.SystemActions
 
-/** Settings > System > Power on: the "Open home after power on" switch and what it needs. */
+/**
+ * Settings > TV & system > Power & sleep > Power on: the "Open home after power on" switch and what
+ * it needs. Opened from the Power & sleep page (dev.tvlauncher.system.SystemHubSection), not listed
+ * in the sidebar on its own, so Power has a single place in Settings.
+ */
 object PowerOnSection : SettingsSection, SpecifiedPage {
     const val ID = "power_on"
     override val id = ID

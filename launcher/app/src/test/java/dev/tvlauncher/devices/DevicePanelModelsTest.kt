@@ -70,17 +70,18 @@ class DevicePanelModelsTest {
             TvInputItem("b", "HDMI 2", InputsModel.TYPE_HDMI, 2, "Old name"),
             TvInputItem("c", "AV", InputsModel.TYPE_COMPOSITE, 1, null)
         ))
-        assertEquals(listOf("in:a", "in:b", "in:c", InputsModel.KEY_SETTINGS), c.rows.map { it.key })
-        assertEquals(listOf("PS5", "No signal", "Standby"), c.rows.take(3).map { it.value })
+        assertEquals(listOf("in:a", "in:b", "in:c"), c.rows.map { it.key })
+        // AV has no plug detection: "Available", never "Connected"/"Standby", and not counted.
+        assertEquals(listOf("PS5", "No signal", "Available"), c.rows.map { it.value })
         assertEquals(R.drawable.ic_dev_av, c.rows[2].icon)
-        assertEquals("2 connected", c.header.subtitle)
+        assertEquals("1 connected", c.header.subtitle)
     }
 
     @Test fun inputs_empty() {
         val c = InputsModel.build(emptyList())
         assertEquals(listOf("msg:empty"), c.messages.map { it.key })
         assertEquals("None found", c.header.subtitle)
-        assertFalse(c.rows.isEmpty())
+        assertTrue(c.rows.isEmpty()) // no TV-settings row any more
     }
 
     @Test fun natural_comparator() {

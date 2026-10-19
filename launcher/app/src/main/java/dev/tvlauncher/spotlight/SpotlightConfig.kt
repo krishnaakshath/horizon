@@ -60,7 +60,7 @@ data class SpotlightConfig(
 
         /** Added with this page; off until the owner turns them on. */
         val DEFAULT_HIDDEN: Set<Item> = setOf(
-            Item.ACCESSIBILITY, Item.SLEEP_TIMER, Item.RESTART, Item.GET_APPS, Item.DISCOVER
+            Item.ACCESSIBILITY, Item.POWER, Item.SLEEP_TIMER, Item.RESTART, Item.GET_APPS, Item.DISCOVER
         )
 
         val DEFAULT = SpotlightConfig()

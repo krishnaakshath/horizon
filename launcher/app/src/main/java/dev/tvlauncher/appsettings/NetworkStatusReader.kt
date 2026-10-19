@@ -38,7 +38,7 @@ internal object NetworkStatusReader {
         ""
     }
 
-    @SuppressLint("MissingPermission") // BLUETOOTH is declared (normal permission, targetSdk 30).
+    @SuppressLint("MissingPermission") // BLUETOOTH is declared (normal permission, install-time).
     @Suppress("DEPRECATION")
     private fun bluetooth(): String = try {
         val a = BluetoothAdapter.getDefaultAdapter()

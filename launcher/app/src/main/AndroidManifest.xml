@@ -30,7 +30,7 @@
     <!-- Boot signal: "Open home after power on" (power.PowerOnReceiver) and re-applying the automatic
          setup after a reboot (setup.SetupBootReceiver). -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- Granted only by the owner (Settings > System > Power on opens the TV's page). On Android 10/11
+    <!-- Granted only by the owner (Settings > TV & system > Power & sleep > Power on opens the TV's page). On Android 10/11
          it lets the launcher bring home forward when the TV wakes; nothing is drawn over other apps. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <permission
@@ -53,11 +53,22 @@
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
-    <!-- Granted only by the one-time setup helper (tools/tvtool provision); lets setup switch on
-         the notification listener and the Helper's accessibility service by itself. -->
+    <!-- Settings > Apps: uninstall a user app through the system's confirm dialog (required for
+         ACTION_DELETE from targetSdk 28) and stop an app's background work. -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+    <!-- Optional, never requested: granted once by the one-time setup helper (tools/tvtool
+         provision). With it setup switches on the notification listener and the Helper's
+         accessibility service by itself, and the Accessibility page can switch captions,
+         colour correction and the helper service. -->
     <uses-permission
         android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
+    <!-- Lets the launcher ask its helper (same signer) to open the TV's power menu. -->
+    <permission
+        android:name="dev.tvlauncher.permission.HELPER_ACTIONS"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="dev.tvlauncher.permission.HELPER_ACTIONS" />
 
     <queries>
         <intent>
@@ -166,9 +177,15 @@
             <data android:scheme="https" />
         </intent>
         <package android:name="com.android.vending" />
-        <!-- Spotlight quick actions: Accessibility settings (declared above), and the TV's own
-             sleep-timer screen when it has one (SystemActions.SLEEP_TIMER_ACTIONS, each resolve-checked). -->
+        <!-- Accessibility page: the screen reader row shows only when one is installed. -->
+        <package android:name="com.google.android.marvin.talkback" />
+        <!-- System pages: live TV / guide (TCL TV app) and the "Managed by the TV" screens. -->
+        <package android:name="com.tcl.tv" />
         <package android:name="com.tcl.settings" />
+        <intent>
+            <action android:name="android.intent.action.DELETE" />
+            <data android:scheme="package" />
+        </intent>
     </queries>
 
     <application
@@ -269,7 +286,7 @@
             </intent-filter>
         </service>
 
-        <!-- "Open home after power on" (Settings > System > Power on): cold boot, and TCL's
+        <!-- "Open home after power on" (Settings > TV & system > Power & sleep > Power on): cold boot, and TCL's
              wake-from-standby broadcast (sent with FLAG_RECEIVER_INCLUDE_BACKGROUND).
              Nothing else is accepted; PowerOnPolicy acts at most once per wake. -->
         <receiver
@@ -291,6 +308,11 @@
                 <action android:name="dev.tvlauncher.action.HELPER_STATE" />
             </intent-filter>
         </receiver>
+
+        <!-- Sleep timer: fires once at the chosen time (not exported). -->
+        <receiver
+            android:name=".system.SleepTimerReceiver"
+            android:exported="false" />
 
         <!-- Opt-in notification chips; bound only by the system after the user grants access. -->
         <service

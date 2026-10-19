@@ -140,7 +140,7 @@ class HomeDevices(
     }
 
     private fun onDeviceRow(row: PanelEntry.Row) {
-        if (row.key == DevicesPanelModel.KEY_SETTINGS) { SystemActions.settings(context); return }
+        if (row.key == DevicesPanelModel.KEY_SETTINGS) { SystemActions.launcherSettings(context, "devices"); return }
         val d = monitor.devices().firstOrNull { DevicesPanelModel.PREFIX + it.id == row.key } ?: return
         val inputId = DeviceActions.passthroughInputId(d) ?: return
         if (DevicesPanel.switchTo(context, inputId)) {

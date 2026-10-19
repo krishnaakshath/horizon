@@ -45,7 +45,9 @@ data class WifiSnapshot(
     val scanning: Boolean,
     val scans: List<RawScan>,
     /** > 0 while Android's scan throttle (4 per 2 min) is holding a new scan back; counts down live. */
-    val throttledSeconds: Int
+    val throttledSeconds: Int,
+    /** Networks saved on this TV: SSID to network id (needs location access). */
+    val saved: Map<String, Int> = emptyMap()
 )
 
 /**
@@ -53,9 +55,9 @@ data class WifiSnapshot(
  * the main thread. [start] in onStart, [stop] in onStop; both are idempotent. Never throws: a
  * missing permission shows up as [WifiSnapshot.hasLocationPermission] == false.
  *
- * Platform limits: apps targeting API 29+ cannot join networks or toggle Wi-Fi (the panel opens the
- * TV's Wi-Fi screen instead); scan results need ACCESS_FINE_LOCATION (ADB grant) and startScan is
- * throttled to 4 per 2 minutes.
+ * Joining, forgetting and switching Wi-Fi go through [dev.tvlauncher.system.WifiActions] (legacy
+ * WifiManager calls, available because :app targets API 28). Scan results need the runtime
+ * ACCESS_FINE_LOCATION grant and the device Location switch; startScan is throttled to 4 per 2 minutes.
  */
 @Suppress("DEPRECATION")
 class WifiController(context: Context) {
@@ -198,8 +200,16 @@ class WifiController(context: Context) {
             locationEnabled = LocationState.isEnabled(app),
             scanning = scanning,
             scans = if (perm && enabled) readScans() else emptyList(),
-            throttledSeconds = ((throttleUntil - SystemClock.elapsedRealtime() + 999) / 1000).toInt().coerceAtLeast(0)
+            throttledSeconds = ((throttleUntil - SystemClock.elapsedRealtime() + 999) / 1000).toInt().coerceAtLeast(0),
+            saved = if (perm && enabled) readSaved() else emptyMap()
         )
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun readSaved(): Map<String, Int> = safely(emptyMap()) {
+        wm?.configuredNetworks.orEmpty().mapNotNull { c ->
+            c.SSID?.trim('"')?.takeIf { it.isNotBlank() }?.let { it to c.networkId }
+        }.toMap()
     }
 
     @SuppressLint("MissingPermission")

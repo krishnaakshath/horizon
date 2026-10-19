@@ -31,7 +31,7 @@ class SpotlightConfigTest {
     }
 
     @Test fun newActions_areHiddenByDefault() {
-        for (i in listOf(Item.ACCESSIBILITY, Item.SLEEP_TIMER, Item.RESTART, Item.GET_APPS, Item.DISCOVER)) {
+        for (i in listOf(Item.ACCESSIBILITY, Item.POWER, Item.SLEEP_TIMER, Item.RESTART, Item.GET_APPS, Item.DISCOVER)) {
             assertTrue(i in SpotlightConfig.DEFAULT.hidden)
         }
     }
