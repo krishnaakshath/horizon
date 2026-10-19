@@ -9,7 +9,7 @@ import org.junit.Test
 class AddOnsTest {
     @Test
     fun listsTheFourModules_inOrder_withTheirPackages() {
-        assertEquals(listOf("Browser", "Get Apps", "Weather", "Helper"), AddOns.all.map { it.title })
+        assertEquals(listOf("Browser", "Store", "Weather", "Helper"), AddOns.all.map { it.title })
         assertEquals(
             listOf(QuickActions.BROWSER_PACKAGE, AddOns.STORE_PACKAGE, WeatherContract.PACKAGE, ModuleSections.HELPER_PACKAGE),
             AddOns.all.map { it.packageName }

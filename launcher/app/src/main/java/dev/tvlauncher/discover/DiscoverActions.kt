@@ -1,5 +1,7 @@
 package dev.tvlauncher.discover
 
+import dev.tvlauncher.brand.Brand
+
 /** What selecting a catalog card does. Pure. */
 object DiscoverActions {
     enum class Action { OPEN, OPEN_PLAY_STORE, OPEN_GET_APPS, NONE }
@@ -27,7 +29,7 @@ object DiscoverActions {
     fun label(action: Action): String = when (action) {
         Action.OPEN -> "Open"
         Action.OPEN_PLAY_STORE -> "Install"
-        Action.OPEN_GET_APPS -> "Open Get Apps"
+        Action.OPEN_GET_APPS -> "Open ${Brand.STORE}"
         Action.NONE -> "Not available"
     }
 }

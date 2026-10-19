@@ -1,5 +1,6 @@
 package dev.tvlauncher.discover
 
+import dev.tvlauncher.brand.Brand
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -13,7 +14,7 @@ import android.widget.Toast
  * short message to show instead of a crash.
  */
 object StoreLauncher {
-    const val GET_APPS_MISSING_TEXT = "Get Apps isn't installed"
+    const val GET_APPS_MISSING_TEXT = "${Brand.STORE} isn't installed"
 
     /** Performs [item]'s action. Returns null on success, else a message for a toast. */
     fun perform(context: Context, item: DiscoverItem): String? = when (item.action) {

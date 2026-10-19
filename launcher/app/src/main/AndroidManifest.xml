@@ -192,7 +192,8 @@
         android:name=".LauncherApp"
         android:allowBackup="false"
         android:banner="@drawable/tv_banner"
-        android:label="TV Launcher"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
         android:theme="@style/HomeTheme">
         <activity
             android:name=".HomeActivity"
@@ -278,7 +279,7 @@
         <service
             android:name=".ambient.AmbientDream"
             android:exported="true"
-            android:label="TV Launcher Ambient"
+            android:label="@string/ambient_name"
             android:permission="android.permission.BIND_DREAM_SERVICE">
             <intent-filter>
                 <action android:name="android.service.dreams.DreamService" />
@@ -318,7 +319,7 @@
         <service
             android:name=".ambient.AmbientNotificationService"
             android:exported="true"
-            android:label="TV Launcher ambient notifications"
+            android:label="@string/ambient_notifications_name"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />

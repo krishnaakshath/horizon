@@ -59,7 +59,7 @@ class HelperSettingsActivity : Activity() {
         val s = prefs.load()
         val focusIdx = (0 until content.childCount).firstOrNull { content.getChildAt(it).hasFocus() } ?: 3
         content.removeAllViews()
-        content.addView(label("Launcher Helper", 28f, text, true))
+        content.addView(label(getString(R.string.app_name), 28f, text, true))
         content.addView(label("Remote shortcuts that work in every app.", 15f, muted, false))
         content.addView(spacer())
 
@@ -67,7 +67,7 @@ class HelperSettingsActivity : Activity() {
         when (route) {
             EnableRoute.ALREADY_ON -> content.addView(row("Remote shortcuts", "On \u2713") { })
             EnableRoute.SELF_ENABLE -> content.addView(row("Turn on double-Back and power-on help", "Select to turn on") { selfEnable() })
-            EnableRoute.OPEN_SCREEN -> content.addView(row("Remote shortcuts: off", "Select, then turn on Launcher Helper") {
+            EnableRoute.OPEN_SCREEN -> content.addView(row("Remote shortcuts: off", "Select, then turn on " + getString(R.string.app_name)) {
                 start(accessibilityIntent())
             })
             EnableRoute.FINISH_SETUP -> content.addView(row("Finish setup to enable", "Opens the launcher's setup") { start(setupIntent()) })

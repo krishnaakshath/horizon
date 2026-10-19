@@ -295,7 +295,7 @@ class StoreActivity : Activity(), Installer.Listener {
 
         val row = horizontal(this, 16)
         val count = files.installed.size
-        row.addView(button("Installed by Get Apps" + if (count > 0) " ($count)" else "") { push(Screen.Installed) })
+        row.addView(button("Installed by H02 Store" + if (count > 0) " ($count)" else "") { push(Screen.Installed) })
         if (!Installer.canRequestInstalls(this)) {
             row.addView(chip("One-time permission needed before the first install", Kit.WARN, Kit.WARN_BG))
         }
@@ -524,7 +524,7 @@ class StoreActivity : Activity(), Installer.Listener {
     private fun githubScreen(): View {
         val body = vertical(this, 16)
         body.addView(text("Install from GitHub", 28f, Kit.TEXT, Kit.light))
-        body.addView(text("Enter a project as owner/repo (for example jellyfin/jellyfin-androidtv). Get Apps reads its latest " +
+        body.addView(text("Enter a project as owner/repo (for example jellyfin/jellyfin-androidtv). H02 Store reads its latest " +
             "release and offers the .apk built for this TV.", 15f, Kit.TEXT_2))
         val error = statusLine("", Kit.DANGER).apply { visibility = View.GONE }
         lateinit var field: EditText
@@ -633,11 +633,11 @@ class StoreActivity : Activity(), Installer.Listener {
         val body = vertical(this, 14)
         val title = horizontal(this, 14)
         title.addView(iconTile(getDrawable(R.drawable.ic_installed), 44))
-        title.addView(text("Installed by Get Apps", 28f, Kit.TEXT, Kit.light))
+        title.addView(text("Installed by H02 Store", 28f, Kit.TEXT, Kit.light))
         body.addView(title)
         val records = files.installed
         if (records.isEmpty()) {
-            body.addView(statusLine("Apps you install with Get Apps will appear here."))
+            body.addView(statusLine("Apps you install with H02 Store will appear here."))
             body.addView(button("Back") { onBackPressedCompat() }.primaryFocus())
             return page("Installed", body)
         }
@@ -740,11 +740,11 @@ class StoreActivity : Activity(), Installer.Listener {
         val body = vertical(this, 16)
         body.addView(text("One-time permission needed", 28f, Kit.TEXT, Kit.light))
         body.addView(text(
-            "Android needs your OK before Get Apps can hand apps to the system installer. This doesn't let Get Apps install " +
+            "Android needs your OK before H02 Store can hand apps to the system installer. This doesn't let H02 Store install " +
                 "anything silently: you will still review every app here, and Android will ask you to confirm each install.",
             16f, Kit.TEXT_2,
         ))
-        body.addView(text("1. Choose “Open settings”.\n2. Turn on “Allow from this source” (or “Install unknown apps”) for Get Apps.\n3. Press BACK to return here.",
+        body.addView(text("1. Choose “Open settings”.\n2. Turn on “Allow from this source” (or “Install unknown apps”) for H02 Store.\n3. Press BACK to return here.",
             16f, Kit.TEXT))
         val note = statusLine("", Kit.WARN).apply { visibility = View.GONE }
         val row = horizontal(this, 14)
@@ -759,7 +759,7 @@ class StoreActivity : Activity(), Installer.Listener {
                 stack.removeAt(stack.size - 1)
                 startDownload(job)
             } else {
-                note.text = "Still not allowed. Turn on the setting for Get Apps, then try again."
+                note.text = "Still not allowed. Turn on the setting for H02 Store, then try again."
                 note.visibility = View.VISIBLE
             }
         })
@@ -1004,7 +1004,7 @@ class StoreActivity : Activity(), Installer.Listener {
                         installing = null
                         file.delete()
                         if (result == Installer.FallbackResult.NO_SYSTEM_INSTALLER) {
-                            showError("No system installer found", "This TV has no system app installer Get Apps can hand the app to, so nothing was installed.") { modal = null; render() }
+                            showError("No system installer found", "This TV has no system app installer H02 Store can hand the app to, so nothing was installed.") { modal = null; render() }
                         } else {
                             showError("Couldn't start the installer", describeError(cause)) { modal = null; render() }
                         }
@@ -1154,7 +1154,7 @@ class StoreActivity : Activity(), Installer.Listener {
         body.gravity = Gravity.CENTER_VERTICAL
         body.addView(text("✓", 54f, Kit.ACCENT, Kit.light))
         body.addView(text("$label is installed", 30f, Kit.TEXT, Kit.light))
-        body.addView(text("You'll find it on your home screen. Manage it later under “Installed by Get Apps”.", 16f, Kit.TEXT_2))
+        body.addView(text("You'll find it on your home screen. Manage it later under “Installed by H02 Store”.", 16f, Kit.TEXT_2))
         val row = horizontal(this, 14)
         if (pkg != null) row.addView(button("Open app", ButtonKind.PRIMARY) { openApp(pkg) }.primaryFocus())
         row.addView(button("Done") { modal = null; popTo { it == Screen.Home } })

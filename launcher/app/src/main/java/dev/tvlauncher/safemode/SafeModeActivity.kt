@@ -76,6 +76,7 @@ class SafeModeActivity : Activity() {
             setOnItemClickListener { _, _, position, _ -> rows.getOrNull(position)?.let(::open) }
         }
         root.addView(list, LinearLayout.LayoutParams(px(LIST_W), 0, 1f).apply { topMargin = px(24) })
+        footer(root)
         setContentView(root)
     }
 
@@ -83,6 +84,11 @@ class SafeModeActivity : Activity() {
     private fun header(root: LinearLayout, sub: String) {
         root.addView(text(SafeModeList.TITLE, 30f, TEXT))
         root.addView(text(sub, 18f, GREY).apply { setPadding(0, px(8), 0, 0) })
+    }
+
+    /** The quiet product line at the bottom. */
+    private fun footer(root: LinearLayout) {
+        root.addView(text(SafeModeList.FOOTER, 14f, GREY).apply { setPadding(0, px(16), 0, 0) })
     }
 
     /** Minimal screen: framework buttons only, no app list, system Settings first. */
@@ -108,6 +114,7 @@ class SafeModeActivity : Activity() {
             if (first == null && v.isFocusable) first = v
             root.addView(v, LinearLayout.LayoutParams(px(LIST_W), -2).apply { topMargin = px(if (first === v) 24 else 4) })
         }
+        footer(root)
         setContentView(root)
         first?.requestFocus()
     }

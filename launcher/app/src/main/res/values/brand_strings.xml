@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Labels the system shows (launcher tile, app lists, Recents, screensaver and notification-access
+     lists). Mirror dev.tvlauncher.brand.Brand; BrandStringsTest keeps them equal. -->
+<resources>
+    <string name="app_name" translatable="false">H02</string>
+    <string name="ambient_name" translatable="false">H02 Ambient</string>
+    <string name="ambient_notifications_name" translatable="false">H02 ambient notifications</string>
+</resources>

@@ -1,5 +1,6 @@
 package dev.tvlauncher.home
 
+import dev.tvlauncher.brand.Brand
 import android.content.Context
 import android.view.View
 import android.widget.ScrollView
@@ -200,7 +201,7 @@ object HomeExtrasSection : SettingsSection, SpecifiedPage {
         } else if (getApps) {
             page.row("home.weather", "Weather", RowKind.Action(value) {
                 if (!StoreLauncher.openApp(context, GetAppsLink.PACKAGE)) nav.notify(StoreLauncher.GET_APPS_MISSING_TEXT)
-            }, subtitle = "Install the Weather app from Get Apps to show weather here")
+            }, subtitle = "Install ${Brand.WEATHER} from ${Brand.STORE} to show weather here")
         } else {
             page.row("home.weather", "Weather", RowKind.Info(value),
                 subtitle = "Install the weather companion (${WeatherContract.PACKAGE}) to use it")

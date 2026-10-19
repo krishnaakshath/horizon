@@ -61,7 +61,7 @@ import dev.tvlauncher.browser.net.SearchEngines
 import dev.tvlauncher.browser.net.SuggestClient
 import dev.tvlauncher.browser.net.SuggestionMerger
 import dev.tvlauncher.browser.net.UrlPolicy
-import dev.tvlauncher.browser.ui.BouncingDots
+import dev.tvlauncher.browser.ui.HorizonLoader
 import dev.tvlauncher.browser.ui.CursorSettingsPage
 import dev.tvlauncher.browser.ui.CursorView
 import dev.tvlauncher.browser.ui.FindBar
@@ -119,7 +119,7 @@ class BrowserActivity : Activity() {
     private lateinit var progress: ProgressLine
     private lateinit var startPage: StartPage
     private lateinit var message: MessagePanel
-    private lateinit var dots: BouncingDots
+    private lateinit var dots: HorizonLoader
     private lateinit var suggestions: SuggestionList
     private lateinit var findBar: FindBar
     private lateinit var menu: MenuCard
@@ -214,7 +214,7 @@ class BrowserActivity : Activity() {
         content.addView(startPage, FrameLayout.LayoutParams(-1, -1))
         message = MessagePanel(this).apply { visibility = View.GONE }
         content.addView(message, FrameLayout.LayoutParams(-1, -1).apply { topMargin = dp(TOOLBAR_DP) })
-        dots = BouncingDots(this).apply { visibility = View.GONE }
+        dots = HorizonLoader(this).apply { visibility = View.GONE }
         content.addView(dots, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         root.addView(content, FrameLayout.LayoutParams(-1, -1))
 

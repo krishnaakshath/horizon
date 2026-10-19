@@ -1,5 +1,6 @@
 package dev.tvlauncher.discover
 
+import dev.tvlauncher.brand.Brand
 import dev.tvlauncher.ui.BrandColors
 
 enum class AppCategory(val title: String) {
@@ -76,7 +77,7 @@ object PopularApps {
         app("crunchyroll", "Crunchyroll", "com.crunchyroll.crunchyroid", AppCategory.VIDEO, 0xFFF47521, 76),
         app("plex", "Plex", "com.plexapp.android", AppCategory.VIDEO, 0xFFE5A00D, 80),
         app("jellyfin", "Jellyfin", "org.jellyfin.androidtv", AppCategory.VIDEO, 0xFFAA5CC3, 66,
-            note = "Also in Get Apps via F-Droid."),
+            note = "Also in ${Brand.STORE} via F-Droid."),
         app("vlc", "VLC", "org.videolan.vlc", AppCategory.VIDEO, 0xFFFF8800, 74),
         app("kodi", "Kodi", "org.xbmc.kodi", AppCategory.VIDEO, 0xFF17B2E7, 70,
             source = Source.Fdroid("org.xbmc.kodi"), note = "Also on Google Play."),

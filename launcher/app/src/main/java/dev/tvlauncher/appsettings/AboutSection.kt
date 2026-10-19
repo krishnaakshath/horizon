@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.view.View
 import dev.tvlauncher.R
+import dev.tvlauncher.brand.Brand
 import dev.tvlauncher.settings.Branding
 import dev.tvlauncher.settings.Prefs
 import dev.tvlauncher.room.RoomPrefs
@@ -22,17 +23,18 @@ object AboutSection : SettingsSection, SpecifiedPage {
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val page = SettingsPage(context, nav.style, spec)
-        page.row("about.version", "Version", RowKind.Info(version(context)),
-            subtitle = "© ${Branding.COPYRIGHT_YEAR} ${Branding.COPYRIGHT_HOLDER}", iconRes = R.drawable.ic_set_about)
+        page.row("about.version", Brand.NAME, RowKind.Info(version(context)),
+            subtitle = Brand.TAGLINE, iconRes = R.drawable.ic_set_about)
         page.row("about.license", "License", RowKind.Action(Branding.LICENSE) {
             nav.push("License") { c, n -> textPage(c, n, R.raw.license_mit) }
         }, iconRes = R.drawable.ic_set_license)
         page.row("about.notices", "Third-party notices", RowKind.Action {
             nav.push("Third-party notices") { c, n -> textPage(c, n, R.raw.third_party_notices) }
-        }, subtitle = "AndroidX RecyclerView and Kotlin, Apache-2.0", iconRes = R.drawable.ic_set_license)
+        }, subtitle = "AndroidX and Kotlin (Apache-2.0), Inter and Unbounded fonts (OFL)", iconRes = R.drawable.ic_set_license)
         page.row("about.tv", "This TV", RowKind.Action(AboutText.ram(nav.profile.totalRamKb)) {
             nav.push("This TV") { c, n -> thisTv(c, n) }
         }, subtitle = "Memory, processor, effects and resolution", iconRes = R.drawable.ic_sc_device)
+        page.note("© ${Branding.COPYRIGHT_YEAR} ${Branding.COPYRIGHT_HOLDER}")
         page.note(Branding.DISCLAIMER)
         return page
     }

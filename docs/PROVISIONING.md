@@ -1,6 +1,6 @@
 # Provisioning a TV
 
-`tvtool provision` sets up TV Launcher and its companion apps on any Android TV, Google TV or
+`tvtool provision` sets up Horizon (the H02 launcher) and its companion apps on any Android TV, Google TV or
 Fire TV device you can reach with adb. One command does what would otherwise be a dozen
 manual steps, and it is a **dry run unless you add `--apply`**.
 
@@ -24,7 +24,7 @@ python3 -m tvtool provision --host 192.168.1.50 --apks ../launcher-apks
 # 2. Make the changes:
 python3 -m tvtool provision --host 192.168.1.50 --apks ../launcher-apks --apply
 
-# 3. Optional: also turn off the TV's stock launcher, so the Home key opens TV Launcher
+# 3. Optional: also turn off the TV's stock launcher, so the Home key opens H02
 #    on TVs where the stock launcher is hard-wired to Home:
 python3 -m tvtool provision --host 192.168.1.50 --apks ../launcher-apks --apply --take-over-home
 ```
@@ -51,8 +51,8 @@ already in place on the TV are left out, so running it twice is harmless.
 | `cmd notification allow_listener dev.tvlauncher/dev.tvlauncher.ambient.AmbientNotificationService` | Now Playing and ambient notifications |
 | `settings put secure enabled_accessibility_services <existing>:dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService` and `accessibility_enabled 1` | The Helper's remote shortcuts. Services already enabled stay enabled |
 | `settings put secure tv_user_setup_complete 1`, only when the setting exists and is `0` | Some TVs leave it at 0 after their own setup, and then the Home key does nothing |
-| `cmd role add-role-holder android.app.role.HOME dev.tvlauncher` (Android 10+) or `cmd package set-home-activity` (older) | Makes TV Launcher the home app |
-| With `--take-over-home` only: `pm disable-user --user 0 <stock launcher>` | So a Home key wired to the stock launcher opens TV Launcher |
+| `cmd role add-role-holder android.app.role.HOME dev.tvlauncher` (Android 10+) or `cmd package set-home-activity` (older) | Makes H02 the home app |
+| With `--take-over-home` only: `pm disable-user --user 0 <stock launcher>` | So a Home key wired to the stock launcher opens H02 |
 
 After each step the result is read back from the TV (for example
 `settings get secure enabled_accessibility_services`). A step that did not take effect stops
@@ -62,10 +62,10 @@ listener and the home role.
 ## Safety rules
 
 - Dry run by default. Nothing changes without `--apply`.
-- Only TV Launcher's own packages and the stock launchers listed in the matched profile are
+- Only H02's own packages and the stock launchers listed in the matched profile are
   ever touched. The plan is refused if any other package would be affected.
 - A stock launcher is disabled only with `--take-over-home`, only if it is installed and
-  enabled, and only after the TV confirms TV Launcher is available as a home app. It is
+  enabled, and only after the TV confirms H02 is available as a home app. It is
   disabled, never uninstalled.
 - Before the first change an undo script is written to `--out` (default `./scans-out/`),
   named `provision_undo_<model>_<time>.sh`. It reverses every planned step in reverse order
@@ -99,7 +99,7 @@ model, then manufacturer only, then the generic fallback.
 
 - `match.manufacturer` / `match.model`: `ro.product.manufacturer` / `ro.product.model`
   (case-insensitive). Use `"match": {"fallback": true}` for the generic profile.
-- `stock_launchers`: the only packages `--take-over-home` may disable. TV Launcher's own
+- `stock_launchers`: the only packages `--take-over-home` may disable. H02's own
   packages are rejected here.
 
 Shipped profiles: `tcl-32S5403AF.json` and `generic-android-tv.json` (Google TV, Android TV

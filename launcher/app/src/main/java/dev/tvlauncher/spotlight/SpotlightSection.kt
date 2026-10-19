@@ -1,5 +1,6 @@
 package dev.tvlauncher.spotlight
 
+import dev.tvlauncher.brand.Brand
 import android.content.Context
 import android.content.SharedPreferences
 import android.view.KeyEvent
@@ -206,7 +207,7 @@ object SpotlightSection : SettingsSection, SpecifiedPage {
         }, subtitle = "Only if your remote has one; the mic button belongs to the TV", iconRes = R.drawable.ic_search)
 
         val extraTitle = "Extra key"
-        val extraSub = "Also opens Spotlight from other apps with Launcher Helper"
+        val extraSub = "Also opens Spotlight from other apps with ${Brand.HELPER}"
         val extra = page.row("keys.extra", extraTitle, RowKind.Action(if (c.extraKey != 0) keyName(c.extraKey) else "None") {},
             subtitle = extraSub, iconRes = R.drawable.ic_set_tune)
         listenForKey(extra, nav,

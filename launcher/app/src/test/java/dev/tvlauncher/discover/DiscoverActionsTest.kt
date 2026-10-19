@@ -41,7 +41,7 @@ class DiscoverActionsTest {
     @Test fun labels() {
         assertEquals("Open", DiscoverActions.label(Action.OPEN))
         assertEquals("Install", DiscoverActions.label(Action.OPEN_PLAY_STORE))
-        assertEquals("Open Get Apps", DiscoverActions.label(Action.OPEN_GET_APPS))
+        assertEquals("Open H02 Store", DiscoverActions.label(Action.OPEN_GET_APPS))
         assertEquals("Not available", DiscoverActions.label(Action.NONE))
     }
 

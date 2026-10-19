@@ -6,7 +6,7 @@
     "com.google.android.leanbacklauncher"
   ],
   "notes": [
-    "The Home key always opens the stock launcher; only --take-over-home makes it open TV Launcher.",
+    "The Home key always opens the stock launcher; only --take-over-home makes it open H02.",
     "The TV has no notification access or accessibility screens; provisioning grants both.",
     "tv_user_setup_complete can be left at 0, which makes the Home key do nothing; it is set to 1."
   ]
