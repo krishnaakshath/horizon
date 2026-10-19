@@ -1,6 +1,7 @@
 package dev.tvlauncher.appsettings
 
 import android.content.Context
+import android.content.Intent
 import android.view.View
 import android.widget.FrameLayout
 import dev.tvlauncher.R
@@ -18,11 +19,17 @@ import java.util.concurrent.atomic.AtomicReference
  * LauncherApp.onCreate, so the first Settings screen already shows them in their placeholders' slots.
  */
 object ModuleSections {
-    val IDS = listOf(ModulePlaceholderSection.SOUNDS, ModulePlaceholderSection.INSIGHTS, ModulePlaceholderSection.BROWSER)
+    val IDS = listOf(
+        ModulePlaceholderSection.SOUNDS, ModulePlaceholderSection.INSIGHTS,
+        ModulePlaceholderSection.HELPER, ModulePlaceholderSection.BROWSER
+    )
+    const val HELPER_PACKAGE = "dev.tvlauncher.helper"
+    const val HELPER_ACTIVITY = "dev.tvlauncher.helper.HelperSettingsActivity"
 
     fun registerAll(registry: SettingsRegistry = SettingsRegistry.shared) {
         registry.register(SoundsSection)
         registry.register(InsightsSection)
+        registry.register(HelperSection)
         registry.register(BrowserSection)
     }
 
@@ -110,6 +117,29 @@ object BrowserSection : SettingsSection {
         } else {
             page.row("browser.status", "Browser", RowKind.Info(ModuleSections.installedValue(false)),
                 subtitle = "Install ${QuickActions.BROWSER_PACKAGE} to use it", iconRes = R.drawable.ic_set_browser)
+        }
+        return page
+    }
+}
+
+/** Link to the separate Launcher Helper app (double-Back to Home, Spotlight shortcut). */
+object HelperSection : SettingsSection {
+    override val id = ModulePlaceholderSection.HELPER
+    override val title = "Helper"
+    override val iconRes = R.drawable.ic_set_helper
+
+    override fun buildPage(context: Context, nav: SettingsNav): View {
+        val page = SettingsPage(context, nav.style)
+        page.lead("The optional companion for remote shortcuts such as double-Back to Home.")
+        if (ModuleProbe.isAppInstalled(context, ModuleSections.HELPER_PACKAGE)) {
+            page.row("helper.open", "Launcher Helper", RowKind.Action {
+                val i = Intent().setClassName(ModuleSections.HELPER_PACKAGE, ModuleSections.HELPER_ACTIVITY)
+                if (!SystemActions.start(context, i)) nav.notify("Launcher Helper could not be opened")
+            }, subtitle = "Opens the helper's own settings", iconRes = R.drawable.ic_set_helper)
+            page.note("The helper works only after it is turned on under Settings > Accessibility on the TV.")
+        } else {
+            page.row("helper.status", "Launcher Helper", RowKind.Info(ModuleSections.installedValue(false)),
+                subtitle = "Install the helper APK (${ModuleSections.HELPER_PACKAGE}) to use it", iconRes = R.drawable.ic_set_helper)
         }
         return page
     }

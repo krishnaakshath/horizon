@@ -43,4 +43,15 @@ class ModuleSectionsTest {
         assertEquals("Not installed", ModuleSections.installedValue(false))
         assertEquals("Installed", ModuleSections.installedValue(true))
     }
+
+    @Test
+    fun helperSection_isRegistered_andTargetsHelperSettings() {
+        assertTrue(ModulePlaceholderSection.HELPER in ModuleSections.IDS)
+        val r = SettingsRegistry.newDefault()
+        ModuleSections.registerAll(r)
+        val helper = r.sections().first { it.id == ModulePlaceholderSection.HELPER }
+        assertEquals("Helper", helper.title)
+        assertEquals("dev.tvlauncher.helper", ModuleSections.HELPER_PACKAGE)
+        assertEquals("dev.tvlauncher.helper.HelperSettingsActivity", ModuleSections.HELPER_ACTIVITY)
+    }
 }
