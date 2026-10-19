@@ -228,3 +228,45 @@ open class TrapFrame(context: Context) : FrameLayout(context) {
     override fun focusSearch(focused: View?, direction: Int): View? =
         FocusFinder.getInstance().findNextFocus(this, focused, direction) ?: focused
 }
+
+/**
+ * The rows of a panel, rendered from [PanelEntry]s. Used inside [PanelShell] and on its own where
+ * a page embeds the same rows (Settings > Devices). Rows with an unchanged key sequence are
+ * re-bound in place so focus and scroll stay put.
+ */
+class PanelList(context: Context) : LinearLayout(context) {
+    var onRowClick: ((PanelEntry.Row) -> Unit)? = null
+    var onRowKey: ((PanelEntry.Row, Int) -> Boolean)? = null
+
+    init { orientation = VERTICAL }
+
+    fun rowViews(): List<PanelRowView> = (0 until childCount).mapNotNull { getChildAt(it) as? PanelRowView }
+
+    /** Returns true when the views were rebuilt (focus must then be placed by the caller). */
+    fun render(entries: List<PanelEntry>): Boolean {
+        val existing = (0 until childCount).map { getChildAt(it) }
+        val same = existing.size == entries.size && existing.zip(entries).all { (v, e) ->
+            (v is PanelRowView && e is PanelEntry.Row && v.key == e.key) ||
+                (v is PanelMessageView && e is PanelEntry.Message && v.getTag(R.id.panel_entry) == e)
+        }
+        if (same) {
+            existing.zip(entries).forEach { (v, e) -> if (v is PanelRowView && e is PanelEntry.Row) v.bind(e) }
+            return false
+        }
+        removeAllViews()
+        for (e in entries) addView(viewFor(e), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        return true
+    }
+
+    private fun viewFor(e: PanelEntry): View = when (e) {
+        is PanelEntry.Row -> PanelRowView(context, e).apply {
+            setOnClickListener { if (row.enabled) onRowClick?.invoke(row) }
+            setOnKeyListener { _, code, ev ->
+                if (ev.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                if (code != android.view.KeyEvent.KEYCODE_DPAD_LEFT && code != android.view.KeyEvent.KEYCODE_DPAD_RIGHT) return@setOnKeyListener false
+                onRowKey?.invoke(row, code) ?: false
+            }
+        }
+        is PanelEntry.Message -> PanelMessageView(context, e).apply { setTag(R.id.panel_entry, e) }
+    }
+}

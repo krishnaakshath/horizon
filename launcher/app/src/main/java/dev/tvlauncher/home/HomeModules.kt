@@ -40,6 +40,10 @@ class HomeModules(
             ambient.setPaused(HomeAmbient.PAUSE_PANEL, open)
         }
         panels = p
+        // The top-bar Inputs pill opens the Inputs panel; a TV without inputs keeps the system switch.
+        topBar.inputsButton.setOnClickListener { v ->
+            if (!panels.openInputs(v)) sounds.action(SystemActions.inputs(activity))
+        }
     }
 
     /** True while a panel is open or closing: Spotlight stays closed. */

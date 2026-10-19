@@ -51,14 +51,18 @@ class PanelShell(
     val header = PanelHeaderView(context)
     /** Optional free-form views between the header and the rows (e.g. a thumbnail grid). */
     val extra = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
-    private val list = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+    private val list = PanelList(context)
     val scroll = MaxHeightScrollView(context)
     val lifecycle = PanelLifecycle()
 
     /** OK on an enabled row. */
-    var onRowClick: ((PanelEntry.Row) -> Unit)? = null
+    var onRowClick: ((PanelEntry.Row) -> Unit)?
+        get() = list.onRowClick
+        set(v) { list.onRowClick = v }
     /** D-pad LEFT/RIGHT on a row (steppers); return true when consumed. */
-    var onRowKey: ((PanelEntry.Row, Int) -> Boolean)? = null
+    var onRowKey: ((PanelEntry.Row, Int) -> Boolean)?
+        get() = list.onRowKey
+        set(v) { list.onRowKey = v }
     /** Set to make the panel handle BACK itself (see class doc). */
     var onBackKey: (() -> Unit)? = null
     var onClosed: (() -> Unit)? = null
@@ -144,20 +148,12 @@ class PanelShell(
         header.bind(content.header)
         val focusedKey = (root.findFocus() as? PanelRowView)?.key
         val hadFocus = root.hasFocus()
-        val existing = (0 until list.childCount).map { list.getChildAt(it) }
-        val sameShape = existing.size == content.entries.size && existing.zip(content.entries).all { (v, e) ->
-            (v as? PanelRowView)?.key == e.key && e is PanelEntry.Row ||
-                v is PanelMessageView && e is PanelEntry.Message && v.tag == e.key && v.getTag(MSG_KEY) == e
-        }
-        if (sameShape) {
-            existing.zip(content.entries).forEach { (v, e) -> if (v is PanelRowView && e is PanelEntry.Row) v.bind(e) }
+        val sy = scroll.scrollY
+        if (!list.render(content.entries)) {
             if (!root.hasFocus() && isOpen) focusFirstOrHold(preferKey)
             return
         }
-        val sy = scroll.scrollY
-        list.removeAllViews()
-        for (e in content.entries) list.addView(viewFor(e), LinearLayout.LayoutParams(-1, -2))
-        val rows = rowViews()
+        val rows = list.rowViews()
         val i = PanelLimits.focusIndex(rows.map { it.key }, focusedKey, preferKey)
         if (!isOpen) return
         if (i >= 0 && (hadFocus || !root.hasFocus())) {
@@ -169,22 +165,8 @@ class PanelShell(
         }
     }
 
-    private fun rowViews(): List<PanelRowView> = (0 until list.childCount).mapNotNull { list.getChildAt(it) as? PanelRowView }
-
-    private fun viewFor(e: PanelEntry): View = when (e) {
-        is PanelEntry.Row -> PanelRowView(context, e).apply {
-            setOnClickListener { if (row.enabled) onRowClick?.invoke(row) }
-            setOnKeyListener { _, code, ev ->
-                if (ev.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
-                if (code != KeyEvent.KEYCODE_DPAD_LEFT && code != KeyEvent.KEYCODE_DPAD_RIGHT) return@setOnKeyListener false
-                onRowKey?.invoke(row, code) ?: false
-            }
-        }
-        is PanelEntry.Message -> PanelMessageView(context, e).apply { setTag(MSG_KEY, e) }
-    }
-
     private fun focusFirstOrHold(preferKey: String? = null) {
-        val rows = rowViews()
+        val rows = list.rowViews()
         val i = PanelLimits.focusIndex(rows.map { it.key }, null, preferKey)
         if (i >= 0) { root.isFocusable = false; rows[i].requestFocus() } else holdFocus()
     }
@@ -199,6 +181,5 @@ class PanelShell(
     companion object {
         /** Space kept free for the top bar above a SIDE panel (dp). */
         const val TOP_BAR_CLEARANCE = 56
-        private val MSG_KEY = dev.tvlauncher.R.id.panel_entry
     }
 }

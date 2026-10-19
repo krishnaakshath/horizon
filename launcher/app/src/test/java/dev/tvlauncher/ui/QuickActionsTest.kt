@@ -51,7 +51,8 @@ class QuickActionsTest {
         assertEquals(QuickActions.Route.SYSTEM, QuickActions.route(Item.BLUETOOTH, bluetoothPresent = false))
         assertEquals(QuickActions.Route.DEVICES_PANEL, QuickActions.route(Item.DEVICES, bluetoothPresent = false))
         assertEquals(QuickActions.Route.AMBIENT, QuickActions.route(Item.AMBIENT, bluetoothPresent = false))
-        for (i in listOf(Item.INPUTS, Item.SETTINGS, Item.SOUND, Item.INSIGHTS, Item.BROWSER)) {
+        assertEquals(QuickActions.Route.INPUTS_PANEL, QuickActions.route(Item.INPUTS, bluetoothPresent = false))
+        for (i in listOf(Item.SETTINGS, Item.SOUND, Item.INSIGHTS, Item.BROWSER)) {
             assertEquals(QuickActions.Route.SYSTEM, QuickActions.route(i, bluetoothPresent = true))
         }
     }

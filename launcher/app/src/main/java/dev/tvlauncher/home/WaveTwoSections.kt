@@ -175,7 +175,7 @@ object DevicesSection : SettingsSection {
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val panel = DevicesPanel(context)
-        panel.onSwitchResult = { ok -> if (!ok) nav.notify("Could not open input") }
+        // A failed switch shows inline in the list.
         val monitor = DeviceMonitor(context) { } // the list only; cards belong to the home screen
         return object : FrameLayout(context) {
             override fun onAttachedToWindow() {
