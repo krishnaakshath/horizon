@@ -13,7 +13,11 @@ import dev.tvlauncher.ui.Theme.style
  * "Open notification access settings" button and, when the TV has no such screen, the ADB line.
  * Call [refresh] from the host's onResume to update the state after the user returns.
  */
-class NotificationAccessCard(context: Context) : LinearLayout(context) {
+class NotificationAccessCard @JvmOverloads constructor(
+    context: Context,
+    title: String = DEFAULT_TITLE,
+    body: String = DEFAULT_BODY
+) : LinearLayout(context) {
     private val density = resources.displayMetrics.density
     private val status = TextView(context)
     private val fallback = TextView(context)
@@ -26,13 +30,12 @@ class NotificationAccessCard(context: Context) : LinearLayout(context) {
         setPadding(px(20), px(16), px(20), px(16))
         background = GradientDrawable().apply {
             cornerRadius = px(16).toFloat()
-            setColor(0x0FFFFFFF)
-            setStroke(px(1), Theme.STROKE)
+            setColor(0x0FFFFFFF) // fill only: one card style, no border
         }
-        addView(TextView(context).apply { style(Theme.SP_BUTTON + 1f, Theme.medium); text = "Notifications on the ambient screen" })
+        addView(TextView(context).apply { style(Theme.SP_BUTTON + 1f, Theme.medium); text = title })
         addView(TextView(context).apply {
             style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
-            text = "Lets the ambient screen show up to 3 recent notifications. Kept in memory only, never saved."
+            text = body
         }, params(4))
         status.style(Theme.SP_LABEL, Theme.medium, Theme.TEXT_2)
         addView(status, params(10))
@@ -69,9 +72,24 @@ class NotificationAccessCard(context: Context) : LinearLayout(context) {
         if (on) fallback.visibility = GONE
     }
 
+    /** Back from the system's access screen: the window regains focus, so the state is re-read here too. */
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        if (hasWindowFocus) refresh()
+    }
+
     private fun open() {
         val opened = NotificationAccess.openSettings(context)
         fallback.text = NotificationAccess.instructions(opened)
         fallback.visibility = VISIBLE
+    }
+
+    companion object {
+        const val DEFAULT_TITLE = "Notifications on the ambient screen"
+        const val DEFAULT_BODY = "Lets the ambient screen show up to 3 recent notifications. Kept in memory only, never saved."
+        const val NOW_PLAYING_TITLE = "Allow Now Playing"
+        const val NOW_PLAYING_BODY =
+            "Now Playing reads the TV's media sessions through the launcher's notification access (the same " +
+                "one-time grant as ambient notifications). Title and art stay in memory only."
     }
 }

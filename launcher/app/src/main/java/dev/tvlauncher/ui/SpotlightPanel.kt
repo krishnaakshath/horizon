@@ -30,6 +30,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import dev.tvlauncher.R
 import dev.tvlauncher.apps.AppEntry
+import dev.tvlauncher.audit.AuditTags
+import dev.tvlauncher.audit.auditTag
 import dev.tvlauncher.apps.component
 import dev.tvlauncher.ui.QuickActions.Item
 import dev.tvlauncher.ui.Theme.style
@@ -49,7 +51,9 @@ class SpotlightPanel(
     private val onAction: (Item) -> Unit,
     private val onActionLongPress: (Item) -> Unit,
     private val onLaunch: (AppEntry, View) -> Unit,
-    private val onClosed: () -> Unit
+    private val onClosed: () -> Unit,
+    /** State-dependent icon for a quick action (room lighting), or null for the fixed one. */
+    private val iconFor: (Item) -> Int? = { null }
 ) : FrameLayout(context) {
     var isOpen = false
         private set
@@ -68,7 +72,11 @@ class SpotlightPanel(
     private val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     private val openMs = Motion.ms(SpotlightKeys.openMs(full))
 
-    private val scrim = View(context).apply { setBackgroundColor(if (full) 0x73000000 else 0x8C000000.toInt()) }
+    // Dims the home screen (the shelf runs right under the panel) so nothing competes with it.
+    private val scrim = View(context).apply {
+        setBackgroundColor(SpotlightKeys.scrimColor(full))
+        auditTag(AuditTags.SCRIM)
+    }
     private val card = object : LinearLayout(context) {
         override fun hasOverlappingRendering() = false
     }.apply {
@@ -77,7 +85,7 @@ class SpotlightPanel(
         setPadding(p, p, p, p)
         clipChildren = false
         clipToPadding = false
-        background = Glass.surface(context, full, CARD_RADIUS_DP)
+        background = Glass.panel(context, full, CARD_RADIUS_DP)
     }
     val search: EditText = object : EditText(context) {
         override fun onKeyPreIme(keyCode: Int, event: KeyEvent): Boolean {
@@ -161,6 +169,7 @@ class SpotlightPanel(
         addView(resultsScroll, LayoutParams(-1, -2))
         addView(noMatches, LayoutParams(-1, -2, Gravity.CENTER))
         visibility = View.GONE
+        auditTag(AuditTags.LAYER) // results or "No matching apps", never both visible
     }
 
     override fun hasOverlappingRendering() = false
@@ -197,7 +206,7 @@ class SpotlightPanel(
         isOpen = true
         descendantFocusability = FOCUS_AFTER_DESCENDANTS
         val items = QuickActions.items(installedPackages)
-        if (items != shownActions) rebuildActions(items)
+        if (items != shownActions) rebuildActions(items) else refreshAction(Item.ROOM) // choice may have changed in Settings
         search.setText("")
         animate().cancel(); scrim.animate().cancel(); card.animate().cancel()
         visibility = View.VISIBLE
@@ -241,11 +250,18 @@ class SpotlightPanel(
         return FocusFinder.getInstance().findNextFocus(this, focused, direction) ?: focused
     }
 
+    /** Re-reads [item]'s icon (after room lighting cycled). */
+    fun refreshAction(item: Item) {
+        val i = shownActions.indexOf(item)
+        if (i < 0) return
+        (actionsRow.getChildAt(i) as? RoundButton)?.setIcon(iconFor(item) ?: iconOf(item), item.title)
+    }
+
     private fun rebuildActions(items: List<Item>) {
         shownActions = items
         actionsRow.removeAllViews()
         items.forEachIndexed { i, item ->
-            val b = RoundButton(context, iconOf(item), item.title) { onAction(item) }
+            val b = RoundButton(context, iconFor(item) ?: iconOf(item), item.title) { onAction(item) }
             val p = context.dp(14)
             b.setPadding(p, p, p, p)
             if (item.hasLongPress) b.setOnLongClickListener { onActionLongPress(item); true }
@@ -267,6 +283,7 @@ class SpotlightPanel(
         Item.SOUND -> R.drawable.ic_volume
         Item.DEVICES -> R.drawable.ic_set_devices
         Item.AMBIENT -> R.drawable.ic_qa_ambient
+        Item.ROOM -> R.drawable.ic_room_auto
         Item.INSIGHTS -> R.drawable.ic_insights
         Item.BROWSER -> R.drawable.ic_browser
     }

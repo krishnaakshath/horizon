@@ -49,6 +49,7 @@ object SystemActions {
         // Fallbacks only: the home screen opens its Devices panel / AmbientActivity itself.
         QuickActions.Item.DEVICES -> launcherSettings(context) || settings(context)
         QuickActions.Item.AMBIENT -> ambient(context)
+        QuickActions.Item.ROOM -> false // handled on the home screen (HomeModules)
         QuickActions.Item.INSIGHTS -> insights(context)
         QuickActions.Item.BROWSER -> launchPackage(context, QuickActions.BROWSER_PACKAGE)
     }

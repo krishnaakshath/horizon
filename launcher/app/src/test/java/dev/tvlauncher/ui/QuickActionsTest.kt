@@ -21,11 +21,20 @@ class QuickActionsTest {
     @Test fun order_isStable() {
         val expected = listOf(
             Item.INPUTS, Item.SETTINGS, Item.NETWORK, Item.BLUETOOTH, Item.SOUND,
-            Item.DEVICES, Item.AMBIENT, Item.INSIGHTS
+            Item.DEVICES, Item.AMBIENT, Item.ROOM, Item.INSIGHTS
         )
         assertEquals(expected, QuickActions.items(emptySet()))
         assertEquals(expected, QuickActions.items(setOf("a", "b")))
         assertEquals(expected + Item.BROWSER, QuickActions.items(setOf(QuickActions.BROWSER_PACKAGE)))
+    }
+
+    @Test fun room_isAlwaysThere_andCyclesOnHome() {
+        for (set in listOf(emptySet(), setOf(QuickActions.BROWSER_PACKAGE))) {
+            val items = QuickActions.items(set)
+            assertEquals(items.indexOf(Item.AMBIENT) + 1, items.indexOf(Item.ROOM))
+        }
+        assertEquals(QuickActions.Route.ROOM_CYCLE, QuickActions.route(Item.ROOM, bluetoothPresent = true))
+        assertEquals("Room lighting", Item.ROOM.title)
     }
 
     @Test fun onlySettings_hasLongPress() {

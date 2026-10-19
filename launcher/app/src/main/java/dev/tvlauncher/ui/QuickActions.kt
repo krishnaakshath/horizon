@@ -2,7 +2,7 @@ package dev.tvlauncher.ui
 
 /**
  * The Spotlight quick-actions row, in focus order. Browser appears only when our browser
- * package is installed; Devices and Ambient are always there. [route] decides whether an item
+ * package is installed; Devices, Ambient and Room lighting are always there. [route] decides whether an item
  * opens one of the home screen's own panels or goes through SystemActions (system settings).
  */
 object QuickActions {
@@ -17,15 +17,17 @@ object QuickActions {
         SOUND("Sound"),
         DEVICES("Devices"),
         AMBIENT("Ambient"),
+        /** Cycles room lighting (Auto, Dark room, Evening, Normal, Bright room); the icon shows the choice. */
+        ROOM("Room lighting"),
         INSIGHTS("Insights"),
         BROWSER("Browser")
     }
 
     private val ALWAYS = listOf(
-        Item.INPUTS, Item.SETTINGS, Item.NETWORK, Item.BLUETOOTH, Item.SOUND, Item.DEVICES, Item.AMBIENT, Item.INSIGHTS
+        Item.INPUTS, Item.SETTINGS, Item.NETWORK, Item.BLUETOOTH, Item.SOUND, Item.DEVICES, Item.AMBIENT, Item.ROOM, Item.INSIGHTS
     )
 
-    enum class Route { WIFI_PANEL, BLUETOOTH_PANEL, DEVICES_PANEL, AMBIENT, SYSTEM }
+    enum class Route { WIFI_PANEL, BLUETOOTH_PANEL, DEVICES_PANEL, AMBIENT, ROOM_CYCLE, SYSTEM }
 
     /** Wi-Fi and Bluetooth open the home panels directly; Bluetooth without an adapter uses system settings. */
     fun route(item: Item, bluetoothPresent: Boolean): Route = when (item) {
@@ -33,6 +35,7 @@ object QuickActions {
         Item.BLUETOOTH -> if (bluetoothPresent) Route.BLUETOOTH_PANEL else Route.SYSTEM
         Item.DEVICES -> Route.DEVICES_PANEL
         Item.AMBIENT -> Route.AMBIENT
+        Item.ROOM -> Route.ROOM_CYCLE
         else -> Route.SYSTEM
     }
 

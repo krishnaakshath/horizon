@@ -57,7 +57,7 @@ class HomePanels(
             QuickActions.Route.BLUETOOTH_PANEL -> openBluetooth(null)
             QuickActions.Route.DEVICES_PANEL -> open { devices.showPanel() }
             QuickActions.Route.AMBIENT -> { sounds.action(startAmbient()); true } // handled here, even on failure
-            QuickActions.Route.SYSTEM -> false
+            QuickActions.Route.ROOM_CYCLE, QuickActions.Route.SYSTEM -> false
         }
 
     private inline fun open(block: () -> Boolean): Boolean {

@@ -1,5 +1,6 @@
 package dev.tvlauncher.settings
 
+import dev.tvlauncher.room.RoomSettings
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -8,19 +9,35 @@ import java.io.File
  * Launcher settings export/import as a JSON file. Pure (java.io + org.json); callers run it off
  * the main thread. Import is strict: anything but a fully valid file is rejected and the current
  * settings are kept, so a wrong-but-parseable file can never wipe favorites, order or hidden apps.
+ *
+ * Optional section [ROOM_KEY]: the room-lighting preferences (SharedPreferences "room_settings",
+ * [RoomSettings] JSON). Absent in older files (then room lighting is left alone); when present it
+ * must be a JSON object, and its fields are read tolerantly (bad values fall back per field).
  */
 object SettingsBackup {
+    const val ROOM_KEY = "room_settings"
+
+    /** A validated file: the launcher settings and, when the file had them, the room settings. */
+    data class Restored(val settings: LauncherSettings, val room: RoomSettings?)
+
     const val FILE_NAME = "launcher-settings.json"
     const val MAX_BYTES = 512 * 1024L
     const val MAX_ENTRIES = 2000
     const val MAX_PACKAGE_LENGTH = 255
     private val PACKAGE = Regex("^[A-Za-z0-9_.]+$")
 
-    /** Writes [settings] to [file] via a temp file + rename. False on any I/O failure. */
-    fun export(settings: LauncherSettings, file: File): Boolean = try {
+    /** The file's text: [settings] plus [room] under [ROOM_KEY] when given. */
+    fun toText(settings: LauncherSettings, room: RoomSettings? = null): String {
+        val json = JSONObject(settings.toJson())
+        if (room != null) json.put(ROOM_KEY, JSONObject(room.toJson()))
+        return json.toString(2)
+    }
+
+    /** Writes [settings] (and [room]) to [file] via a temp file + rename. False on any I/O failure. */
+    fun export(settings: LauncherSettings, file: File, room: RoomSettings? = null): Boolean = try {
         file.parentFile?.mkdirs()
         val tmp = File(file.path + ".tmp")
-        tmp.writeText(JSONObject(settings.toJson()).toString(2))
+        tmp.writeText(toText(settings, room))
         if (!tmp.renameTo(file)) {
             file.writeText(tmp.readText())
             tmp.delete()
@@ -34,14 +51,29 @@ object SettingsBackup {
     fun import(file: File, current: LauncherSettings): LauncherSettings = importOrNull(file) ?: current
 
     /** Settings read from [file], or null when it is missing, too large or invalid. */
-    fun importOrNull(file: File): LauncherSettings? {
+    fun importOrNull(file: File): LauncherSettings? = restoreOrNull(file)?.settings
+
+    /** Everything a valid [file] holds (launcher and room settings), or null. */
+    fun restoreOrNull(file: File): Restored? {
         val text = try {
             if (!file.isFile || file.length() > MAX_BYTES) return null
             file.readText()
         } catch (e: Exception) {
             return null
         }
-        return parse(text)
+        return parseRestored(text)
+    }
+
+    /** [parse] plus the optional [ROOM_KEY] object; a [ROOM_KEY] that is not an object rejects the file. */
+    fun parseRestored(text: String): Restored? {
+        val settings = parse(text) ?: return null
+        val json = try { JSONObject(text) } catch (e: Exception) { return null }
+        val room = when (val r = json.opt(ROOM_KEY)) {
+            null -> null
+            is JSONObject -> RoomSettings.fromJson(r.toString())
+            else -> return null
+        }
+        return Restored(settings, room)
     }
 
     /**

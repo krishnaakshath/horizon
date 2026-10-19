@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import dev.tvlauncher.apps.AppEntry
 import dev.tvlauncher.device.EffectsMode
+import dev.tvlauncher.discover.DiscoverTileView
 import dev.tvlauncher.home.EffectiveProfile
 
 class ShelfAdapter(
@@ -19,9 +20,14 @@ class ShelfAdapter(
     private val onLongPress: (AppEntry) -> Unit,
     private val onDown: () -> Boolean,
     /** Any other D-pad press on a tile (restarts the quick-strip dwell). */
-    private val onDpad: () -> Unit
-) : RecyclerView.Adapter<ShelfAdapter.Holder>() {
+    private val onDpad: () -> Unit,
+    /** OK on the end-of-shelf "Get more apps" tile. */
+    private val onFooterClick: () -> Unit = {},
+    /** The footer tile gained focus. */
+    private val onFooterFocused: () -> Unit = {}
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     class Holder(val tile: TileView) : RecyclerView.ViewHolder(tile)
+    private class FooterHolder(view: DiscoverTileView) : RecyclerView.ViewHolder(view)
 
     private var items: List<AppEntry> = emptyList()
     /** Card size for the user's tile-size setting. */
@@ -39,8 +45,19 @@ class ShelfAdapter(
 
     fun getItems(): List<AppEntry> = items
 
-    fun submit(list: List<AppEntry>) {
+    /** Whether the "Get more apps" tile follows the last app ([ShelfFooter]). */
+    var footer = false
+        private set
+
+    /** App tiles only (the footer is not an app). */
+    val appCount: Int get() = items.size
+
+    /** Adapter position of the footer tile, or -1. */
+    val footerPosition: Int get() = ShelfFooter.position(items.size, footer)
+
+    fun submit(list: List<AppEntry>, showFooter: Boolean = footer) {
         items = list
+        footer = ShelfFooter.show(showFooter, list.size)
         lastFocused = lastFocused.coerceIn(0, maxOf(0, list.size - 1))
         notifyDataSetChanged()
     }
@@ -66,15 +83,29 @@ class ShelfAdapter(
     private fun artOf(app: AppEntry): TileArt<Drawable> = artCache.get(app.packageName)
         ?: TileArtResolver.resolve(pm, app).also { artCache.put(app.packageName, it) }
 
-    override fun getItemCount() = items.size
+    override fun getItemCount() = ShelfFooter.itemCount(items.size, footer)
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
+    override fun getItemViewType(position: Int): Int =
+        if (ShelfFooter.isFooter(position, items.size, footer)) TYPE_FOOTER else TYPE_APP
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val lp = RecyclerView.LayoutParams(parent.context.dp(dims.viewWidthDp), parent.context.dp(dims.viewHeightDp))
+        if (viewType == TYPE_FOOTER) {
+            val v = DiscoverTileView(parent.context, dims) { onFooterClick() }
+            v.layoutParams = lp
+            v.setOnFocusChangeListener { _, has -> if (has) onFooterFocused() }
+            v.setOnKeyListener { _, code, ev ->
+                ev.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_DPAD_DOWN && onDown()
+            }
+            return FooterHolder(v)
+        }
         val tile = TileView(parent.context, dims)
-        tile.layoutParams = RecyclerView.LayoutParams(parent.context.dp(dims.viewWidthDp), parent.context.dp(dims.viewHeightDp))
+        tile.layoutParams = lp
         return Holder(tile)
     }
 
-    override fun onBindViewHolder(holder: Holder, position: Int) {
+    override fun onBindViewHolder(vh: RecyclerView.ViewHolder, position: Int) {
+        val holder = vh as? Holder ?: return // the footer has nothing to bind
         val app = items[position]
         val art = artOf(app)
         holder.tile.bind(app, art, profile, accentOf(app))
@@ -83,7 +114,7 @@ class ShelfAdapter(
         holder.tile.setOnLongClickListener { onLongPress(app); true }
         holder.tile.setOnFocusChangeListener { _, has ->
             val pos = holder.bindingAdapterPosition
-            if (has && pos != RecyclerView.NO_POSITION) {
+            if (has && pos != RecyclerView.NO_POSITION && pos < items.size) {
                 lastFocused = pos
                 onFocused(pos, items[pos], holder.tile)
             }
@@ -101,5 +132,7 @@ class ShelfAdapter(
     companion object {
         /** Tiles whose art/accent are prepared off the main thread before the first bind. */
         const val PRELOAD = 8
+        private const val TYPE_APP = 0
+        private const val TYPE_FOOTER = 1
     }
 }

@@ -25,6 +25,11 @@ import dev.tvlauncher.appsettings.SettingsSection
 import dev.tvlauncher.appsettings.SpecifiedPage
 import dev.tvlauncher.devices.DeviceMonitor
 import dev.tvlauncher.devices.DevicesPanel
+import dev.tvlauncher.discover.DiscoverSettingsRows
+import dev.tvlauncher.discover.DiscoverStore
+import dev.tvlauncher.discover.RegionGuess
+import dev.tvlauncher.nowplaying.NowPlayingAccess
+import java.util.Locale
 import dev.tvlauncher.settings.AppearanceFormat
 import dev.tvlauncher.settings.AppearancePrefs
 import dev.tvlauncher.ui.SystemActions
@@ -44,6 +49,7 @@ object WaveTwoSections {
         registry.register(AmbientSection)
         registry.register(DevicesSection)
         registry.register(HomeExtrasSection)
+        registry.register(RoomSection)
     }
 
     /** Value of the "Weather" row: the companion's settings open when it is installed. */
@@ -63,7 +69,28 @@ object WaveTwoSections {
         AMBIENT_ADVANCED_MODEL_KEYS.map { "ambient.$it" }
     )
 
-    val HOME_EXTRAS_SPEC = PageSpec(HOME_EXTRAS_ID, listOf("home.weatherTopBar", "home.weather"))
+    val HOME_EXTRAS_SPEC = PageSpec(
+        HOME_EXTRAS_ID,
+        listOf("home.weatherTopBar", "home.weather", "home.getMoreAppsTile", "home.nowPlaying"),
+        listOf("home.discoverRegion", "home.restoreHidden")
+    )
+
+    /**
+     * Rows of the Home screen page in order, as (key, advanced). The notification-access card is a
+     * plain view shown under "home.nowPlaying" when [accessCardShown]; "home.restoreHidden" only
+     * appears while suggestions are hidden.
+     */
+    fun homeExtrasRows(hiddenSuggestions: Int): List<Pair<String, Boolean>> =
+        listOf("home.weatherTopBar", "home.weather", "home.getMoreAppsTile", "home.nowPlaying").map { it to false } +
+            listOfNotNull("home.discoverRegion", "home.restoreHidden".takeIf { hiddenSuggestions > 0 }).map { it to true }
+
+    /** The access card shows while Now Playing is on but the listener is not granted. */
+    fun accessCardShown(nowPlayingEnabled: Boolean, granted: Boolean): Boolean = nowPlayingEnabled && !granted
+
+    /** Region stepper labels ([DiscoverSettingsRows.REGIONS]; null = automatic). */
+    fun regionLabels(detected: String?): List<String> = DiscoverSettingsRows.REGIONS.map { r ->
+        r ?: RegionGuess.normalize(detected)?.let { "Automatic ($it)" } ?: "Automatic"
+    }
 
     data class PageRow(val key: String, val title: String, val kind: PageKind, val value: String, val hint: String?)
 
@@ -194,7 +221,10 @@ object DevicesSection : SettingsSection {
     }
 }
 
-/** Settings > Home screen: the top-bar weather chip and the weather companion's own settings. */
+/**
+ * Settings > Home screen: the top-bar weather chip, the weather companion's settings, the shelf's
+ * "Get more apps" tile and the Now Playing card (with the notification-access card when needed).
+ */
 object HomeExtrasSection : SettingsSection, SpecifiedPage {
     override val id = WaveTwoSections.HOME_EXTRAS_ID
     override val title = "Home screen"
@@ -205,7 +235,7 @@ object HomeExtrasSection : SettingsSection, SpecifiedPage {
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val page = SettingsPage(context, nav.style, spec)
         val extras = HomeExtrasPrefs(context)
-        page.lead("Extras for the home screen's top bar.")
+        page.lead("Extras for the home screen.")
         page.row("home.weatherTopBar", "Weather in top bar", RowKind.Toggle(extras.weatherInTopBar) { on ->
             extras.weatherInTopBar = on
         }, subtitle = "Icon and temperature next to the clock; hidden when the data is over 3 hours old")
@@ -218,6 +248,34 @@ object HomeExtrasSection : SettingsSection, SpecifiedPage {
         } else {
             page.row("home.weather", "Weather", RowKind.Info(value),
                 subtitle = "Install the weather companion (${WeatherContract.PACKAGE}) to use it")
+        }
+        val store = DiscoverStore(context)
+        val d = store.load()
+        page.row("home.getMoreAppsTile", "\"Get more apps\" tile", RowKind.Toggle(d.showGetMoreAppsTile) { _ ->
+            store.save(DiscoverSettingsRows.toggle(store.load(), "showGetMoreAppsTile"))
+        }, subtitle = "At the end of the shelf: popular apps, installed from the Play Store")
+        val np = store.loadNowPlaying()
+        val granted = NowPlayingAccess.isGranted(context)
+        page.row("home.nowPlaying", "Now Playing", RowKind.Toggle(np.nowPlayingEnabled) { _ ->
+            store.saveNowPlaying(DiscoverSettingsRows.toggleNowPlaying(store.loadNowPlaying(), "nowPlayingEnabled"))
+            nav.refresh()
+        }, subtitle = "What's playing, with play and skip, next to the app name")
+        if (WaveTwoSections.accessCardShown(np.nowPlayingEnabled, granted)) {
+            page.add(NotificationAccessCard(context, NotificationAccessCard.NOW_PLAYING_TITLE, NotificationAccessCard.NOW_PLAYING_BODY))
+        }
+        page.advanced(nav, "home.advanced", "Suggestion region and hidden suggestions") { adv ->
+            val detected = RegionGuess.fromLocale(Locale.getDefault(), null)
+            val regions = DiscoverSettingsRows.REGIONS
+            val index = regions.indexOf(d.region).coerceAtLeast(0)
+            adv.row("home.discoverRegion", "Region for suggestions", RowKind.Choice(WaveTwoSections.regionLabels(detected), index) { i ->
+                store.save(store.load().copy(region = regions[i.coerceIn(0, regions.size - 1)]))
+            })
+            if (d.hiddenCatalogIds.isNotEmpty()) {
+                adv.row("home.restoreHidden", "Show hidden suggestions again", RowKind.Action("${d.hiddenCatalogIds.size} hidden") {
+                    store.save(DiscoverSettingsRows.restoreHidden(store.load()))
+                    nav.refresh()
+                })
+            }
         }
         return page
     }

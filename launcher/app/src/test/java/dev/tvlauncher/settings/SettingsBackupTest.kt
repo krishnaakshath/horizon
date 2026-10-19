@@ -118,4 +118,42 @@ class SettingsBackupTest {
         assertNull(SettingsBackup.parse("null"))
         assertEquals(sample, SettingsBackup.import(file("theme.json", """{"theme":"x"}"""), sample))
     }
+
+    // --- room_settings ---------------------------------------------------------------------------
+
+    @Test
+    fun export_withRoom_roundTripsBoth() {
+        val room = dev.tvlauncher.room.RoomSettings(
+            choice = dev.tvlauncher.room.RoomChoice.EVENING, latitudeDeg = 28.61, longitudeDeg = 77.21, transitionSeconds = 2f
+        )
+        val f = tmp.root.resolve(SettingsBackup.FILE_NAME)
+        assertTrue(SettingsBackup.export(sample, f, room))
+        val r = SettingsBackup.restoreOrNull(f)!!
+        assertEquals(sample, r.settings)
+        assertEquals(room, r.room)
+        assertEquals(sample, SettingsBackup.importOrNull(f)) // the old entry point still works
+    }
+
+    @Test
+    fun olderFile_withoutRoom_restoresLauncherSettingsOnly() {
+        val r = SettingsBackup.parseRestored(SettingsBackup.toText(sample))!!
+        assertEquals(sample, r.settings)
+        assertNull(r.room)
+    }
+
+    @Test
+    fun roomThatIsNotAnObject_rejectsTheFile() {
+        val text = org.json.JSONObject(sample.toJson()).put(SettingsBackup.ROOM_KEY, "dark").toString()
+        assertNull(SettingsBackup.parseRestored(text))
+    }
+
+    @Test
+    fun roomFields_areReadTolerantly() {
+        val text = org.json.JSONObject(sample.toJson())
+            .put(SettingsBackup.ROOM_KEY, org.json.JSONObject().put("choice", "BRIGHT").put("transitionSeconds", "slow"))
+            .toString()
+        val room = SettingsBackup.parseRestored(text)!!.room!!
+        assertEquals(dev.tvlauncher.room.RoomChoice.BRIGHT, room.choice)
+        assertEquals(dev.tvlauncher.room.RoomSettings().transitionSeconds, room.transitionSeconds, 0f)
+    }
 }

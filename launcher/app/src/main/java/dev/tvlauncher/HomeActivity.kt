@@ -12,6 +12,8 @@ import dev.tvlauncher.apps.AppEntry
 import dev.tvlauncher.apps.AppFilter
 import dev.tvlauncher.apps.AppRepository
 import dev.tvlauncher.device.DeviceProfileReader
+import dev.tvlauncher.discover.DiscoverStore
+import dev.tvlauncher.discover.DiscoverTileSpec
 import dev.tvlauncher.home.HomeAppearance
 import dev.tvlauncher.home.HomeLook
 import dev.tvlauncher.home.HomeModules
@@ -64,6 +66,7 @@ class HomeActivity : Activity() {
     private lateinit var root: FrameLayout
     private lateinit var modules: HomeModules
     private val loader = Executors.newSingleThreadExecutor()
+    private val discoverStore by lazy { DiscoverStore(applicationContext) }
     private val generation = AtomicInteger()
     private var firstLoad = true
     private var splash: SplashOverlay? = null
@@ -121,7 +124,9 @@ class HomeActivity : Activity() {
             onClick = ::launch,
             onLongPress = { app -> tileMenu.show(app, visiblePackages()); sounds.menuOpen() },
             onDown = { onTileDown() },
-            onDpad = { strip.onTileDpad() }
+            onDpad = { strip.onTileDpad() },
+            onFooterClick = { modules.openDiscover() },
+            onFooterFocused = ::onFooterFocused
         )
         shelfBox = Shelf(this, adapter, dp(Theme.MARGIN_H))
         shelf = shelfBox.list
@@ -136,12 +141,17 @@ class HomeActivity : Activity() {
             onAction = { modules.quickAction(it) },
             onActionLongPress = { tileMenu.showDockMenu(visiblePackages(), installed); sounds.menuOpen() },
             onLaunch = ::launch,
-            onClosed = ::onSpotlightClosed
+            onClosed = ::onSpotlightClosed,
+            iconFor = { modules.actionIcon(it) }
         )
         root.addView(spotlight, FrameLayout.LayoutParams(-1, -1))
         launchOverlay = LaunchOverlay(this)
         root.addView(launchOverlay, FrameLayout.LayoutParams(-1, -1))
-        modules = HomeModules(this, root, look, sounds, topBar, backdrop, spotlight, { splash != null }, ::focusHome)
+        modules = HomeModules(
+            this, root, look, sounds, topBar, backdrop, spotlight, { splash != null }, ::focusHome,
+            heroBox, installedPackages = { installed.mapTo(HashSet()) { it.packageName } },
+            onDiscoverClosed = { focusPosition(adapter.footerPosition) || focusTile(adapter.lastFocused) }
+        )
         root.viewTreeObserver.addOnGlobalFocusChangeListener { _, now -> strip.onGlobalFocus(now); sounds.onFocusChanged() }
         setContentView(root)
     }
@@ -149,6 +159,12 @@ class HomeActivity : Activity() {
     private fun launch(app: AppEntry, v: View) = launcher.launch(app, v).let { sounds.launch(it); if (it) launchOverlay.show() }
 
     private fun visiblePackages() = adapter.getItems().map { it.packageName }
+
+    /** The "Get more apps" tile: no app accent, a plain hero line, and no quick-strip. */
+    private fun onFooterFocused() {
+        strip.reset()
+        heroBox.hero.showText(DiscoverTileSpec.LABEL, HERO_DISCOVER_SUBTITLE, backdrop.heroColor)
+    }
 
     private fun onAppFocused(app: AppEntry) {
         backdrop.setAccent(look.accent { adapter.accentOf(app) })
@@ -160,7 +176,7 @@ class HomeActivity : Activity() {
         SpotlightKeys.TileDown.SPOTLIGHT -> { openSpotlight(); true }
     }
 
-    private fun onTopBarDown(): Boolean = when (TopBarNav.onDown(shelfEmpty = adapter.itemCount == 0)) {
+    private fun onTopBarDown(): Boolean = when (TopBarNav.onDown(shelfEmpty = adapter.appCount == 0)) {
         TopBarNav.Action.FOCUS_SHELF -> focusTile(adapter.lastFocused)
         TopBarNav.Action.OPEN_SPOTLIGHT -> { openSpotlight(); true }
     }
@@ -200,21 +216,22 @@ class HomeActivity : Activity() {
                 installed = all
                 val s = prefs.load()
                 val shown = AppFilter.arrange(all, s).also { adapter.preload(it, ShelfAdapter.PRELOAD) }
-                shown to AppFilter.searchable(all, shown, s)
+                Triple(shown, AppFilter.searchable(all, shown, s), DiscoverTileSpec.shouldAppend(discoverStore.load(), editing = false))
             } catch (e: Exception) {
-                emptyList<AppEntry>() to emptyList()
+                Triple(emptyList<AppEntry>(), emptyList<AppEntry>(), false)
             }
-            runOnUiThread { if (gen == generation.get() && !isDestroyed) applyApps(result.first, result.second) }
+            runOnUiThread { if (gen == generation.get() && !isDestroyed) applyApps(result.first, result.second, result.third) }
         }
     }
 
-    private fun applyApps(apps: List<AppEntry>, searchable: List<AppEntry>) {
+    private fun applyApps(apps: List<AppEntry>, searchable: List<AppEntry>, footer: Boolean) {
         val old = adapter.getItems()
+        val footerFocused = adapter.footer && shelf.focusedChild?.let { shelf.getChildAdapterPosition(it) } == adapter.footerPosition
         val hadFocus = shelf.hasFocus() || strip.hasFocus() || (spotlight.isOpen && restoreFocus == null)
         val oldPos = if (spotlight.isOpen) restoreIndex else adapter.lastFocused
         val focusedPkg = old.getOrNull(oldPos)?.packageName
         strip.reset()
-        adapter.submit(apps)
+        adapter.submit(apps, footer)
         spotlight.setApps(searchable, installed.mapTo(HashSet()) { it.packageName })
         shelfBox.loader.visibility = View.GONE
         heroBox.setEmpty(apps.isEmpty())
@@ -230,6 +247,7 @@ class HomeActivity : Activity() {
             if ((hadFocus || wasFirst) && !spotlight.isOpen) topBar.inputsButton.requestFocus()
             return
         }
+        if (footerFocused && !spotlight.isOpen && adapter.footer) { focusPosition(adapter.footerPosition); return }
         val target = when {
             wasFirst -> 0
             !hadFocus -> null
@@ -243,8 +261,13 @@ class HomeActivity : Activity() {
     }
 
     private fun focusTile(index: Int): Boolean {
-        if (adapter.itemCount == 0) return false
-        val i = index.coerceIn(0, adapter.itemCount - 1)
+        if (adapter.appCount == 0) return false
+        return focusPosition(index.coerceIn(0, adapter.appCount - 1))
+    }
+
+    /** Any shelf position, the footer tile included; false when there is none. */
+    private fun focusPosition(i: Int): Boolean {
+        if (i < 0 || i >= adapter.itemCount) return false
         shelf.scrollToPosition(i)
         shelf.post { shelf.findViewHolderForAdapterPosition(i)?.itemView?.requestFocus() }
         return true
@@ -296,6 +319,9 @@ class HomeActivity : Activity() {
         super.onStart()
         if (look.reload() == HomeAppearance.Change.REBUILD) return HomeLook.rebuild(this)
         topBar.applyAppearance(look.settings)
+        // Settings > Home screen may have turned the "Get more apps" tile on or off.
+        val footer = DiscoverTileSpec.shouldAppend(discoverStore.load(), editing = false)
+        if (!firstLoad && footer != adapter.footer && adapter.appCount > 0) adapter.submit(adapter.getItems(), footer)
         adapter.getItems().getOrNull(adapter.lastFocused)?.let(::onAppFocused)
         topBar.startStatus()
         modules.start()
@@ -309,6 +335,10 @@ class HomeActivity : Activity() {
         topBar.stopStatus() // always paired with startStatus (TopBar tracks it)
         modules.stop() // panels closed; controllers, device monitor and idle timer stopped
         super.onStop()
+    }
+
+    private companion object {
+        const val HERO_DISCOVER_SUBTITLE = "Popular apps for this TV, from the Play Store"
     }
 
     /** BACK closes a panel or Spotlight, or leaves the quick-strip for its tile. The launcher never finishes. */
