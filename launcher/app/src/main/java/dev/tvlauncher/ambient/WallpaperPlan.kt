@@ -57,6 +57,10 @@ object WallpaperPlan {
 
     fun thumbSize(): Size = Size(320, 180)
 
+    /** Picker tiles per row: as many [cellPx] cells as fit [innerPx], between 2 and [max]. */
+    fun tileColumns(innerPx: Int, cellPx: Int, max: Int): Int =
+        if (cellPx <= 0) max else (innerPx / cellPx).coerceIn(2, max)
+
     fun bitmapBytes(w: Int, h: Int): Long = w.toLong() * h * 4
 
     fun crossfadeMs(lite: Boolean): Long = if (lite) 400L else 800L

@@ -147,10 +147,63 @@ object BitmapRecycler {
     fun keep(b: Bitmap) { gate.cancel(b) }
 }
 
-/** The user wallpaper folder: app-specific external storage, no storage permission needed. */
+/**
+ * The owner's pictures. The launcher's own folder (app-specific storage, no permission) plus, with
+ * the "Photos and media" permission, collection folders in Pictures/TVLauncher on the TV and in
+ * TVLauncher or Pictures/TVLauncher on a USB stick (see [CollectionScanner]).
+ */
 object UserWallpapers {
     const val DEVICE_PATH = "/sdcard/Android/data/dev.tvlauncher/files/wallpapers/"
     const val ADB_PUSH = "adb push photo.jpg $DEVICE_PATH"
+    const val COLLECTIONS_DIR = "TVLauncher"
+    const val SHARED_PATH = "/sdcard/Pictures/TVLauncher/"
+    const val ADB_PUSH_FOLDER = "adb push MyCollection /sdcard/Pictures/TVLauncher/"
+    const val PERMISSION = android.Manifest.permission.READ_EXTERNAL_STORAGE
+
+    fun canReadShared(context: Context): Boolean = try {
+        context.checkSelfPermission(PERMISSION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    } catch (e: Exception) {
+        false
+    }
+
+    /** Scan roots, the launcher's own folder first. Shared/USB roots only when readable. */
+    fun roots(context: Context): List<CollectionScanner.Root> {
+        val out = ArrayList<CollectionScanner.Root>()
+        folder(context)?.let { out += CollectionScanner.Root(it, looseName = CollectionScanner.MY_PICTURES) }
+        if (!canReadShared(context)) return out
+        try {
+            @Suppress("DEPRECATION")
+            val pictures = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES)
+            out += CollectionScanner.Root(File(pictures, COLLECTIONS_DIR))
+        } catch (e: Exception) {
+        }
+        for (v in removableVolumes(context)) {
+            out += CollectionScanner.Root(File(v, COLLECTIONS_DIR), suffix = " (USB)")
+            out += CollectionScanner.Root(File(File(v, "Pictures"), COLLECTIONS_DIR), suffix = " (USB)")
+        }
+        return out
+    }
+
+    /** Every root that a stored picture/folder may live under (for path sanitizing). */
+    fun allowedRoots(context: Context): List<File> = roots(context).map { it.dir }
+
+    /** Mounted removable volumes (USB sticks, SD cards) as directories. */
+    private fun removableVolumes(context: Context): List<File> = try {
+        val sm = context.getSystemService(android.os.storage.StorageManager::class.java)
+        sm.storageVolumes.filter { !it.isPrimary && it.state == android.os.Environment.MEDIA_MOUNTED }.mapNotNull { v ->
+            if (android.os.Build.VERSION.SDK_INT >= 30) v.directory
+            else try { v.javaClass.getMethod("getPathFile").invoke(v) as? File } catch (e: Exception) { null }
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    /** Collections found under [roots] (disk IO: off the main thread). */
+    fun collections(roots: List<CollectionScanner.Root>): List<UserCollection> = try {
+        CollectionScanner.scan(roots)
+    } catch (e: Exception) {
+        emptyList()
+    }
 
     fun folder(context: Context): File? = try {
         context.getExternalFilesDir("wallpapers")?.also { if (!it.exists()) it.mkdirs() }
@@ -174,7 +227,7 @@ class WallpaperStore(context: Context) {
 
     /** Stored paths that do not resolve inside the wallpaper folder are ignored (default built-in). */
     fun load(): WallpaperSettings =
-        WallpaperSettings.fromJson(prefs.getString(KEY, null)).sanitizedFor(UserWallpapers.folder(app))
+        WallpaperSettings.fromJson(prefs.getString(KEY, null)).sanitizedFor(UserWallpapers.allowedRoots(app))
 
     /** Single write path: also turns the in-memory notification feed on/off (off clears it). */
     fun save(settings: WallpaperSettings) {

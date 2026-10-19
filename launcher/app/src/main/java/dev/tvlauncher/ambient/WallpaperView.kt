@@ -239,6 +239,7 @@ class WallpaperController(
     private val main = Handler(Looper.getMainLooper())
     private var job: WallpaperLoader.Job? = null
     private var slides: List<File> = emptyList()
+    private var builtInSlides: List<String> = emptyList()
     private var index = -1
     private var step = 0L
     private val seed = System.currentTimeMillis()
@@ -247,9 +248,16 @@ class WallpaperController(
     private var running = false
     private val advance = object : Runnable {
         override fun run() {
-            val s = source as? WallpaperSource.Slideshow ?: return
-            showSlide(WallpaperPlan.next(slides, index, shuffle, seed + step++), animate = true)
-            main.postDelayed(this, WallpaperPlan.clampInterval(s.intervalSec) * 1000L)
+            val interval = when (val s = source) {
+                is WallpaperSource.Slideshow -> {
+                    showSlide(WallpaperPlan.next(slides, index, shuffle, seed + step++), animate = true); s.intervalSec
+                }
+                is WallpaperSource.BuiltInSlideshow -> {
+                    showBuiltInSlide(WallpaperPlan.next(builtInSlides, index, shuffle, seed + step++), animate = true); s.intervalSec
+                }
+                else -> return
+            }
+            main.postDelayed(this, WallpaperPlan.clampInterval(interval) * 1000L)
         }
     }
 
@@ -269,7 +277,14 @@ class WallpaperController(
                 if (files.isEmpty()) { builtIn(WallpaperSource.DEFAULT_ID, false); return@background }
                 val first = if (shuffle) WallpaperPlan.next(files, 0, true, seed) else 0
                 showSlide(first, animate = false)
-                main.postDelayed(advance, WallpaperPlan.clampInterval(s.intervalSec) * 1000L)
+                // One picture: nothing to cycle (no re-decoding the same file every interval).
+                if (files.size > 1) main.postDelayed(advance, WallpaperPlan.clampInterval(s.intervalSec) * 1000L)
+            }
+            is WallpaperSource.BuiltInSlideshow -> {
+                builtInSlides = WallpaperCatalog.inCollection(s.collection).map { it.id }
+                if (builtInSlides.isEmpty()) { builtIn(WallpaperSource.DEFAULT_ID, false); return }
+                showBuiltInSlide(if (shuffle) WallpaperPlan.next(builtInSlides, 0, true, seed) else 0, animate = false)
+                if (builtInSlides.size > 1) main.postDelayed(advance, WallpaperPlan.clampInterval(s.intervalSec) * 1000L)
             }
         }
     }
@@ -284,6 +299,12 @@ class WallpaperController(
         if (i !in slides.indices) return
         index = i
         loadFile(slides[i], animate)
+    }
+
+    private fun showBuiltInSlide(i: Int, animate: Boolean) {
+        if (i !in builtInSlides.indices) return
+        index = i
+        builtIn(builtInSlides[i], animate)
     }
 
     private fun builtIn(id: String, animate: Boolean) {

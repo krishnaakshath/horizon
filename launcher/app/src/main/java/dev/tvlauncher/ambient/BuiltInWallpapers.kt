@@ -13,25 +13,18 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * Six original procedural wallpapers drawn once with Canvas gradients/shapes into a single
- * bitmap (no image assets, no per-frame work). Rendering a 1920x1080 frame is a handful of
- * full-screen gradient fills; call it off the main thread.
+ * Original procedural wallpapers ([WallpaperCatalog]) drawn once with Canvas gradients/shapes into
+ * a single bitmap (no image assets, no per-frame work). The "Anime" collection evokes moods only
+ * (energy auras, cursed-energy swirls, a walled city at dusk...): no characters, names or logos.
+ * Rendering a frame is a few full-screen gradient fills plus a few hundred small shapes, all
+ * seeded so every render is identical; call it off the main thread.
  */
 object BuiltInWallpapers {
-    data class Meta(val id: String, val title: String, val baseColor: Int)
-
-    val ALL = listOf(
-        Meta("aurora", "Aurora", 0xFF0A1020.toInt()),
-        Meta("dusk", "Dusk", 0xFF1B1440.toInt()),
-        Meta("ocean", "Ocean", 0xFF021A2B.toInt()),
-        Meta("graphite", "Graphite", 0xFF121418.toInt()),
-        Meta("nebula", "Nebula", 0xFF05060D.toInt()),
-        Meta("mono", "Mono", 0xFF0B0D12.toInt())
-    )
+    val ALL: List<WallpaperCatalog.Meta> get() = WallpaperCatalog.ALL
 
     const val DEFAULT_ACCENT = 0xFF3A6BFF.toInt()
 
-    fun meta(id: String): Meta = ALL.firstOrNull { it.id == id } ?: ALL[0]
+    fun meta(id: String): WallpaperCatalog.Meta = WallpaperCatalog.meta(id)
 
     /** Renders [id] at [w]x[h]. [accent] tints "mono"'s bloom (e.g. a brand color). */
     fun render(id: String, w: Int, h: Int, accent: Int = DEFAULT_ACCENT, config: Bitmap.Config = Bitmap.Config.ARGB_8888): Bitmap {
@@ -47,12 +40,19 @@ object BuiltInWallpapers {
             "ocean" -> ocean(c, p, bw.toFloat(), bh.toFloat())
             "graphite" -> graphite(c, p, bw.toFloat(), bh.toFloat())
             "nebula" -> nebula(c, p, bw.toFloat(), bh.toFloat())
+            "golden_aura" -> AnimeWallpapers.goldenAura(c, p, bw.toFloat(), bh.toFloat())
+            "cursed_night" -> AnimeWallpapers.cursedNight(c, p, bw.toFloat(), bh.toFloat())
+            "beyond_walls" -> AnimeWallpapers.beyondWalls(c, p, bw.toFloat(), bh.toFloat())
+            "leaf_dusk" -> AnimeWallpapers.leafDusk(c, p, bw.toFloat(), bh.toFloat())
+            "petal_night" -> AnimeWallpapers.petalNight(c, p, bw.toFloat(), bh.toFloat())
+            "neon_rain" -> AnimeWallpapers.neonRain(c, p, bw.toFloat(), bh.toFloat())
+            "moonlit_sea" -> AnimeWallpapers.moonlitSea(c, p, bw.toFloat(), bh.toFloat())
             else -> mono(c, p, bw.toFloat(), bh.toFloat(), accent)
         }
         return bmp
     }
 
-    private fun glow(c: Canvas, p: Paint, cx: Float, cy: Float, r: Float, color: Int, alpha: Int) {
+    internal fun glow(c: Canvas, p: Paint, cx: Float, cy: Float, r: Float, color: Int, alpha: Int) {
         val inner = (color and 0x00FFFFFF) or (alpha shl 24)
         val mid = (color and 0x00FFFFFF) or ((alpha * 0.35f).toInt() shl 24)
         p.shader = RadialGradient(cx, cy, max(1f, r), intArrayOf(inner, mid, 0), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
@@ -60,13 +60,13 @@ object BuiltInWallpapers {
         p.shader = null
     }
 
-    private fun vertical(c: Canvas, p: Paint, w: Float, h: Float, colors: IntArray, stops: FloatArray?) {
+    internal fun vertical(c: Canvas, p: Paint, w: Float, h: Float, colors: IntArray, stops: FloatArray?) {
         p.shader = LinearGradient(0f, 0f, 0f, h, colors, stops, Shader.TileMode.CLAMP)
         c.drawRect(0f, 0f, w, h, p)
         p.shader = null
     }
 
-    private fun vignette(c: Canvas, p: Paint, w: Float, h: Float, strength: Int) {
+    internal fun vignette(c: Canvas, p: Paint, w: Float, h: Float, strength: Int) {
         val r = max(w, h) * 0.75f
         p.shader = RadialGradient(w / 2f, h / 2f, r, intArrayOf(0, 0, strength shl 24), floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP)
         c.drawRect(0f, 0f, w, h, p)

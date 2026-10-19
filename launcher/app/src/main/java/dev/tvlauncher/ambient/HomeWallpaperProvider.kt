@@ -27,6 +27,8 @@ object HomeWallpaperProvider {
         return when (val s = settings.source) {
             is WallpaperSource.BuiltIn -> builtIn(s.id, size, accent)
             is WallpaperSource.UserImage -> file(context, s.file, size, accent)
+            is WallpaperSource.BuiltInSlideshow ->
+                builtIn(WallpaperCatalog.inCollection(s.collection).firstOrNull()?.id ?: WallpaperSource.DEFAULT_ID, size, accent)
             is WallpaperSource.Slideshow -> {
                 val d = WallpaperDrawable(BuiltInWallpapers.meta(WallpaperSource.DEFAULT_ID).baseColor)
                 WallpaperLoader.background({ UserWallpapers.list(s.folder).firstOrNull() }) { first ->

@@ -37,8 +37,13 @@ class WallpaperPickerPanel(
     private var root: FrameLayout? = null
     private var settings = store.load()
     private var folder: File? = null
-    private var userFiles: List<File> = emptyList()
+    private var collections: List<UserCollection> = emptyList()
     private val thumbs = ArrayList<Bitmap>()
+    /** Index in [grid] where the owner's collection sections start (rebuilt on rescan). */
+    private var userSectionsStart = 0
+    private var permissionAsked = false
+    /** Tiles per row: as many as fit the panel (the Settings pane is narrower than the screen). */
+    private var columns = COLUMNS
     private val jobs = ArrayList<WallpaperLoader.Job>()
     private val tiles = ArrayList<Pair<WallpaperSource, View>>()
     private lateinit var grid: LinearLayout
@@ -51,6 +56,7 @@ class WallpaperPickerPanel(
     private lateinit var notifHint: TextView
     private lateinit var accessCard: NotificationAccessCard
     private lateinit var emptyText: TextView
+    private lateinit var accessRow: TextView
 
     val isShowing: Boolean get() = root != null
 
@@ -65,6 +71,7 @@ class WallpaperPickerPanel(
         r.isClickable = true
         val panel = buildPanel()
         val w = min(px(760), (host.width.takeIf { it > 0 } ?: context.resources.displayMetrics.widthPixels) - px(96))
+        columns = WallpaperPlan.tileColumns(w - px(28) * 2 - px(6) * 2, px(TILE_W_DP) + px(12), COLUMNS)
         r.addView(panel, FrameLayout.LayoutParams(w, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
         host.addView(r, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         root = r
@@ -73,16 +80,26 @@ class WallpaperPickerPanel(
             panel.animate().alpha(1f).translationY(0f).setDuration(180L).start()
         }
         addBuiltInTiles()
+        userSectionsStart = grid.childCount
         folder = UserWallpapers.folder(context)
-        val f = folder
-        WallpaperLoader.background({ UserWallpapers.list(f) }) { files ->
-            if (root !== r) return@background
-            userFiles = files
-            addUserTiles()
-            refreshControls()
+        scanCollections()
+        // Back from the permission dialog: pick up Pictures/USB collections.
+        r.viewTreeObserver.addOnWindowFocusChangeListener { has ->
+            if (has && permissionAsked && root === r) { permissionAsked = false; scanCollections() }
         }
         refreshControls()
-        grid.post { tiles.firstOrNull { it.first == settings.source }?.second?.requestFocus() ?: tiles.firstOrNull()?.second?.requestFocus() }
+        grid.post { tiles.firstOrNull { isCurrent(it.first) }?.second?.requestFocus() ?: tiles.firstOrNull()?.second?.requestFocus() }
+    }
+
+    private fun scanCollections() {
+        val r = root ?: return
+        val roots = UserWallpapers.roots(context)
+        WallpaperLoader.background({ UserWallpapers.collections(roots) }) { found ->
+            if (root !== r) return@background
+            collections = found
+            rebuildUserSections()
+            refreshControls()
+        }
     }
 
     fun dismiss() {
@@ -147,13 +164,15 @@ class WallpaperPickerPanel(
         panel.addView(accessCard, lp(top = 6))
         panel.addView(textRow, lp(top = 6))
         panel.addView(textHint, lp(top = 4))
-        val path = UserWallpapers.folder(context)?.path ?: UserWallpapers.DEVICE_PATH
+        accessRow = controlRow { askForPictures() }
+        panel.addView(accessRow, lp(top = 16))
         panel.addView(TextView(context).apply {
             style(Theme.SP_LABEL, Theme.regular, Theme.TEXT_2)
-            text = "Put pictures in $path\nFrom a computer: ${UserWallpapers.ADB_PUSH}\n" +
-                "JPG, PNG or WebP, up to 8 MB each, ${WallpaperPlan.MAX_FILES} pictures max. Reopen this panel after copying."
-            maxLines = 4
-        }, lp(top = 16))
+            text = "Add your own: each folder in Pictures/TVLauncher (or TVLauncher on a USB stick) is a collection, " +
+                "named after the folder. JPG, PNG or WebP up to 8 MB, ${WallpaperPlan.MAX_FILES} per folder.\n" +
+                "From a computer: ${UserWallpapers.ADB_PUSH_FOLDER}"
+            maxLines = 8
+        }, lp(top = 8))
         return panel
     }
 
@@ -188,19 +207,66 @@ class WallpaperPickerPanel(
     }
 
     private fun addBuiltInTiles() {
-        for (m in BuiltInWallpapers.ALL) {
-            val tile = addTile(WallpaperSource.BuiltIn(m.id), m.title, m.baseColor)
-            val thumb = WallpaperPlan.thumbSize()
-            jobs += WallpaperLoader.builtIn(m.id, thumb, config = thumbConfig()) { b -> setThumb(tile, b) }
+        val thumb = WallpaperPlan.thumbSize()
+        for (name in WallpaperCatalog.COLLECTIONS) {
+            val metas = WallpaperCatalog.inCollection(name)
+            val section = section(name)
+            if (metas.size > 1 && name != WallpaperCatalog.CLASSIC) {
+                val first = metas[0]
+                val tile = addTile(section, WallpaperSource.BuiltInSlideshow(name, currentInterval()), "Slideshow", first.baseColor)
+                jobs += WallpaperLoader.builtIn(first.id, thumb, config = thumbConfig()) { b -> setThumb(tile, b) }
+            }
+            for (m in metas) {
+                val tile = addTile(section, WallpaperSource.BuiltIn(m.id), m.title, m.baseColor)
+                jobs += WallpaperLoader.builtIn(m.id, thumb, config = thumbConfig()) { b -> setThumb(tile, b) }
+            }
         }
     }
 
-    private fun addUserTiles() {
+    /** The owner's collections: a "Slideshow" tile, then up to [MAX_THUMBS] pictures each. */
+    private fun rebuildUserSections() {
+        val gone = tiles.filter { (src, _) -> src is WallpaperSource.UserImage || src is WallpaperSource.Slideshow }
+        gone.forEach { (_, v) -> ((v as ViewGroup).getChildAt(0) as ImageView).setImageDrawable(null) }
+        tiles.removeAll(gone)
+        while (grid.childCount > userSectionsStart) grid.removeViewAt(grid.childCount - 1)
         val thumb = WallpaperPlan.thumbSize()
-        for (f in userFiles) {
-            val tile = addTile(WallpaperSource.UserImage(f), f.nameWithoutExtension, Theme.SURFACE)
-            jobs += WallpaperLoader.file(f, thumb, thumbConfig(), cover = true) { b -> setThumb(tile, b) }
+        for (c in collections) {
+            val section = section("${c.name}  ·  ${c.files.size}")
+            val slide = addTile(section, WallpaperSource.Slideshow(c.folder, currentInterval()), "Slideshow", Theme.SURFACE)
+            jobs += WallpaperLoader.file(c.files[0], thumb, thumbConfig(), cover = true) { b -> setThumb(slide, b) }
+            for (f in c.files.take(MAX_THUMBS)) {
+                val tile = addTile(section, WallpaperSource.UserImage(f), f.nameWithoutExtension, Theme.SURFACE)
+                jobs += WallpaperLoader.file(f, thumb, thumbConfig(), cover = true) { b -> setThumb(tile, b) }
+            }
         }
+    }
+
+    /** A titled block of tile rows inside [grid]. */
+    private fun section(title: String): LinearLayout {
+        grid.addView(TextView(context).apply {
+            style(Theme.SP_LABEL, Theme.medium, Theme.TEXT_2)
+            text = title
+            setPadding(px(6), px(10), px(6), 0)
+        })
+        val block = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        grid.addView(block)
+        return block
+    }
+
+    private fun askForPictures() {
+        if (UserWallpapers.canReadShared(context)) { scanCollections(); return }
+        val activity = activityOf(context) ?: return
+        permissionAsked = true
+        try { activity.requestPermissions(arrayOf(UserWallpapers.PERMISSION), REQ_PICTURES) } catch (e: Exception) { permissionAsked = false }
+    }
+
+    private fun activityOf(c: Context): android.app.Activity? {
+        var x: Context? = c
+        while (x is android.content.ContextWrapper) {
+            if (x is android.app.Activity) return x
+            x = x.baseContext
+        }
+        return null
     }
 
     private fun thumbConfig() = if (lite) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
@@ -212,8 +278,8 @@ class WallpaperPickerPanel(
         ((tile as ViewGroup).getChildAt(0) as ImageView).setImageBitmap(b)
     }
 
-    private fun addTile(source: WallpaperSource, title: String, base: Int): View {
-        val tw = px(160); val th = px(90)
+    private fun addTile(section: LinearLayout, source: WallpaperSource, title: String, base: Int): View {
+        val tw = px(TILE_W_DP); val th = px(TILE_W_DP * 9 / 16)
         val tile = FrameLayout(context).apply {
             isFocusable = true
             clipToOutline = true
@@ -236,21 +302,25 @@ class WallpaperPickerPanel(
         }
         tile.setOnClickListener { select(source) }
         tiles += source to tile
-        // 4 per row.
-        val rowIndex = (tiles.size - 1) / COLUMNS
-        while (grid.childCount <= rowIndex) {
-            grid.addView(LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                clipChildren = false
-                setPadding(px(6), px(6), px(6), px(6))
-            })
+        // [columns] per row within the section.
+        val last = (0 until section.childCount).lastOrNull()?.let { section.getChildAt(it) as LinearLayout }
+        val row = if (last != null && last.childCount < columns) last else LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            clipChildren = false
+            setPadding(px(6), px(6), px(6), px(6))
+            section.addView(this)
         }
-        (grid.getChildAt(rowIndex) as LinearLayout).addView(tile, LinearLayout.LayoutParams(tw, th).apply { marginEnd = px(12) })
+        row.addView(tile, LinearLayout.LayoutParams(tw, th).apply { marginEnd = px(12) })
         updateRing(tile, source)
         return tile
     }
 
-    private fun isCurrent(source: WallpaperSource): Boolean = settings.source == source
+    /** Slideshow tiles match their folder/collection whatever the interval. */
+    private fun isCurrent(source: WallpaperSource): Boolean = when (val cur = settings.source) {
+        is WallpaperSource.Slideshow -> source is WallpaperSource.Slideshow && source.folder == cur.folder
+        is WallpaperSource.BuiltInSlideshow -> source is WallpaperSource.BuiltInSlideshow && source.collection == cur.collection
+        else -> cur == source
+    }
 
     private fun updateRing(tile: View, source: WallpaperSource) {
         val ring = (tile as ViewGroup).getChildAt(2)
@@ -271,25 +341,32 @@ class WallpaperPickerPanel(
         onChange(settings)
     }
 
-    private fun select(source: WallpaperSource) = commit(settings.copy(source = source))
+    private fun select(source: WallpaperSource) = commit(settings.copy(source = when (source) {
+        // Keep the chosen interval when switching between slideshows.
+        is WallpaperSource.Slideshow -> source.copy(intervalSec = currentInterval())
+        is WallpaperSource.BuiltInSlideshow -> source.copy(intervalSec = currentInterval())
+        else -> source
+    }))
 
+    /** Off: the slideshow's first picture. On: a slideshow of the current picture's collection. */
     private fun toggleSlideshow() {
-        val f = folder ?: return
-        if (settings.source is WallpaperSource.Slideshow) {
-            commit(settings.copy(source = userFiles.firstOrNull()?.let { WallpaperSource.UserImage(it) } ?: WallpaperSource.DEFAULT))
-        } else if (userFiles.isNotEmpty()) {
-            commit(settings.copy(source = WallpaperSource.Slideshow(f, currentInterval())))
+        val next: WallpaperSource? = when (val s = settings.source) {
+            is WallpaperSource.Slideshow ->
+                collections.firstOrNull { it.folder == s.folder }?.files?.firstOrNull()?.let { WallpaperSource.UserImage(it) } ?: WallpaperSource.DEFAULT
+            is WallpaperSource.BuiltInSlideshow ->
+                WallpaperSource.BuiltIn(WallpaperCatalog.inCollection(s.collection).firstOrNull()?.id ?: WallpaperSource.DEFAULT_ID)
+            is WallpaperSource.UserImage -> s.file.parentFile?.let { WallpaperSource.Slideshow(it, currentInterval()) }
+            is WallpaperSource.BuiltIn -> WallpaperSource.BuiltInSlideshow(WallpaperCatalog.meta(s.id).collection, currentInterval())
         }
+        next?.let { commit(settings.copy(source = it)) }
     }
 
     private fun currentInterval(): Int =
-        (settings.source as? WallpaperSource.Slideshow)?.intervalSec ?: WallpaperPlan.DEFAULT_INTERVAL_SEC
+        AmbientSettingsRows.slideInterval(settings.source) ?: WallpaperPlan.DEFAULT_INTERVAL_SEC
 
     private fun stepInterval(delta: Int) {
-        val s = settings.source as? WallpaperSource.Slideshow ?: return
-        val i = INTERVALS.indexOfFirst { it >= s.intervalSec }.let { if (it < 0) INTERVALS.size - 1 else it }
-        val next = INTERVALS[(i + delta).coerceIn(0, INTERVALS.size - 1)]
-        commit(settings.copy(source = s.copy(intervalSec = next)))
+        if (AmbientSettingsRows.slideInterval(settings.source) == null) return
+        commit(AmbientSettingsRows.step(settings, "slideshowInterval", delta))
     }
 
     private fun stepDim(delta: Int) {
@@ -298,10 +375,11 @@ class WallpaperPickerPanel(
 
     private fun refreshControls() {
         if (!::slideshowRow.isInitialized) return
-        val on = settings.source is WallpaperSource.Slideshow
-        val canSlideshow = userFiles.isNotEmpty()
-        slideshowRow.text = "Slideshow of my pictures:  ${if (on) "On" else "Off"}"
-        slideshowRow.alpha = if (canSlideshow || on) 1f else 0.45f
+        val on = AmbientSettingsRows.slideInterval(settings.source) != null
+        slideshowRow.text = "Slideshow:  ${if (on) "On" else "Off"}"
+        val granted = UserWallpapers.canReadShared(context)
+        accessRow.visibility = if (granted) View.GONE else View.VISIBLE
+        accessRow.text = "Pictures folder and USB sticks:  Allow access"
         intervalRow.visibility = if (on) View.VISIBLE else View.GONE
         intervalRow.text = "Change every   ‹  ${formatInterval(currentInterval())}  ›"
         dimRow.text = "Dim   ‹  ${settings.dimPercent} %  ›"
@@ -317,7 +395,7 @@ class WallpaperPickerPanel(
         bind(textRow, textHint, "showNotificationText")
         accessCard.visibility = if (rows.getValue("notificationAccess").visible) View.VISIBLE else View.GONE
         accessCard.refresh()
-        emptyText.visibility = if (userFiles.isEmpty()) View.VISIBLE else View.GONE
+        emptyText.visibility = if (collections.isEmpty()) View.VISIBLE else View.GONE
         emptyText.text = "No pictures of your own yet. Built-in wallpapers are shown above."
     }
 
@@ -341,6 +419,8 @@ class WallpaperPickerPanel(
 
     private companion object {
         const val COLUMNS = 4
-        val INTERVALS = intArrayOf(30, 60, 120, 300, 600)
+        const val TILE_W_DP = 160
+        const val MAX_THUMBS = 8
+        const val REQ_PICTURES = 4711
     }
 }

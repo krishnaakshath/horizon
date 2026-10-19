@@ -8,10 +8,12 @@ sealed class WallpaperSource {
     data class BuiltIn(val id: String) : WallpaperSource()
     data class UserImage(val file: File) : WallpaperSource()
     data class Slideshow(val folder: File, val intervalSec: Int) : WallpaperSource()
+    /** Cycles the built-ins of one [WallpaperCatalog] collection (e.g. "Anime"). */
+    data class BuiltInSlideshow(val collection: String, val intervalSec: Int) : WallpaperSource()
 
     companion object {
         const val DEFAULT_ID = "aurora"
-        val BUILT_IN_IDS = listOf("aurora", "dusk", "ocean", "graphite", "nebula", "mono")
+        val BUILT_IN_IDS = WallpaperCatalog.IDS
         val DEFAULT: WallpaperSource = BuiltIn(DEFAULT_ID)
     }
 }
@@ -61,16 +63,24 @@ data class WallpaperSettings(
         idleMinutes = idleMinutes.coerceIn(MIN_IDLE, MAX_IDLE),
         source = when (source) {
             is WallpaperSource.Slideshow -> source.copy(intervalSec = WallpaperPlan.clampInterval(source.intervalSec))
+            is WallpaperSource.BuiltInSlideshow ->
+                if (source.collection in WallpaperCatalog.COLLECTIONS) source.copy(intervalSec = WallpaperPlan.clampInterval(source.intervalSec))
+                else WallpaperSource.DEFAULT
             is WallpaperSource.BuiltIn -> if (source.id in WallpaperSource.BUILT_IN_IDS) source else WallpaperSource.DEFAULT
             else -> source
         }
     )
 
     /** Drops any user path that does not resolve inside [wallpaperDir] (falls back to the default built-in). */
-    fun sanitizedFor(wallpaperDir: File?): WallpaperSettings = when (val s = source) {
-        is WallpaperSource.BuiltIn -> this
-        is WallpaperSource.UserImage -> if (PathGuard.isInside(wallpaperDir, s.file)) this else copy(source = WallpaperSource.DEFAULT)
-        is WallpaperSource.Slideshow -> if (PathGuard.isInside(wallpaperDir, s.folder, allowSame = true)) this else copy(source = WallpaperSource.DEFAULT)
+    fun sanitizedFor(wallpaperDir: File?): WallpaperSettings = sanitizedFor(listOfNotNull(wallpaperDir))
+
+    /** Same, for several allowed roots (the app folder and the owner's collection roots). */
+    fun sanitizedFor(roots: List<File>): WallpaperSettings = when (val s = source) {
+        is WallpaperSource.BuiltIn, is WallpaperSource.BuiltInSlideshow -> this
+        is WallpaperSource.UserImage ->
+            if (roots.any { PathGuard.isInside(it, s.file) }) this else copy(source = WallpaperSource.DEFAULT)
+        is WallpaperSource.Slideshow ->
+            if (roots.any { PathGuard.isInside(it, s.folder, allowSame = true) }) this else copy(source = WallpaperSource.DEFAULT)
     }
 
     fun toJson(): String {
@@ -81,6 +91,9 @@ data class WallpaperSettings(
             is WallpaperSource.UserImage -> { src.put("type", "image"); src.put("file", x.file.path) }
             is WallpaperSource.Slideshow -> {
                 src.put("type", "slideshow"); src.put("folder", x.folder.path); src.put("interval", x.intervalSec)
+            }
+            is WallpaperSource.BuiltInSlideshow -> {
+                src.put("type", "builtinSlideshow"); src.put("collection", x.collection); src.put("interval", x.intervalSec)
             }
         }
         return JSONObject()
@@ -134,6 +147,8 @@ data class WallpaperSettings(
                 "slideshow" -> o.optString("folder").takeIf { it.isNotBlank() }
                     ?.let { WallpaperSource.Slideshow(File(it), o.optInt("interval", WallpaperPlan.DEFAULT_INTERVAL_SEC)) }
                     ?: WallpaperSource.DEFAULT
+                "builtinSlideshow" -> WallpaperSource.BuiltInSlideshow(
+                    o.optString("collection", WallpaperCatalog.ANIME), o.optInt("interval", WallpaperPlan.DEFAULT_INTERVAL_SEC))
                 else -> WallpaperSource.DEFAULT
             }
         }
