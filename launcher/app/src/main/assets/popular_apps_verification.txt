@@ -54,6 +54,7 @@ com.espn.score_center	200	2026-10-20	yes	kept
 com.dazn	200	2026-10-20	yes	kept
 com.esaba.downloader	200	2026-10-20	yes	kept
 com.yablio.sendfilestotv	200	2026-10-20	yes	kept
+com.cloudflare.onedotonedotonedotone	200	2026-10-20	no	kept
 com.jio.media.ondemand	404	2026-10-20	no	dropped-not-found
 com.hbo.hbonow	404	2026-10-20	no	dropped-not-found
 com.apple.android.music	200	2026-10-20	no	dropped-no-tv-version

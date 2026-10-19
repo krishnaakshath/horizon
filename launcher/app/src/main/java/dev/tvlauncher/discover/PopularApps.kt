@@ -129,7 +129,10 @@ object PopularApps {
         app("dazn", "DAZN", "com.dazn", AppCategory.SPORTS, 0xFFF7FF1A, 58),
         // Tools
         app("downloader", "Downloader", "com.esaba.downloader", AppCategory.TOOLS, 0xFFF68B1F, 50),
-        app("send_files", "Send files to TV", "com.yablio.sendfilestotv", AppCategory.TOOLS, 0xFF2196F3, 48)
+        app("send_files", "Send files to TV", "com.yablio.sendfilestotv", AppCategory.TOOLS, 0xFF2196F3, 48),
+        // Also offered by Settings > Private DNS ("Cloudflare WARP"); listing showed Phone/Tablet only.
+        app("cloudflare_warp", "1.1.1.1 + WARP", "com.cloudflare.onedotonedotonedotone", AppCategory.TOOLS, 0xFFF38020, 40,
+            tv = false, note = PHONE_LISTING)
     )
 
     private val byPkg: Map<String, PopularApp> = all.associateBy { it.packageName }

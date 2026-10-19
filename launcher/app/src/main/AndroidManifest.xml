@@ -54,7 +54,9 @@
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
     <!-- Settings > Apps: uninstall a user app through the system's confirm dialog (required for
-         ACTION_DELETE from targetSdk 28) and stop an app's background work. -->
+         ACTION_DELETE from targetSdk 28) and stop an app's background work. Settings > System >
+         Speed uses the same normal permission to ask Android to close background apps (the
+         system never closes anything in front, playing or persistent). -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
     <!-- Optional, never requested: granted once by the one-time setup helper (tools/tvtool
@@ -186,6 +188,8 @@
             <action android:name="android.intent.action.DELETE" />
             <data android:scheme="package" />
         </intent>
+        <!-- Settings > Private DNS: "Cloudflare WARP" opens Cloudflare's own app when installed. -->
+        <package android:name="com.cloudflare.onedotonedotonedotone" />
     </queries>
 
     <application
@@ -324,5 +328,24 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- Settings > System > Speed: the quiet-hour alarm (own PendingIntent only), re-arming it
+             after boot or an update, and the system's idle job. Each only checks SpeedPrefs and
+             AutoPolicy; none can be started by other apps. -->
+        <receiver
+            android:name=".speed.SpeedAlarmReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".speed.SpeedBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <service
+            android:name=".speed.SpeedJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
     </application>
 </manifest>

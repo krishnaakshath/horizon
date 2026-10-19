@@ -17,6 +17,8 @@ class NoDeveloperTextTest {
         RegexOption.IGNORE_CASE
     )
     private val literal = Regex(""""(?:[^"\\]|\\.)*"""")
+    /** A bare package name such as "com.android.shell" is an identifier, never text on screen. */
+    private val packageName = Regex(""""[a-z][a-z0-9_]*(\.[a-z0-9_]+)+"""")
 
     private fun hits(root: File): List<String> {
         val out = ArrayList<String>()
@@ -25,7 +27,7 @@ class NoDeveloperTextTest {
                 val t = line.trim()
                 if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*") || t.startsWith("<!--")) return@forEachIndexed
                 val parts = if (f.extension == "kt") literal.findAll(line).map { it.value }.toList() else listOf(line)
-                parts.filter { banned.containsMatchIn(it) }.forEach { out += "${f.path}:${i + 1}: $it" }
+                parts.filter { banned.containsMatchIn(it) && !(f.extension == "kt" && packageName.matches(it)) }.forEach { out += "${f.path}:${i + 1}: $it" }
             }
         }
         return out

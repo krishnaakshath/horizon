@@ -6,6 +6,7 @@ import dev.tvlauncher.appsettings.SettingsRegistry
 import dev.tvlauncher.home.WaveTwoSections
 import dev.tvlauncher.power.PowerOn
 import dev.tvlauncher.safemode.SafeMode
+import dev.tvlauncher.speed.Speed
 import dev.tvlauncher.spotlight.SpotlightSection
 import dev.tvlauncher.ui.Theme
 
@@ -35,6 +36,11 @@ class LauncherApp : Application() {
             ModuleSections.registerAll()
         } catch (e: Throwable) {
             // Settings then shows the placeholders; the home screen is unaffected.
+        }
+        try {
+            Speed.install(this) // Settings > System > Speed and Connections > Private DNS; nightly cleanup
+        } catch (e: Throwable) {
+            // No Speed / Private DNS pages and no automatic cleanup this run.
         }
         try {
             WaveTwoSections.registerAll()
