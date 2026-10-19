@@ -13,9 +13,9 @@ import dev.tvlauncher.apps.AppFilter
 import dev.tvlauncher.apps.AppRepository
 import dev.tvlauncher.device.DeviceProfileReader
 import dev.tvlauncher.home.HomeAppearance
-import dev.tvlauncher.home.HomeDevices
+import dev.tvlauncher.home.HomeAmbient
 import dev.tvlauncher.home.HomeLook
-import dev.tvlauncher.home.HomeNetwork
+import dev.tvlauncher.home.HomePanels
 import dev.tvlauncher.home.HomeSounds
 import dev.tvlauncher.home.ModeTracker
 import dev.tvlauncher.home.RecentMode
@@ -64,8 +64,8 @@ class HomeActivity : Activity() {
     private lateinit var sounds: HomeSounds
     private lateinit var modes: ModeTracker
     private lateinit var root: FrameLayout
-    private lateinit var net: HomeNetwork
-    private lateinit var devices: HomeDevices
+    private lateinit var panels: HomePanels
+    private lateinit var ambient: HomeAmbient
     private val loader = Executors.newSingleThreadExecutor()
     private val generation = AtomicInteger()
     private var firstLoad = true
@@ -108,8 +108,8 @@ class HomeActivity : Activity() {
         root.addView(backdrop, FrameLayout.LayoutParams(-1, -1))
         topBar = TopBar(
             this,
-            onNetwork = { v -> openPanel { net.showWifi(v) } },
-            onBluetooth = { v -> openPanel { net.showBluetooth(v) } },
+            onNetwork = { v -> panels.openWifi(v) },
+            onBluetooth = { v -> panels.openBluetooth(v) },
             onInputs = { sounds.action(SystemActions.inputs(this)) },
             onSettings = { if (SystemActions.launcherSettings(this)) sounds.action(true) else openSpotlight() },
             onSettingsLongPress = { tileMenu.showDockMenu(visiblePackages(), installed); sounds.menuOpen() },
@@ -144,8 +144,10 @@ class HomeActivity : Activity() {
         root.addView(spotlight, FrameLayout.LayoutParams(-1, -1))
         launchOverlay = LaunchOverlay(this)
         root.addView(launchOverlay, FrameLayout.LayoutParams(-1, -1))
-        net = HomeNetwork(this, root, lite = !full, fallbackFocus = ::focusHome, onOpenChanged = {})
-        devices = HomeDevices(this, root, look.profile.effectsMode, sounds, { splash != null }, ::focusHome, onOpenChanged = {})
+        ambient = HomeAmbient(this, look, { panels.isShowing }, { spotlight.isOpen }, { splash != null })
+        panels = HomePanels(this, root, look, sounds, { splash != null }, { spotlight.close(animate = false) }, ::focusHome) { open ->
+            ambient.setPaused(HomeAmbient.PAUSE_PANEL, open)
+        }
         root.viewTreeObserver.addOnGlobalFocusChangeListener { _, now -> strip.onGlobalFocus(now); sounds.onFocusChanged() }
         setContentView(root)
     }
@@ -170,22 +172,7 @@ class HomeActivity : Activity() {
     }
 
     private fun onQuickAction(item: QuickActions.Item) {
-        val opened = when (QuickActions.route(item, net.hasBluetooth)) {
-            QuickActions.Route.WIFI_PANEL -> openPanel { net.showWifi(null) }
-            QuickActions.Route.BLUETOOTH_PANEL -> openPanel { net.showBluetooth(null) }
-            QuickActions.Route.DEVICES_PANEL -> openPanel { devices.showPanel() }
-            QuickActions.Route.AMBIENT, QuickActions.Route.SYSTEM -> false
-        }
-        if (!opened) sounds.action(SystemActions.quickAction(this, item)) // also the fallback to system settings
-    }
-
-    /** Panels and Spotlight are mutually exclusive: Spotlight closes first, without animation. */
-    private val overlayOpen: Boolean get() = net.isShowing || devices.isShowing
-
-    private inline fun openPanel(open: () -> Boolean): Boolean {
-        if (overlayOpen) return false // one panel at a time
-        if (spotlight.isOpen) spotlight.close(animate = false)
-        return open().also { if (it) sounds.panel(opened = true) }
+        if (!panels.quickAction(item, ambient::startNow)) sounds.action(SystemActions.quickAction(this, item))
     }
 
     private fun focusHome() {
@@ -197,11 +184,12 @@ class HomeActivity : Activity() {
             pendingSpotlight = true
             return
         }
-        if (spotlight.isOpen || splash != null || isDestroyed || overlayOpen) return // not under the splash or a panel
+        if (spotlight.isOpen || splash != null || isDestroyed || panels.isShowing) return // not under the splash or a panel
         val f = currentFocus
         restoreFocus = f?.takeIf { it.parent !== shelf && !strip.hasFocus() }
         restoreIndex = adapter.lastFocused
         strip.setSpotlightOpen(true)
+        ambient.setPaused(HomeAmbient.PAUSE_SPOTLIGHT, true)
         spotlight.open()
         sounds.panel(opened = true)
         content.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS // nothing leaks to the shelf
@@ -210,6 +198,7 @@ class HomeActivity : Activity() {
     private fun onSpotlightClosed() {
         content.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         strip.setSpotlightOpen(false)
+        ambient.setPaused(HomeAmbient.PAUSE_SPOTLIGHT, false)
         val back = restoreFocus?.takeIf { it.isAttachedToWindow }?.requestFocus() ?: false
         if (!back && !focusTile(restoreIndex)) topBar.inputsButton.requestFocus()
         restoreFocus = null
@@ -275,6 +264,7 @@ class HomeActivity : Activity() {
 
     /** MENU / SEARCH toggle Spotlight from anywhere on the home screen (including its search field). */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        ambient.onUserActivity() // any key, repeats included, resets the idle timer
         sounds.onKey(event)
         if (!SpotlightKeys.isToggleKey(event.keyCode)) return super.dispatchKeyEvent(event)
         if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
@@ -289,13 +279,18 @@ class HomeActivity : Activity() {
             openSpotlight()
         } else {
             spotlight.close(animate = false) // HOME press: back to a clean shelf
-            net.release()
-            devices.onBack()
+            panels.release()
             focusTile(0)
         }
     }
 
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        ambient.onUserActivity()
+    }
+
     override fun onPause() {
+        ambient.pause()
         launchOverlay.hide()
         super.onPause()
     }
@@ -305,6 +300,7 @@ class HomeActivity : Activity() {
         if (isChangingConfigurations || isFinishing) return // e.g. the appearance rebuild in onStart
         sounds.reload()
         modes.onResume()
+        ambient.resume()
     }
 
     /** Also picks up Settings > Appearance edits when coming back from Settings. */
@@ -314,8 +310,8 @@ class HomeActivity : Activity() {
         topBar.applyAppearance(look.settings)
         adapter.getItems().getOrNull(adapter.lastFocused)?.let(::onAppFocused)
         topBar.startStatus()
-        net.start()
-        devices.start()
+        panels.start()
+        ambient.start(backdrop)
     }
 
     override fun onStop() {
@@ -324,8 +320,8 @@ class HomeActivity : Activity() {
             spotlight.close(animate = false)
         }
         topBar.stopStatus() // always paired with startStatus (TopBar tracks it)
-        net.stop() // releases an open panel, stops the Wi-Fi and Bluetooth controllers
-        devices.stop()
+        panels.stop() // closes panels; stops the Wi-Fi/Bluetooth controllers and the device monitor
+        ambient.stop(backdrop) // idle timer cancelled, wallpaper bitmap freed
         super.onStop()
     }
 
@@ -333,7 +329,7 @@ class HomeActivity : Activity() {
     @Deprecated("Home screen never exits on Back")
     override fun onBackPressed() {
         val closed = when {
-            net.onBack() || devices.onBack() -> true
+            panels.onBack() -> true
             spotlight.isOpen -> { spotlight.close(); true }
             else -> strip.hasFocus() && strip.returnToTile()
         }
@@ -343,7 +339,7 @@ class HomeActivity : Activity() {
     override fun onDestroy() {
         if (!::modes.isInitialized) return super.onDestroy() // redirected to safe mode
         tileMenu.dismiss()
-        net.release()
+        panels.release()
         repo.unregister()
         loader.shutdownNow()
         sounds.release()

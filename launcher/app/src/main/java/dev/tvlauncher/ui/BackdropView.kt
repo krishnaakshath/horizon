@@ -4,14 +4,24 @@ import android.animation.ArgbEvaluator
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.animation.DecelerateInterpolator
+import dev.tvlauncher.ambient.HomeWallpaperProvider
+
+/** Pure compositing rule: over a wallpaper base layer the brand gradient is drawn at 55 %. */
+object BackdropLayers {
+    const val BRAND_TINT_ALPHA = HomeWallpaperProvider.BRAND_TINT_ALPHA
+    fun glowAlpha(hasBaseLayer: Boolean): Int = if (hasBaseLayer) (255 * BRAND_TINT_ALPHA).toInt() else 255
+}
 
 /**
  * Full-screen brand-tinted backdrop. One diagonal gradient (accent at top-left fading to the
  * near-black base) whose colors crossfade on focus changes, plus a static bottom scrim that keeps
  * the dock area calm. Nothing is allocated per frame: the color arrays and animator are reused.
+ * Optional [setBaseLayer] (Settings > Ambient > "Use wallpaper on home") draws a drawable under the
+ * gradient, which then drops to [BackdropLayers.BRAND_TINT_ALPHA]. The caller owns its lifetime.
  */
 class BackdropView(context: Context, durationMs: Long) : View(context) {
     private val evaluator = ArgbEvaluator()
@@ -23,6 +33,7 @@ class BackdropView(context: Context, durationMs: Long) : View(context) {
         GradientDrawable.Orientation.TOP_BOTTOM,
         intArrayOf(0x00000000, 0x00000000, 0x8C000000.toInt())
     )
+    private var base: Drawable? = null
     private var accent = 0
     private var hasAccent = false
     private val animator = ValueAnimator.ofFloat(0f, 1f).apply {
@@ -62,12 +73,27 @@ class BackdropView(context: Context, durationMs: Long) : View(context) {
         }
     }
 
+    /** A full-bleed layer under the brand gradient, or null for the plain gradient. */
+    fun setBaseLayer(d: Drawable?) {
+        if (d === base) return
+        base?.callback = null
+        base = d
+        d?.callback = this
+        d?.setBounds(0, 0, width, height)
+        glow.alpha = BackdropLayers.glowAlpha(d != null)
+        invalidate()
+    }
+
+    override fun verifyDrawable(who: Drawable): Boolean = who === base || super.verifyDrawable(who)
+
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         glow.setBounds(0, 0, w, h)
         scrim.setBounds(0, 0, w, h)
+        base?.setBounds(0, 0, w, h)
     }
 
     override fun onDraw(canvas: Canvas) {
+        base?.draw(canvas)
         glow.draw(canvas)
         scrim.draw(canvas)
     }
