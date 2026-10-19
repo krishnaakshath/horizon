@@ -83,6 +83,20 @@ class TopBar(
         alpha = 0.6f
     }
 
+    /** Focus mode is on: a tiny accent dot after the date (never focusable). */
+    private val focusDot = View(context).apply {
+        visibility = View.GONE
+        isFocusable = false
+        contentDescription = "Focus mode on"
+    }
+
+    /** Focus mode: the dot in [accent] and a dimmed clock while on. */
+    fun setFocus(on: Boolean, accent: Int) {
+        focusDot.background = GradientDrawable().apply { setColor(BrandColors.backdropAccent(accent)); shape = GradientDrawable.OVAL }
+        focusDot.visibility = if (on) View.VISIBLE else View.GONE
+        clock.alpha = if (on) dev.tvlauncher.focus.FocusModel.CLOCK_DIM_ALPHA else 1f
+    }
+
     init {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
@@ -91,6 +105,7 @@ class TopBar(
         addView(dot, LayoutParams(context.dp(4), context.dp(4)).apply {
             marginStart = context.dp(Theme.S3); marginEnd = context.dp(Theme.S3)
         })
+        addView(focusDot, LayoutParams(context.dp(8), context.dp(8)).apply { marginEnd = context.dp(Theme.S3) })
         addView(date, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
         for (pill in pills) {
             addView(pill, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {

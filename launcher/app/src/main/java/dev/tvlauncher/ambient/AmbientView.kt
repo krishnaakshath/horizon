@@ -414,7 +414,8 @@ class AmbientView(
 
     private fun renderChips() {
         chips.removeAllViews()
-        val list = AmbientViewModel.chipsFor(settings, feed, NotificationAccess.isEnabled(context), max = model.maxChips)
+        val list = if (dev.tvlauncher.focus.FocusMode.quiet(context).notificationChips) emptyList() // Focus mode
+            else AmbientViewModel.chipsFor(settings, feed, NotificationAccess.isEnabled(context), max = model.maxChips)
         if (list.isEmpty()) { chips.visibility = GONE; return }
         chips.visibility = VISIBLE
         list.forEachIndexed { i, c ->

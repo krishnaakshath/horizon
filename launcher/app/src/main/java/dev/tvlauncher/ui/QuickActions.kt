@@ -33,7 +33,11 @@ object QuickActions {
         SLEEP_TIMER("Sleep timer"),
         RESTART("Restart launcher"),
         GET_APPS(Brand.STORE),
-        DISCOVER("Discover")
+        DISCOVER("Discover"),
+        /** The Recent apps strip on the home screen. */
+        RECENTS("Recent apps"),
+        /** Turns Focus mode on for the chosen time, or off. */
+        FOCUS("Focus mode")
     }
 
     enum class Route { WIFI_PANEL, BLUETOOTH_PANEL, DEVICES_PANEL, INPUTS_PANEL, AMBIENT, ROOM_CYCLE, DISCOVER, RESTART, SYSTEM }
@@ -111,5 +115,7 @@ object QuickActions {
         Item.RESTART -> R.drawable.ic_set_reset
         Item.GET_APPS -> R.drawable.ic_set_store
         Item.DISCOVER -> R.drawable.ic_disc_bag
+        Item.RECENTS -> R.drawable.ic_qa_recents
+        Item.FOCUS -> R.drawable.ic_qa_focus
     }
 }

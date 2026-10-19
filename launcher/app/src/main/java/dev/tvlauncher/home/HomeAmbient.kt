@@ -53,7 +53,8 @@ class HomeAmbient(
 
     private fun onIdle() {
         val safeMode = try { SafeMode.guard(activity).isTripped } catch (e: Throwable) { true }
-        val ok = AmbientGate.shouldStart(resumed, overlayOpen(), spotlightOpen(), activity.hasWindowFocus(), safeMode, splashRunning())
+        val focus = dev.tvlauncher.focus.FocusMode.quiet(activity).ambient // Focus mode: no idle screensaver
+        val ok = !focus && AmbientGate.shouldStart(resumed, overlayOpen(), spotlightOpen(), activity.hasWindowFocus(), safeMode, splashRunning())
         if (ok) startNow() else idle.onUserActivity() // re-arm for a full period
     }
 
