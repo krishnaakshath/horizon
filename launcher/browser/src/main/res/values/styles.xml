@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Near-black window so the first frame matches the UI (no white flash). -->
+    <style name="BrowserTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/base</item>
+        <item name="android:colorBackground">@color/base</item>
+        <item name="android:colorAccent">#FFF5F7FA</item>
+        <item name="android:textColorHighlight">#665B8CFF</item>
+    </style>
+    <color name="base">#FF0B0D12</color>
+</resources>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Browser glyph set: 24 grid, 1.9 stroke, round caps/joins (original, tintable). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M9,8.5 H17.5 A2,2 0 0,1 19.5,10.5 V18 A2,2 0 0,1 17.5,20 H9 A2,2 0 0,1 7,18 V10.5 A2,2 0 0,1 9,8.5 Z" android:strokeColor="#FFFFFFFF" android:strokeWidth="1.9" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"/>
+    <path android:pathData="M4.5,15.5 V6 A2,2 0 0,1 6.5,4 H15" android:strokeColor="#FFFFFFFF" android:strokeWidth="1.9" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"/>
+</vector>
