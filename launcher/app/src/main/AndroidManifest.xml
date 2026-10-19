@@ -55,6 +55,8 @@
              browser is installed; the Settings screen detects the helper and browser. -->
         <package android:name="dev.tvlauncher.helper" />
         <package android:name="dev.tvlauncher.browser" />
+        <!-- Get Apps companion store: listed on the Settings Add-ons page. -->
+        <package android:name="dev.tvlauncher.store" />
         <!-- Safe mode offers the stock launcher only while it is installed and enabled. -->
         <package android:name="com.google.android.tvlauncher" />
         <!-- Weather companion app (the launcher has no INTERNET permission). -->

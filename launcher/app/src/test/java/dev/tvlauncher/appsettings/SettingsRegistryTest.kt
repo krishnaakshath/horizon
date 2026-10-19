@@ -13,7 +13,8 @@ class SettingsRegistryTest {
     }
 
     private val builtInOrder = listOf(
-        "appearance", "home_layout", "network", "sounds", "insights", "helper", "browser", "devices", "about"
+        "appearance", "home_layout", "network", "bluetooth", "devices", "sounds",
+        "browser", "getapps", "helper", "insights", "addons", "system", "backup", "about"
     )
 
     @Test
@@ -39,7 +40,7 @@ class SettingsRegistryTest {
         r.register(sounds)
         val list = r.sections()
         assertEquals(builtInOrder, list.map { it.id })
-        assertSame(sounds, list[3])
+        assertSame(sounds, list[builtInOrder.indexOf("sounds")])
     }
 
     @Test

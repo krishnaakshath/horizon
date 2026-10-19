@@ -7,23 +7,66 @@ import android.view.View
 import dev.tvlauncher.R
 import dev.tvlauncher.ui.SystemActions
 
-/** Shortcuts into the TV's own Settings pages, with cheap live status where available. */
-object NetworkSection : SettingsSection {
+/** A row that opens one of the TV's own Settings pages. */
+internal class Shortcut(val key: String, val title: String, val action: String, val icon: Int, val subtitle: String? = null)
+
+internal fun SettingsPage.Block.shortcut(context: Context, nav: SettingsNav, prefix: String, s: Shortcut): SettingsRow =
+    row("$prefix.${s.key}", s.title, RowKind.Action {
+        if (!SystemActions.start(context, Intent(s.action))) nav.notify("This TV has no ${s.title} page")
+    }, subtitle = s.subtitle, iconRes = s.icon)
+
+/** Wi-Fi status and the TV's network pages. */
+object NetworkSection : SettingsSection, SpecifiedPage {
     const val ID = "network"
     override val id = ID
-    override val title = "Network & system"
-    override val iconRes = R.drawable.ic_set_network
+    override val title = "Wi-Fi & network"
+    override val iconRes = R.drawable.ic_sc_wifi
+    override val group = SettingsGroup.CONNECTIONS
+    override val description = "Opens the TV's own network pages. BACK returns here."
+    override val spec = PageSpec(ID, listOf("network.wifi", "network.network"))
 
-    private class Shortcut(val key: String, val title: String, val action: String, val icon: Int)
+    override fun buildPage(context: Context, nav: SettingsNav): View {
+        val page = SettingsPage(context, nav.style)
+        val b = page.body
+        val wifi = b.shortcut(context, nav, "network", Shortcut("wifi", "Wi-Fi", Settings.ACTION_WIFI_SETTINGS, R.drawable.ic_sc_wifi))
+        b.shortcut(context, nav, "network", Shortcut("network", "Network & internet", Settings.ACTION_WIRELESS_SETTINGS,
+            R.drawable.ic_set_network, "Ethernet, proxy and IP settings"))
+        nav.background({ NetworkStatusReader.read(context) }) { st -> wifi.setValue(st.wifi) }
+        return page
+    }
+}
 
-    private val connections = listOf(
-        Shortcut("wifi", "Wi-Fi", Settings.ACTION_WIFI_SETTINGS, R.drawable.ic_sc_wifi),
-        Shortcut("network", "Network", Settings.ACTION_WIRELESS_SETTINGS, R.drawable.ic_set_network),
-        Shortcut("bluetooth", "Bluetooth", Settings.ACTION_BLUETOOTH_SETTINGS, R.drawable.ic_sc_bluetooth)
-    )
-    private val device = listOf(
+/** Bluetooth status and the TV's pairing page. */
+object BluetoothSection : SettingsSection, SpecifiedPage {
+    const val ID = "bluetooth"
+    override val id = ID
+    override val title = "Bluetooth"
+    override val iconRes = R.drawable.ic_sc_bluetooth
+    override val group = SettingsGroup.CONNECTIONS
+    override val description = "Remotes, speakers and headphones pair in the TV's own settings."
+    override val spec = PageSpec(ID, listOf("bluetooth.settings"))
+
+    override fun buildPage(context: Context, nav: SettingsNav): View {
+        val page = SettingsPage(context, nav.style)
+        val row = page.body.shortcut(context, nav, "bluetooth",
+            Shortcut("settings", "Bluetooth", Settings.ACTION_BLUETOOTH_SETTINGS, R.drawable.ic_sc_bluetooth, "Pair and manage devices"))
+        nav.background({ NetworkStatusReader.read(context) }) { st -> row.setValue(st.bluetooth) }
+        return page
+    }
+}
+
+/** Shortcuts into the TV's own Settings pages; rarely used ones under Advanced. */
+object SystemSection : SettingsSection, SpecifiedPage {
+    const val ID = "system"
+    override val id = ID
+    override val title = "System shortcuts"
+    override val iconRes = R.drawable.ic_sc_settings
+    override val group = SettingsGroup.SYSTEM
+    override val description = "Opens the TV's own Settings pages. BACK returns here."
+
+    private val main = listOf(
         Shortcut("display", "Display", Settings.ACTION_DISPLAY_SETTINGS, R.drawable.ic_sc_display),
-        Shortcut("sound", "Sound", Settings.ACTION_SOUND_SETTINGS, R.drawable.ic_set_sounds),
+        Shortcut("sound", "Sound", Settings.ACTION_SOUND_SETTINGS, R.drawable.ic_set_sounds, "TV speakers and audio output"),
         Shortcut("apps", "Apps", Settings.ACTION_APPLICATION_SETTINGS, R.drawable.ic_sc_apps),
         Shortcut("storage", "Storage", Settings.ACTION_INTERNAL_STORAGE_SETTINGS, R.drawable.ic_sc_storage),
         Shortcut("date", "Date & time", Settings.ACTION_DATE_SETTINGS, R.drawable.ic_sc_date),
@@ -34,28 +77,16 @@ object NetworkSection : SettingsSection {
         Shortcut("all", "All system settings", Settings.ACTION_SETTINGS, R.drawable.ic_sc_settings)
     )
 
+    override val spec = PageSpec(ID, main.map { "system.${it.key}" }, advanced.map { "system.${it.key}" })
+
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val page = SettingsPage(context, nav.style)
-        page.lead("These open the TV's own Settings pages. Press BACK there to return here.")
-        val rows = HashMap<String, SettingsRow>()
-        fun group(label: String, list: List<Shortcut>) {
-            page.group(label)
-            for (s in list) {
-                rows[s.key] = page.row("network.${s.key}", s.title, RowKind.Action {
-                    if (!SystemActions.start(context, Intent(s.action))) {
-                        nav.notify("This TV has no ${s.title} page")
-                    }
-                }, subtitle = "Opens the TV's ${s.title} page", iconRes = s.icon)
-            }
+        val b = page.body
+        val rows = main.associate { it.key to b.shortcut(context, nav, ID, it) }
+        page.advanced(nav, "system.advanced", "Developer options, all system settings") { adv ->
+            advanced.forEach { adv.shortcut(context, nav, ID, it) }
         }
-        group("Connections", connections)
-        group("Device", device)
-        group("Advanced", advanced)
-        nav.background({ NetworkStatusReader.read(context) }) { st ->
-            rows["wifi"]?.setValue(st.wifi)
-            rows["bluetooth"]?.setValue(st.bluetooth)
-            rows["storage"]?.setValue(st.storage)
-        }
+        nav.background({ NetworkStatusReader.read(context) }) { st -> rows["storage"]?.setValue(st.storage) }
         return page
     }
 }

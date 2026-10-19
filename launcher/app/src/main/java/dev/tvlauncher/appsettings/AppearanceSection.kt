@@ -13,27 +13,33 @@ import dev.tvlauncher.settings.TileSize
 import java.util.Locale
 
 /** Accent, motion, top bar and tile size. Every change is saved at once. */
-object AppearanceSection : SettingsSection {
+object AppearanceSection : SettingsSection, SpecifiedPage {
     const val ID = "appearance"
     override val id = ID
     override val title = "Appearance"
     override val iconRes = R.drawable.ic_set_appearance
+    override val group = SettingsGroup.HOME
+    override val description = "How the home screen looks and moves. Changes apply when you go home."
+    override val spec = PageSpec(
+        ID,
+        listOf(
+            "appearance.accentMode", "appearance.swatch", "appearance.animation", "appearance.clockFormat",
+            "appearance.showDate", "appearance.showStatus", "appearance.tileSize"
+        )
+    )
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val prefs = AppearancePrefs(context)
         val a = prefs.load()
         val page = SettingsPage(context, nav.style)
-        page.lead("How the home screen looks and moves. Changes apply when you go back home.")
-
-        page.group("Color")
         page.row(
             "appearance.accentMode", "Backdrop and highlights",
             RowKind.Choice(listOf("Auto from app", "Fixed"), a.accentMode.ordinal) { i ->
                 prefs.update { it.copy(accentMode = AccentMode.values()[i]) }
                 nav.appearanceChanged()
             },
-            subtitle = if (a.accentMode == AccentMode.AUTO_BRAND) "Follows the brand color of the focused app"
-            else "One color for the backdrop and the hero; tiles keep their app colors",
+            subtitle = if (a.accentMode == AccentMode.AUTO_BRAND) "Follows the focused app's brand color"
+            else "One color for the backdrop; tiles keep their app colors",
             iconRes = R.drawable.ic_set_palette
         )
         if (a.accentMode == AccentMode.FIXED) {
@@ -43,7 +49,6 @@ object AppearanceSection : SettingsSection {
             })
         }
 
-        page.group("Motion")
         val device = nav.profile.effectsMode
         page.row(
             "appearance.animation", "Animations",
@@ -51,11 +56,10 @@ object AppearanceSection : SettingsSection {
                 prefs.update { it.copy(animationLevel = AnimationLevel.values()[i]) }
                 nav.appearanceChanged()
             },
-            subtitle = "Auto picks ${AboutText.motion(device)} for this TV. Off also follows the system animator scale.",
+            subtitle = "Auto is ${AboutText.motion(device)} on this TV",
             iconRes = R.drawable.ic_set_motion
         )
 
-        page.group("Top bar")
         lateinit var clockRow: SettingsRow
         clockRow = page.row(
             "appearance.clockFormat", "Clock",
@@ -76,17 +80,15 @@ object AppearanceSection : SettingsSection {
         page.row(
             "appearance.showStatus", "Show status icons",
             RowKind.Toggle(a.showStatusIcons) { on -> prefs.update { it.copy(showStatusIcons = on) } },
-            subtitle = "Wi-Fi, Ethernet and Bluetooth next to the Inputs button",
+            subtitle = "Wi-Fi, Ethernet and Bluetooth in the top bar",
             iconRes = R.drawable.ic_set_status
         )
 
-        page.group("Home row")
         page.row(
             "appearance.tileSize", "Tile size",
             RowKind.Choice(listOf("Small", "Medium", "Large"), a.rowTileSize.ordinal) { i ->
                 prefs.update { it.copy(rowTileSize = TileSize.values()[i]) }
             },
-            subtitle = "Larger tiles show fewer apps at once",
             iconRes = R.drawable.ic_set_tiles
         )
         return page
@@ -95,6 +97,6 @@ object AppearanceSection : SettingsSection {
     private fun clockExample(context: Context, f: ClockFormat): String {
         val is24h = AppearanceFormat.is24h(f, android.text.format.DateFormat.is24HourFormat(context))
         val now = AppearanceFormat.clockText(System.currentTimeMillis(), is24h, Locale.getDefault())
-        return if (f == ClockFormat.AUTO) "Now: $now (follows the TV's setting)" else "Now: $now"
+        return if (f == ClockFormat.AUTO) "Now $now · follows the TV" else "Now $now"
     }
 }

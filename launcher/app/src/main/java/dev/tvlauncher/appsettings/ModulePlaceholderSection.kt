@@ -5,9 +5,9 @@ import android.view.View
 import dev.tvlauncher.R
 
 /**
- * Sidebar slot for a feature that ships in its own module. The module replaces this entry by
- * calling [SettingsRegistry.register] with a section of the same [id]. Until then the page says
- * the module is coming (when [probe] finds nothing) or that it is installed but not registered.
+ * Slot keeper for a feature that ships in its own module: it reserves the [id]'s place in the
+ * registry and is never listed in the sidebar ([SectionAvailability.Never]). The module replaces
+ * it by calling [SettingsRegistry.register] with a section of the same [id].
  */
 class ModulePlaceholderSection(
     override val id: String,
@@ -31,16 +31,15 @@ class ModulePlaceholderSection(
         }
     }
 
+    override val availability: SectionAvailability get() = SectionAvailability.Never
+
+    override val description: String get() = blurb
+
+    /** Only reachable if something opens this id directly: a plain, honest status line. */
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val page = SettingsPage(context, nav.style)
-        page.lead(blurb)
-        if (!probe.isPresent(context)) {
-            page.row("$id.status", "Coming from the $title module", RowKind.Info(),
-                subtitle = "This build does not include it yet.", iconRes = iconRes)
-        } else {
-            page.row("$id.status", "$title module installed", RowKind.Info(),
-                subtitle = "Its settings appear here once it registers its page.", iconRes = iconRes)
-        }
+        page.row("$id.status", title, RowKind.Info(if (probe.isPresent(context)) "Unavailable" else "Not installed"),
+            iconRes = iconRes)
         return page
     }
 
@@ -52,7 +51,7 @@ class ModulePlaceholderSection(
         const val DEVICES = "devices"
 
         /** What is probed (never instantiated) to tell "coming" from "installed". */
-        val SOUNDS_PROBE = Probe.ClassName("dev.tvlauncher.ui.SoundSettingsPanel")
+        val SOUNDS_PROBE = Probe.ClassName("dev.tvlauncher.appsettings.SoundsPage")
         val INSIGHTS_PROBE = Probe.ClassName("dev.tvlauncher.insights.InsightsActivity")
         val HELPER_PROBE = Probe.PackageName("dev.tvlauncher.helper")
         val BROWSER_PROBE = Probe.PackageName("dev.tvlauncher.browser")
