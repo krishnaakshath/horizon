@@ -42,6 +42,9 @@ class HomeRoom(context: Context, lite: Boolean, private val backdrop: BackdropVi
         RoomTheme.removeListener(listener)
     }
 
+    /** Settings changed outside this screen (a routine, Bedtime mode): re-read and apply now. */
+    fun refresh() { if (started) controller.refresh() }
+
     /** Spotlight quick action: next choice, applied now; returns the toast text. */
     fun cycle(): String = controller.cycleChoice()
 

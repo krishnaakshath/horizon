@@ -58,7 +58,7 @@ object SystemActions {
         QuickActions.Item.BROWSER -> launchPackage(context, QuickActions.BROWSER_PACKAGE)
         QuickActions.Item.GET_APPS -> launchPackage(context, QuickActions.GET_APPS_PACKAGE)
         // Handled on the home screen (HomeModules); nothing to fall back to here.
-        QuickActions.Item.RESTART, QuickActions.Item.DISCOVER -> false
+        QuickActions.Item.RESTART, QuickActions.Item.DISCOVER, QuickActions.Item.BEDTIME -> false
         // The launcher's own sleep timer lives on TV & system > Power & sleep.
         QuickActions.Item.POWER, QuickActions.Item.SLEEP_TIMER ->
             launcherSettings(context, QuickActions.launcherSection(item), SystemLinks.POWER)

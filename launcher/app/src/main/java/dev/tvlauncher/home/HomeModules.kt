@@ -136,6 +136,14 @@ class HomeModules(
             return
         }
         if (item == QuickActions.Item.DISCOVER) { openDiscover(); return }
+        if (item == QuickActions.Item.SLEEP_TIMER || item == QuickActions.Item.BEDTIME) {
+            val text = if (item == QuickActions.Item.SLEEP_TIMER) dev.tvlauncher.routines.SleepActions.cycle(activity)
+                else if (dev.tvlauncher.routines.Bedtime.toggle(activity)) "Bedtime mode on" else "Bedtime mode off"
+            if (item == QuickActions.Item.BEDTIME) room.refresh()
+            sounds.action(true)
+            try { Toast.makeText(activity, text, Toast.LENGTH_SHORT).show() } catch (e: RuntimeException) { }
+            return
+        }
         if (item == QuickActions.Item.RESTART) {
             sounds.action(true)
             spotlight.close(animate = false)

@@ -77,12 +77,13 @@ object PowerActions {
     fun sleepMinutesLeft(context: Context): Int = SleepTimer.minutesLeft(SystemPrefs(context).sleepEndsAt, System.currentTimeMillis())
 }
 
-/** The sleep timer ran out: the TV's power menu through the helper, else the dimmed ambient screen. */
+/** The sleep timer ran out: the ambient screen, then the TV's power menu through the helper, else mute. */
 class SleepTimerReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val prefs = SystemPrefs(context)
         prefs.sleepEndsAt = 0L
         prefs.sleepMinutes = 0
-        if (!PowerActions.powerMenu(context)) SystemActions.ambient(context)
+        // Dimmed ambient first, then the power menu through the Helper (or mute without it).
+        dev.tvlauncher.routines.SleepActions.end(context)
     }
 }

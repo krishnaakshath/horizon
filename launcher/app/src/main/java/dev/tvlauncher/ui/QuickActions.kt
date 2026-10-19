@@ -33,7 +33,9 @@ object QuickActions {
         SLEEP_TIMER("Sleep timer"),
         RESTART("Restart launcher"),
         GET_APPS(Brand.STORE),
-        DISCOVER("Discover")
+        DISCOVER("Discover"),
+        /** Toggles Bedtime mode in place (routines.Bedtime). */
+        BEDTIME("Bedtime mode")
     }
 
     enum class Route { WIFI_PANEL, BLUETOOTH_PANEL, DEVICES_PANEL, INPUTS_PANEL, AMBIENT, ROOM_CYCLE, DISCOVER, RESTART, SYSTEM }
@@ -70,8 +72,8 @@ object QuickActions {
         else -> null
     }
 
-    /** Room lighting cycles in place (OK again picks the next choice), so it never closes Spotlight. */
-    fun closesSpotlight(item: Item): Boolean = item != Item.ROOM
+    /** Room lighting and the sleep timer cycle in place (OK again picks the next choice); Bedtime toggles in place. */
+    fun closesSpotlight(item: Item): Boolean = item != Item.ROOM && item != Item.SLEEP_TIMER && item != Item.BEDTIME
 
     /**
      * What this TV can offer right now. The sleep timer is the launcher's own (TV & system >
@@ -111,5 +113,6 @@ object QuickActions {
         Item.RESTART -> R.drawable.ic_set_reset
         Item.GET_APPS -> R.drawable.ic_set_store
         Item.DISCOVER -> R.drawable.ic_disc_bag
+        Item.BEDTIME -> R.drawable.ic_bedtime
     }
 }

@@ -1,6 +1,8 @@
 package dev.tvlauncher.setup
 
 import android.content.Context
+import dev.tvlauncher.profiles.ProfileManager
+import dev.tvlauncher.profiles.ProfileStores
 import dev.tvlauncher.settings.SettingsBackup
 import org.json.JSONArray
 import org.json.JSONObject
@@ -16,21 +18,34 @@ object ConfigBackup {
     const val FILE_NAME = "tvlauncher-config.json"
     const val FOLDER = "TVLauncher"
     const val FORMAT = "tvlauncher-config"
-    const val VERSION = 1
+    /** 2: per-profile copies and the profile list (version 1 files still restore). */
+    const val VERSION = 2
     const val MAX_BYTES = 512 * 1024L
     private const val MAX_STRING = 128 * 1024
 
     /** The stores that make up "the configuration" (crash, setup and UI state are not included). */
     val STORES = listOf(
         "launcher_settings", "appearance_settings", "home_extras", "room_settings",
-        "wallpaper_settings", "sound_settings", "discover_settings", "home_layout"
+        "wallpaper_settings", "sound_settings", "discover_settings", "home_layout", "ambient_widgets"
     )
+
+    /**
+     * A store a backup may hold: [STORES], the profile list, and each profile's own copy of a
+     * per-person store (profiles.ProfileStores), e.g. "room_settings__p4k2m9a".
+     */
+    fun isAllowed(name: String): Boolean =
+        name in STORES || name == ProfileStores.REGISTRY || ProfileStores.parseCopy(name) != null
+
+    /** Every store name to save for [profileIds] (Home's copies are the plain [STORES] names). */
+    fun storeNames(profileIds: List<String>): List<String> =
+        STORES + ProfileStores.REGISTRY + profileIds.filter { it != dev.tvlauncher.profiles.ProfileModel.HOME_ID }
+            .flatMap { id -> ProfileStores.filesOf(id) }.filter { it !in STORES }
 
     fun encode(stores: Map<String, Map<String, Any?>>): String {
         val root = JSONObject().put("format", FORMAT).put("version", VERSION)
         val all = JSONObject()
         for ((name, values) in stores) {
-            if (name !in STORES) continue
+            if (!isAllowed(name)) continue
             val o = JSONObject()
             for ((k, v) in values) {
                 val (t, jv) = when (v) {
@@ -57,7 +72,7 @@ object ConfigBackup {
         val stores = root.optJSONObject("stores") ?: return null
         val out = LinkedHashMap<String, Map<String, Any>>()
         for (name in stores.keys()) {
-            if (name !in STORES) return null
+            if (!isAllowed(name)) return null
             val o = stores.optJSONObject(name) ?: return null
             val values = LinkedHashMap<String, Any>()
             for (k in o.keys()) {
@@ -77,8 +92,14 @@ object ConfigBackup {
             out[name] = values
         }
         // The app lists must pass the same strict check as the older launcher-only backup.
-        val launcher = out["launcher_settings"]?.get("settings_json") as? String
-        if (launcher != null && SettingsBackup.parse(launcher) == null) return null
+        // Every profile's copy included.
+        for ((name, values) in out) {
+            if (name != "launcher_settings" && ProfileStores.parseCopy(name)?.first != "launcher_settings") continue
+            val launcher = values["settings_json"] as? String ?: continue
+            if (SettingsBackup.parse(launcher) == null) return null
+        }
+        val profiles = out[ProfileStores.REGISTRY]?.get("json")
+        if (profiles != null && profiles !is String) return null
         return out
     }
 
@@ -93,8 +114,10 @@ object ConfigBackup {
 
 /** File side of [ConfigBackup]. Run off the main thread; never throws. */
 object ConfigBackupIo {
+    /** Unrouted reads: Home's files, the profile list and every profile's own copies. */
     private fun snapshot(context: Context): Map<String, Map<String, Any?>> =
-        ConfigBackup.STORES.associateWith { context.getSharedPreferences(it, Context.MODE_PRIVATE).all }
+        ConfigBackup.storeNames(ProfileManager.load(context).profiles.map { it.id })
+            .associateWith { ProfileStores.raw(context, it).all }
 
     /** App-specific folders: on a USB stick these are writable and readable without any permission. */
     private fun appDirs(context: Context): List<File> = try {
@@ -149,7 +172,7 @@ object ConfigBackupIo {
         } ?: return false
         return try {
             for ((name, values) in stores) {
-                val e = context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear()
+                val e = ProfileStores.raw(context, name).edit().clear()
                 @Suppress("UNCHECKED_CAST")
                 for ((k, v) in values) when (v) {
                     is String -> e.putString(k, v)
@@ -161,6 +184,7 @@ object ConfigBackupIo {
                 }
                 e.commit()
             }
+            ProfileManager.reloadFromDisk(context) // the restored profile list may name another active profile
             true
         } catch (e: Exception) {
             false

@@ -34,7 +34,9 @@ class TopBar(
     onInputs: () -> Unit,
     onSettings: () -> Unit,
     onSettingsLongPress: () -> Unit,
-    onDown: () -> Boolean
+    onDown: () -> Boolean,
+    /** The avatar chip (profiles.ProfileChip; shown only with two or more profiles). */
+    onProfile: (View) -> Unit = {}
 ) : LinearLayout(context) {
     private val clock = TextClock(context).apply {
         format12Hour = "h:mm"
@@ -54,7 +56,8 @@ class TopBar(
     val settingsButton = PillButton(context, R.drawable.ic_settings, "Settings", onSettings).apply {
         setOnLongClickListener { onSettingsLongPress(); true }
     }
-    private val pills: List<View> = listOf(bluetoothPill, networkPill, inputsButton, settingsButton)
+    val profileChip = dev.tvlauncher.profiles.ProfileChip(context, onProfile)
+    private val pills: List<View> = listOf(profileChip, bluetoothPill, networkPill, inputsButton, settingsButton)
     private var lastPill: View? = null
     private var statusVisible = true
     private var hasBluetooth = false

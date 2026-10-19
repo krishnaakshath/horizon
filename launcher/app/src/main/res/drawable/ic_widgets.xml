@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original artwork: four rounded tiles, for the ambient widgets. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="1.8" android:strokeLineJoin="round" android:pathData="M5,4 H10 A1,1 0 0,1 11,5 V10 A1,1 0 0,1 10,11 H5 A1,1 0 0,1 4,10 V5 A1,1 0 0,1 5,4 Z"/>
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="1.8" android:strokeLineJoin="round" android:pathData="M14,4 H19 A1,1 0 0,1 20,5 V10 A1,1 0 0,1 19,11 H14 A1,1 0 0,1 13,10 V5 A1,1 0 0,1 14,4 Z"/>
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="1.8" android:strokeLineJoin="round" android:pathData="M5,13 H10 A1,1 0 0,1 11,14 V19 A1,1 0 0,1 10,20 H5 A1,1 0 0,1 4,19 V14 A1,1 0 0,1 5,13 Z"/>
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="1.8" android:strokeLineJoin="round" android:pathData="M14,13 H19 A1,1 0 0,1 20,14 V19 A1,1 0 0,1 19,20 H14 A1,1 0 0,1 13,19 V14 A1,1 0 0,1 14,13 Z"/>
+</vector>

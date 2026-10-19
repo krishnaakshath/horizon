@@ -119,7 +119,7 @@ object SetupProber {
         tvUserSetupComplete = secure(context, SetupAuto.TV_SETUP_COMPLETE),
         nowPlayingAutoDone = store.nowPlayingAutoDone,
         roomConfigured = safe(true) {
-            context.getSharedPreferences(RoomPrefs.NAME, Context.MODE_PRIVATE).contains(RoomPrefs.KEY)
+            context.applicationContext.getSharedPreferences(RoomPrefs.NAME, Context.MODE_PRIVATE).contains(RoomPrefs.KEY)
         },
         zoneId = safe("") { java.util.TimeZone.getDefault().id }
     )
