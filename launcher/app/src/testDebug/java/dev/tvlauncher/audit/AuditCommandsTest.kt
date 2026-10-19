@@ -48,4 +48,31 @@ class AuditCommandsTest {
         assertEquals("LAYOUT_AUDIT_TREE label=home nodes=12 file=- error=no_resumed_activity", line)
         assertTrue(!line.contains("LAYOUT_AUDIT label="))
     }
+
+    @Test
+    fun bodyText_defaultOn_onlyRealBooleanTurnsItOff() {
+        assertTrue(AuditCommands.decide(AuditCommands.AUDIT, true, "x", null)!!.bodyText)
+        assertTrue(AuditCommands.config(AuditCommands.decide(AuditCommands.AUDIT, true, "x", null, "false")!!).reportBelowBodyText)
+        val off = AuditCommands.decide(AuditCommands.AUDIT, true, "x", null, false)!!
+        assertEquals(false, AuditCommands.config(off).reportBelowBodyText)
+    }
+
+    @Test
+    fun prune_keepsNewest20_neverLatest() {
+        val names = (1..25).map { "home-${1_700_000_000_000L + it}.json" } + listOf("latest.json", "latest-tree.json", "notes.txt") +
+            (1..3).map { "t-${1_700_000_000_100L + it}-tree.json" }
+        val gone = AuditCommands.prune(names)
+        assertEquals(8, gone.size) // 28 dated files, keep 20
+        assertTrue(gone.none { it.startsWith("latest") || it == "notes.txt" })
+        assertTrue("home-1700000000001.json" in gone)
+        assertTrue(gone.none { it.endsWith("-tree.json") }) // tree files are the newest here
+        assertEquals(emptyList<String>(), AuditCommands.prune(names.take(20)))
+    }
+
+    @Test
+    fun logLine_carriesInternalPath() {
+        val c = AuditCommands.Command(AuditCommands.Mode.AUDIT, "home", "n1")
+        assertEquals("LAYOUT_AUDIT label=home findings=0 high=0 file=/sdcard/a/home-5.json internal=/data/user/0/p/files/audit/home-5.json nonce=n1",
+            AuditCommands.logLine(c, 0, 0, 0, "/sdcard/a/home-5.json", null, "/data/user/0/p/files/audit/home-5.json"))
+    }
 }
