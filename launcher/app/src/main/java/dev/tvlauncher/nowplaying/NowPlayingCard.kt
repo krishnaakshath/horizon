@@ -1,5 +1,7 @@
 package dev.tvlauncher.nowplaying
 
+import dev.tvlauncher.audit.AuditTags
+import dev.tvlauncher.audit.auditTag
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -58,6 +60,7 @@ class NowPlayingCard(
             }
         }
         clipToOutline = true
+        auditTag(AuditTags.LAYER) // note glyph under the album art
     }
     private val fallbackBg = GradientDrawable()
     private val note = ImageView(context).apply {

@@ -1,5 +1,7 @@
 package dev.tvlauncher.ui
 
+import dev.tvlauncher.audit.AuditTags
+import dev.tvlauncher.audit.auditTag
 import android.content.Context
 import android.graphics.Outline
 import android.graphics.Rect
@@ -28,7 +30,10 @@ class TileView(context: Context, private val dims: TileDims = TileSpec.dims(1f))
     private fun dpi(v: Int) = (v * density + 0.5f).toInt()
 
     /** Holds everything; the cold-start reveal animates this so focus animation stays independent. */
-    val content = FrameLayout(context).apply { clipChildren = false; clipToPadding = false }
+    val content = FrameLayout(context).apply {
+        clipChildren = false; clipToPadding = false
+        auditTag(AuditTags.LAYER) // art, ring and label stack on purpose
+    }
     private val tint = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Theme.SURFACE, Theme.BASE))
     private val card = FrameLayout(context).apply {
         background = tint
@@ -63,13 +68,15 @@ class TileView(context: Context, private val dims: TileDims = TileSpec.dims(1f))
             setStroke(dpi(TileSpec.RING_STROKE_DP), Theme.TEXT)
         }
         alpha = 0f
+        auditTag(AuditTags.IGNORE) // focus decoration
     }
     private val labelView = TextView(context).apply {
         maxLines = TileSpec.LABEL_MAX_LINES
         isSingleLine = true
         ellipsize = TextUtils.TruncateAt.END
-        style(TileSpec.LABEL_SP.toFloat(), Theme.medium, Theme.TEXT_2)
+        style(TileSpec.LABEL_SP.toFloat(), Theme.medium, Theme.TEXT)
         gravity = Gravity.CENTER_HORIZONTAL
+        alpha = TileSpec.LABEL_REST_ALPHA
     }
 
     private var parallax = false
@@ -123,7 +130,8 @@ class TileView(context: Context, private val dims: TileDims = TileSpec.dims(1f))
         translationZ = 0f
         card.translationZ = 0f
         ring.alpha = 0f
-        labelView.setTextColor(Theme.TEXT_2)
+        labelView.animate().cancel()
+        labelView.alpha = TileSpec.LABEL_REST_ALPHA
         setLayerType(LAYER_TYPE_NONE, null)
         labelView.text = app.label
         effectsFull = profile.full
@@ -179,7 +187,8 @@ class TileView(context: Context, private val dims: TileDims = TileSpec.dims(1f))
         val z = dp(TileSpec.FOCUS_ELEVATION_DP) - dp(TileSpec.REST_ELEVATION_DP)
         animate().cancel()
         if (effectsFull) setLayerType(LAYER_TYPE_HARDWARE, null)
-        labelView.setTextColor(if (focused) Theme.TEXT else Theme.TEXT_2)
+        labelView.animate().cancel()
+        labelView.animate().alpha(TileSpec.labelAlpha(focused)).setDuration(focusMs).start()
         animate()
             .scaleX(s).scaleY(s)
             .translationZ(if (focused) z else 0f)

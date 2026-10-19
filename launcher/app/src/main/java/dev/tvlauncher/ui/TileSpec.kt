@@ -29,6 +29,12 @@ object TileSpec {
     const val VIEW_WIDTH_DP = WIDTH_DP + 2 * PAD_DP
     const val VIEW_HEIGHT_DP = PAD_DP + HEIGHT_DP + LABEL_GAP_DP + LABEL_HEIGHT_DP + PAD_DP
 
+    /** App names show only on the focused tile (the hero repeats it large); hidden at rest. */
+    const val LABEL_REST_ALPHA = 0f
+    const val LABEL_FOCUS_ALPHA = 1f
+
+    fun labelAlpha(focused: Boolean): Float = if (focused) LABEL_FOCUS_ALPHA else LABEL_REST_ALPHA
+
     const val LABEL_MAX_LINES = 1
     val LABEL_ELLIPSIZE = Ellipsize.END
     const val LABEL_SP = 13

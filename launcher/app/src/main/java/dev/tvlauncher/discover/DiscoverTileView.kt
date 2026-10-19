@@ -1,5 +1,7 @@
 package dev.tvlauncher.discover
 
+import dev.tvlauncher.audit.AuditTags
+import dev.tvlauncher.audit.auditTag
 import android.content.Context
 import android.graphics.drawable.GradientDrawable
 import android.graphics.Rect
@@ -40,9 +42,10 @@ class DiscoverTileView(
     private val label = TextView(context).apply {
         isSingleLine = true
         ellipsize = TextUtils.TruncateAt.END
-        style(TileSpec.LABEL_SP.toFloat(), Theme.medium, Theme.TEXT_2)
+        style(TileSpec.LABEL_SP.toFloat(), Theme.medium, Theme.TEXT)
         gravity = Gravity.CENTER_HORIZONTAL
         text = DiscoverTileSpec.LABEL
+        alpha = TileSpec.LABEL_REST_ALPHA // like app tiles: the name shows on focus only
     }
 
     init {
@@ -52,6 +55,7 @@ class DiscoverTileView(
         clipToPadding = false
         contentDescription = DiscoverTileSpec.CONTENT_DESCRIPTION
         tag = DiscoverTileSpec.KEY
+        auditTag(AuditTags.LAYER) // fill, plus and label stack on purpose
         layoutParams = LayoutParams(dpi(dims.viewWidthDp), dpi(dims.viewHeightDp))
         val pad = dpi(TileSpec.PAD_DP)
         addView(outline, LayoutParams(dpi(dims.widthDp), dpi(dims.heightDp)).apply { leftMargin = pad; topMargin = pad })
@@ -76,7 +80,8 @@ class DiscoverTileView(
     override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
         fill.setColor(if (gainFocus) DiscoverTileSpec.FILL_FOCUSED else DiscoverTileSpec.FILL)
-        label.setTextColor(if (gainFocus) Theme.TEXT else Theme.TEXT_2)
+        label.animate().cancel()
+        label.animate().alpha(TileSpec.labelAlpha(gainFocus)).setDuration(Motion.ms(TileSpec.FOCUS_MS)).start()
         plus.alpha = if (gainFocus) 1f else 0.8f
         val s = if (gainFocus) TileSpec.FOCUS_SCALE else 1f
         animate().cancel()
@@ -86,6 +91,7 @@ class DiscoverTileView(
 
     override fun onDetachedFromWindow() {
         animate().cancel()
+        label.animate().cancel()
         super.onDetachedFromWindow()
     }
 }

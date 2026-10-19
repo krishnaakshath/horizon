@@ -16,6 +16,12 @@ object SpotlightKeys {
 
     fun openMs(full: Boolean): Long = if (full) 240L else 170L
 
+    /**
+     * Scrim over the home screen while Spotlight is open: dark enough that shelf tiles under and
+     * around the panel recede (70 % FULL, 80 % LITE where the panel has no highlight).
+     */
+    fun scrimColor(full: Boolean): Int = if (full) 0xB3000000.toInt() else 0xCC000000.toInt()
+
     enum class Request { OPEN_NOW, DEFER }
 
     /** Opening before the first app load would show no Browser action and nothing to search. */

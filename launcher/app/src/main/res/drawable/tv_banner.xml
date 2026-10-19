@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 320 x 180 dp TV home-screen banner (android:banner): near-black base, a soft accent wash and
-     the launcher mark (a silver rounded square with a play glyph) beside a three-tile shelf. -->
+     the launcher mark (a silver rounded square with a play glyph) beside a three-tile shelf.
+     VectorRaster is ignored: the banner is drawn rarely, by the system launcher's app row, and must
+     be exactly 320 x 180. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="VectorRaster"
     android:width="320dp"
     android:height="180dp"
     android:viewportWidth="320"

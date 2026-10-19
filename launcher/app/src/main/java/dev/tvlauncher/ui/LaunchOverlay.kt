@@ -1,5 +1,7 @@
 package dev.tvlauncher.ui
 
+import dev.tvlauncher.audit.AuditTags
+import dev.tvlauncher.audit.auditTag
 import android.content.Context
 import android.view.Gravity
 import android.view.View
@@ -17,6 +19,7 @@ class LaunchOverlay(context: Context) : FrameLayout(context) {
     override fun hasOverlappingRendering() = false
 
     init {
+        auditTag(AuditTags.FULLBLEED, AuditTags.IGNORE) // transient
         isFocusable = false
         isClickable = false
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO

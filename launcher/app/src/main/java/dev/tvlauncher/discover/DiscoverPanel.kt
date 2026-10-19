@@ -1,5 +1,7 @@
 package dev.tvlauncher.discover
 
+import dev.tvlauncher.audit.AuditTags
+import dev.tvlauncher.audit.auditTag
 import android.content.Context
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
@@ -60,8 +62,9 @@ class DiscoverPanel(
         if (root != null) return
         this.host = host
         val r = TrapLayout(context).apply {
-            setBackgroundColor(if (lite) 0xE6000000.toInt() else 0x99000000.toInt())
+            setBackgroundColor(if (lite) 0xE6000000.toInt() else 0xB3000000.toInt())
             isClickable = true
+            auditTag(AuditTags.SCRIM)
         }
         val panel = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -240,12 +243,14 @@ class DiscoverPanel(
                 setStroke(px(2), Theme.TEXT)
             }
             alpha = 0f
+            auditTag(AuditTags.IGNORE) // focus decoration
         }
 
         init {
             isFocusable = true
             isClickable = true
             clipChildren = false
+            auditTag(AuditTags.LAYER)
             contentDescription = "${item.app.label}, ${DiscoverModel.subtitle(item.app)}, ${DiscoverActions.label(item.action)}"
             card.orientation = LinearLayout.VERTICAL
             card.setPadding(px(16), px(14), px(16), px(12))

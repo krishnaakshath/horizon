@@ -18,6 +18,27 @@ object Glass {
     const val BORDER = 0x33FFFFFF
     const val HIGHLIGHT = 0x1AFFFFFF
 
+    /** Near-opaque panel fills (Spotlight): nothing under the panel may read through it. */
+    const val PANEL_FULL = 0xF5151922.toInt()
+    const val PANEL_LITE = 0xFC151922.toInt()
+
+    /**
+     * A floating panel over other content: [PANEL_FULL]/[PANEL_LITE] fill, no border (the scrim
+     * and the fill separate it), plus the FULL top highlight.
+     */
+    fun panel(context: Context, full: Boolean, radiusDp: Int): Drawable {
+        val r = context.dp(radiusDp).toFloat()
+        val base = GradientDrawable().apply {
+            setColor(if (full) PANEL_FULL else PANEL_LITE)
+            cornerRadius = r
+        }
+        if (!full) return base
+        val highlight = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(HIGHLIGHT, 0)).apply {
+            cornerRadius = r
+        }
+        return TopLit(arrayOf(base, highlight))
+    }
+
     fun surface(context: Context, full: Boolean, radiusDp: Int): Drawable {
         val r = context.dp(radiusDp).toFloat()
         val base = GradientDrawable().apply {

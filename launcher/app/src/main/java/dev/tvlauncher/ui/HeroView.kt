@@ -16,7 +16,7 @@ import dev.tvlauncher.ui.Theme.style
 /** Large focused-app title with a subtitle; text color follows the backdrop for contrast. */
 class HeroView(context: Context, private val pm: PackageManager) : LinearLayout(context) {
     val title = TextView(context).apply {
-        style(Theme.SP_HERO, Theme.medium)
+        style(Theme.SP_HERO, Theme.semibold)
         maxLines = 1
         ellipsize = TextUtils.TruncateAt.END
         letterSpacing = -0.01f
@@ -62,6 +62,15 @@ class HeroView(context: Context, private val pm: PackageManager) : LinearLayout(
         modeChip.setTextColor(if (light) Theme.TEXT else Theme.TEXT_DARK)
     }
 
+    /** A non-app entry (the "Get more apps" tile): plain title and subtitle, no mode chip. */
+    fun showText(titleText: String, subtitleText: String, backdrop: Int) {
+        title.text = titleText
+        subtitle.text = subtitleText
+        val light = BrandColors.onColorTextIsLight(backdrop)
+        title.setTextColor(if (light) Theme.TEXT else Theme.TEXT_DARK)
+        subtitle.setTextColor(if (light) Theme.TEXT_2 else Theme.TEXT_DARK_2)
+    }
+
     /** Category word for media apps only (see [HeroText]); null for system/store/utility apps. */
     private fun category(pkg: String): String? = categories.getOrPut(pkg) {
         if (Build.VERSION.SDK_INT < 26) return@getOrPut NONE
@@ -84,13 +93,43 @@ class HeroBox(context: Context, pm: PackageManager) : FrameLayout(context) {
         visibility = View.GONE
     }
 
+    private var side: View? = null
+    private var sideWidth = 0
+
     init {
         addView(hero, LayoutParams(-1, -2, Gravity.CENTER_VERTICAL))
         addView(emptyText, LayoutParams(-1, -1))
+    }
+
+    /**
+     * A card at the end of the hero row (Now Playing). While it is shown the hero text stops
+     * [HeroLayout.GAP_DP] before it, so a long app name never runs under the card.
+     */
+    fun setSideCard(card: View, widthDp: Int) {
+        side?.let { removeView(it) }
+        side = card
+        sideWidth = context.dp(widthDp)
+        addView(card, LayoutParams(sideWidth, -2, Gravity.END or Gravity.CENTER_VERTICAL))
+        sideCardChanged()
+    }
+
+    /** Call after the side card's visibility changed. */
+    fun sideCardChanged() {
+        val shown = side?.visibility == View.VISIBLE
+        val lp = hero.layoutParams as LayoutParams
+        val end = HeroLayout.heroEndMarginPx(shown, sideWidth, context.dp(HeroLayout.GAP_DP))
+        if (lp.marginEnd != end) { lp.marginEnd = end; hero.layoutParams = lp }
     }
 
     fun setEmpty(empty: Boolean) {
         emptyText.visibility = if (empty) View.VISIBLE else View.GONE
         hero.visibility = if (empty) View.GONE else View.VISIBLE
     }
+}
+
+/** Pure layout rule for the hero row with an optional side card. */
+object HeroLayout {
+    const val GAP_DP = 32
+
+    fun heroEndMarginPx(sideShown: Boolean, sideWidthPx: Int, gapPx: Int): Int = if (sideShown && sideWidthPx > 0) sideWidthPx + gapPx else 0
 }

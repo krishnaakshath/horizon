@@ -1,5 +1,7 @@
 package dev.tvlauncher.ui
 
+import dev.tvlauncher.audit.AuditTags
+import dev.tvlauncher.audit.auditTag
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.CornerPathEffect
@@ -50,6 +52,13 @@ class SplashOverlay(context: Context, private val full: Boolean) : FrameLayout(c
     override fun hasOverlappingRendering() = false
 
     init {
+        auditTag(AuditTags.FULLBLEED, AuditTags.IGNORE) // transient cold-start layer
+        // FULL: a soft cool halo behind the mark, so the first frame reads as a lit stage, not a void.
+        if (full) background = android.graphics.drawable.GradientDrawable().apply {
+            gradientType = android.graphics.drawable.GradientDrawable.RADIAL_GRADIENT
+            colors = intArrayOf(SplashLook.HALO_CENTER, 0x00000000)
+            gradientRadius = context.dp(SplashLook.HALO_RADIUS_DP).toFloat()
+        }
         isClickable = false
         isFocusable = false
         addView(mark, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER))
@@ -162,4 +171,11 @@ class SplashOverlay(context: Context, private val full: Boolean) : FrameLayout(c
             true
         }
     }
+}
+
+/** Cold-start look constants (JVM-testable). */
+object SplashLook {
+    /** Accent blue (AppearanceSettings.DEFAULT_ACCENT) at ~16 % in the halo's centre. */
+    const val HALO_CENTER = 0x294C8DFF
+    const val HALO_RADIUS_DP = 360
 }
