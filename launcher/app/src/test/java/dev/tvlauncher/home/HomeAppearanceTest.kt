@@ -83,7 +83,8 @@ class HomeAppearanceTest {
             a.copy(accentMode = AccentMode.FIXED), a.copy(fixedAccent = 0xFF000001.toInt()))) {
             assertEquals(b.toString(), HomeAppearance.Change.LIVE, HomeAppearance.change(a, EffectsMode.LITE, b, EffectsMode.LITE))
         }
-        assertEquals(HomeAppearance.Change.REBUILD,
+        // Tile size is relaid out in place by the home layout (no rebuild).
+        assertEquals(HomeAppearance.Change.LIVE,
             HomeAppearance.change(a, EffectsMode.LITE, a.copy(rowTileSize = TileSize.LARGE), EffectsMode.LITE))
         assertEquals(HomeAppearance.Change.REBUILD, HomeAppearance.change(a, EffectsMode.LITE, a, null))
         // A level change that resolves to the same motion needs no rebuild.

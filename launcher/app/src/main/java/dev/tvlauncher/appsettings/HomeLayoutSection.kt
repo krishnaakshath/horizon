@@ -11,7 +11,7 @@ import dev.tvlauncher.ui.HorizonLoader
 import dev.tvlauncher.ui.dp
 
 /**
- * Favorites and hidden apps (each a sub-page with its own list) and a guarded layout reset.
+ * The layout style (its own page, [HomeLayoutStylePage]), favorites and hidden apps (each a sub-page with its own list) and a guarded layout reset.
  * Installed apps load off the main thread.
  */
 object HomeLayoutSection : SettingsSection, SpecifiedPage {
@@ -20,13 +20,17 @@ object HomeLayoutSection : SettingsSection, SpecifiedPage {
     override val title = "Home layout"
     override val iconRes = R.drawable.ic_set_home
     override val group = SettingsGroup.HOME
-    override val description = "What the home row shows. Long-press OK on a tile for more."
-    override val spec = PageSpec(ID, listOf("home.favorites", "home.hidden", "home.reset"))
+    override val description = "How the home screen is arranged and what it shows. Long-press OK on a tile for more."
+    override val spec = PageSpec(ID, listOf("home.style", "home.favorites", "home.hidden", "home.reset"))
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val page = SettingsPage(context, nav.style, spec)
         val prefs = Prefs(context.applicationContext)
         val s = prefs.load()
+        val style = dev.tvlauncher.homelayout.HomeLayoutPrefs(context.applicationContext).load().style
+        page.row("home.style", HomeLayoutStylePage.TITLE, RowKind.Action(style.label) {
+            nav.push(HomeLayoutStylePage.TITLE) { c, n -> HomeLayoutStylePage.build(c, n) }
+        }, subtitle = "Single row, two rows, grid and more, with a preview", iconRes = R.drawable.ic_set_tiles)
         page.row("home.favorites", "Favorites", RowKind.Action(count(s.favorites.size)) {
             nav.push("Favorites") { c, n -> favoritesPage(c, n) }
         }, subtitle = "Sit first on the home row", iconRes = R.drawable.ic_set_star)

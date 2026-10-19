@@ -17,6 +17,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import dev.tvlauncher.apps.AppEntry
 import dev.tvlauncher.home.EffectiveProfile
+import dev.tvlauncher.homelayout.LabelMode
 import dev.tvlauncher.ui.Theme.style
 
 /**
@@ -82,6 +83,10 @@ class TileView(context: Context, private val dims: TileDims = TileSpec.dims(1f))
     private var parallax = false
     private var effectsFull = false
     private var focusMs = TileSpec.FOCUS_MS
+    /** Settings > Home layout > App names; applied on the next [bind] and every focus change. */
+    var labelMode = LabelMode.FOCUS
+    /** A non-focusable display copy (the big hero art): full alpha, no label, no focus motion. */
+    private var showcase = false
 
     init {
         isFocusable = true
@@ -131,7 +136,8 @@ class TileView(context: Context, private val dims: TileDims = TileSpec.dims(1f))
         card.translationZ = 0f
         ring.alpha = 0f
         labelView.animate().cancel()
-        labelView.alpha = TileSpec.LABEL_REST_ALPHA
+        labelView.alpha = if (showcase) 0f else TileSpec.labelAlpha(false, labelMode)
+        if (showcase) alpha = 1f
         setLayerType(LAYER_TYPE_NONE, null)
         labelView.text = app.label
         effectsFull = profile.full
@@ -177,6 +183,15 @@ class TileView(context: Context, private val dims: TileDims = TileSpec.dims(1f))
         if (art !is TileArt.Adaptive) parallax = false
     }
 
+    /** Turns this tile into a display-only card (Big hero art): not focusable, opaque, no label. */
+    fun showcase() {
+        showcase = true
+        isFocusable = false
+        isClickable = false
+        alpha = 1f
+        labelView.alpha = 0f
+    }
+
     override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
         animateFocus(gainFocus)
@@ -188,7 +203,7 @@ class TileView(context: Context, private val dims: TileDims = TileSpec.dims(1f))
         animate().cancel()
         if (effectsFull) setLayerType(LAYER_TYPE_HARDWARE, null)
         labelView.animate().cancel()
-        labelView.animate().alpha(TileSpec.labelAlpha(focused)).setDuration(focusMs).start()
+        labelView.animate().alpha(TileSpec.labelAlpha(focused, labelMode)).setDuration(focusMs).start()
         animate()
             .scaleX(s).scaleY(s)
             .translationZ(if (focused) z else 0f)

@@ -113,13 +113,20 @@ class ScenarioTest(unittest.TestCase):
     def test_shipped_scenarios_parse(self):
         d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scenarios')
         names = sorted(f for f in os.listdir(d) if f.endswith('.json'))
-        self.assertEqual(['home.json', 'panels.json', 'settings.json', 'topbar.json'], names)
+        self.assertEqual(['home-big-hero.json', 'home-grid.json', 'home-minimal.json', 'home-two-rows.json',
+                          'home.json', 'panels.json', 'settings.json', 'topbar.json'], names)
         scs = [ra.load_scenario(os.path.join(d, f)) for f in names]
         ra.check_unique_labels(scs)
         for s in scs:
             self.assertTrue(any(x.kind == 'audit' for x in s.steps), s.name)
-        self.assertTrue(scs[0].restart)  # home: cold start
-        self.assertFalse(any(s.restart for s in scs[1:]))
+        home = names.index('home.json')
+        self.assertTrue(scs[home].restart)  # home: cold start
+        self.assertFalse(any(s.restart for i, s in enumerate(scs) if i != home))
+        # Layout-style scenarios end by setting Single row again (Style row stepped LEFT to its start, then HOME).
+        for i, s in enumerate(scs):
+            if names[i].startswith('home-'):
+                keys = [x.value for x in s.steps if x.kind == 'key']
+                self.assertIn('HOME', keys[-3:], names[i])
 
 
 class LogTest(unittest.TestCase):

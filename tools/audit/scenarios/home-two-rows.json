@@ -1,0 +1,178 @@
+{
+  "description": "Settings > Home layout > Layout style: Two rows. Audit both shelves, the wrap from favorites to all apps, a page jump and the quick strip; then back to Single row.",
+  "package": "dev.tvlauncher",
+  "restart": false,
+  "start": {
+    "action": "android.intent.action.MAIN",
+    "category": "android.intent.category.LEANBACK_LAUNCHER"
+  },
+  "steps": [
+    {
+      "wait": 2
+    },
+    {
+      "key": "DPAD_UP",
+      "repeat": 5,
+      "wait": 1,
+      "note": "from any shelf row up into the top bar"
+    },
+    {
+      "key": "DPAD_RIGHT",
+      "repeat": 6,
+      "wait": 1,
+      "note": "clamps on the rightmost pill (Settings)"
+    },
+    {
+      "key": "DPAD_CENTER",
+      "wait": 3,
+      "note": "Settings opens on Home > Appearance"
+    },
+    {
+      "key": "DPAD_UP",
+      "repeat": 10,
+      "wait": 1,
+      "note": "top of the sidebar: the Home group header"
+    },
+    {
+      "key": "DPAD_DOWN",
+      "repeat": 2,
+      "wait": 1.5,
+      "note": "Appearance, then Home layout"
+    },
+    {
+      "key": "DPAD_RIGHT",
+      "wait": 1,
+      "note": "into the page: the Layout style row"
+    },
+    {
+      "key": "DPAD_CENTER",
+      "wait": 2,
+      "note": "opens Layout style; focus on Style"
+    },
+    {
+      "audit": "home-two-rows-settings"
+    },
+    {
+      "screenshot": "home-two-rows-settings"
+    },
+    {
+      "key": "DPAD_LEFT",
+      "repeat": 4,
+      "wait": 1,
+      "note": "Style stops at Single row"
+    },
+    {
+      "key": "DPAD_RIGHT",
+      "repeat": 1,
+      "wait": 1.5,
+      "note": "the style under test; the preview follows"
+    },
+    {
+      "audit": "home-two-rows-preview"
+    },
+    {
+      "key": "HOME",
+      "wait": 4,
+      "note": "home relays itself out (200 ms fade)"
+    },
+    {
+      "audit": "home-two-rows-start"
+    },
+    {
+      "screenshot": "home-two-rows-start"
+    },
+    {
+      "key": "DPAD_DOWN",
+      "wait": 1.5
+    },
+    {
+      "audit": "home-two-rows-bottom"
+    },
+    {
+      "key": "DPAD_RIGHT",
+      "repeat": 4,
+      "wait": 1.5
+    },
+    {
+      "audit": "home-two-rows-scrolled"
+    },
+    {
+      "key": "PAGE_DOWN",
+      "wait": 1.5
+    },
+    {
+      "audit": "home-two-rows-page"
+    },
+    {
+      "wait": 2,
+      "note": "dwell so the quick strip appears under the bottom row"
+    },
+    {
+      "audit": "home-two-rows-strip"
+    },
+    {
+      "screenshot": "home-two-rows-strip"
+    },
+    {
+      "key": "DPAD_UP",
+      "wait": 1.5
+    },
+    {
+      "audit": "home-two-rows-top"
+    },
+    {
+      "key": "DPAD_UP",
+      "repeat": 5,
+      "wait": 1,
+      "note": "from any shelf row up into the top bar"
+    },
+    {
+      "key": "DPAD_RIGHT",
+      "repeat": 6,
+      "wait": 1,
+      "note": "clamps on the rightmost pill (Settings)"
+    },
+    {
+      "key": "DPAD_CENTER",
+      "wait": 3,
+      "note": "Settings opens on Home > Appearance"
+    },
+    {
+      "key": "DPAD_UP",
+      "repeat": 10,
+      "wait": 1,
+      "note": "top of the sidebar: the Home group header"
+    },
+    {
+      "key": "DPAD_DOWN",
+      "repeat": 2,
+      "wait": 1.5,
+      "note": "Appearance, then Home layout"
+    },
+    {
+      "key": "DPAD_RIGHT",
+      "wait": 1,
+      "note": "into the page: the Layout style row"
+    },
+    {
+      "key": "DPAD_CENTER",
+      "wait": 2,
+      "note": "opens Layout style; focus on Style"
+    },
+    {
+      "key": "DPAD_LEFT",
+      "repeat": 4,
+      "wait": 1,
+      "note": "Style stops at Single row"
+    },
+    {
+      "key": "HOME",
+      "wait": 4,
+      "note": "home relays itself out (200 ms fade)"
+    },
+    {
+      "key": "DPAD_DOWN",
+      "wait": 1
+    }
+  ]
+}

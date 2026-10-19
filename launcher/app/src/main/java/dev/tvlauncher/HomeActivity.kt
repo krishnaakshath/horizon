@@ -21,6 +21,8 @@ import dev.tvlauncher.home.HomeModules
 import dev.tvlauncher.home.HomeSounds
 import dev.tvlauncher.home.ModeTracker
 import dev.tvlauncher.home.RecentMode
+import dev.tvlauncher.homelayout.HomeLayoutController
+import dev.tvlauncher.homelayout.NavResult
 import dev.tvlauncher.input.GamepadInput
 import dev.tvlauncher.input.PadCommand
 import dev.tvlauncher.launch.AndroidLaunchBackend
@@ -72,12 +74,18 @@ class HomeActivity : Activity() {
     private lateinit var modes: ModeTracker
     private lateinit var root: FrameLayout
     private lateinit var modules: HomeModules
+    /** Settings > Home layout: the style, its list layout and its D-pad rules. */
+    private lateinit var layout: HomeLayoutController
+    /** The focused tile may show the quick-strip (bottom row of a multi-row style, strip turned on). */
+    private var stripHere = true
     private val loader = Executors.newSingleThreadExecutor()
     private val discoverStore by lazy { DiscoverStore(applicationContext) }
     private val generation = AtomicInteger()
     private var firstLoad = true
     private var splash: SplashOverlay? = null
     @Volatile private var installed: List<AppEntry> = emptyList()
+    /** Leading favorites in the arranged list (the top row of "Two rows"); written by the loader. */
+    @Volatile private var favoriteCount = 0
     /** Where focus returns when Spotlight closes: a non-shelf view, else the tile at [restoreIndex]. */
     private var restoreFocus: View? = null
     private var restoreIndex = 0
@@ -95,6 +103,7 @@ class HomeActivity : Activity() {
             command == PadCommand.SEARCH || command == PadCommand.START -> { toggleSpotlight(); true }
             command == PadCommand.SELECT -> { if (SystemActions.launcherSettings(this@HomeActivity)) sounds.action(true); true }
             command == PadCommand.HOME -> { goHome(); true }
+            command == PadCommand.PAGE_PREV || command == PadCommand.PAGE_NEXT -> pageShelf(command == PadCommand.PAGE_NEXT)
             else -> false
         }
     })
@@ -150,11 +159,11 @@ class HomeActivity : Activity() {
         tileMenu = TileMenu(this, prefs) { reload() }.also(sounds::bind)
         adapter = ShelfAdapter(
             packageManager, look.profile,
-            onFocused = { pos, app, tile -> onAppFocused(app); strip.onTileFocused(pos, tile, app) },
+            onFocused = { pos, app, tile -> onAppFocused(app); onTileFocusedForStrip(pos, tile, app) },
             onClick = ::launch,
             onLongPress = { app -> tileMenu.show(app, visiblePackages()); sounds.menuOpen() },
             onDown = { onTileDown() },
-            onDpad = { strip.onTileDpad() },
+            onDpad = { if (stripHere) strip.onTileDpad() },
             onFooterClick = { modules.openDiscover() },
             onFooterFocused = ::onFooterFocused
         )
@@ -166,6 +175,8 @@ class HomeActivity : Activity() {
         }
         content = HomeContent(this, topBar, heroBox, shelfBox, strip)
         root.addView(content, FrameLayout.LayoutParams(-1, -1))
+        layout = HomeLayoutController(this, look, adapter, shelfBox, content, heroBox).also { it.applyInitial() }
+        adapter.onNavKey = ::onShelfKey
         spotlight = SpotlightPanel(
             this, packageManager, full,
             onAction = { modules.quickAction(it) },
@@ -205,6 +216,34 @@ class HomeActivity : Activity() {
     private fun onAppFocused(app: AppEntry) {
         backdrop.setAccent(look.accent { adapter.accentOf(app) })
         heroBox.hero.show(app, backdrop.heroColor)
+        layout.onAppFocused(app, adapter.accentOf(app))
+    }
+
+    /** The quick-strip follows tiles on the bottom row only, and not at all when it is turned off. */
+    private fun onTileFocusedForStrip(pos: Int, tile: View, app: AppEntry) {
+        stripHere = layout.stripAllowed(pos)
+        if (stripHere) strip.onTileFocused(pos, tile, app) else strip.reset()
+    }
+
+    /** Arrow and page keys on a tile: two rows and the grid move focus themselves; the single row passes. */
+    private fun onShelfKey(pos: Int, keyCode: Int): Boolean = applyNav(layout.navKey(pos, keyCode))
+
+    private fun applyNav(r: NavResult?): Boolean = when (r) {
+        is NavResult.Move -> { if (stripHere) strip.onTileDpad(); focusPosition(r.position) }
+        NavResult.ExitDown -> onTileDown()
+        NavResult.Stay -> true
+        NavResult.ExitUp, NavResult.Pass, null -> false
+    }
+
+    /** L1/R1 on a controller: a page of the grid or of two rows; false = the default page jump. */
+    private fun pageShelf(forward: Boolean): Boolean {
+        if (spotlight.isOpen || modules.isShowing) return false
+        val child = shelf.focusedChild ?: return false
+        val pos = shelf.getChildAdapterPosition(child).takeIf { it != RecyclerView.NO_POSITION } ?: return false
+        return when (val r = layout.pageKey(pos, forward)) {
+            NavResult.Pass -> false
+            else -> applyNav(r)
+        }
     }
 
     private fun onTileDown(): Boolean = when (SpotlightKeys.onTileDown(strip.isStripShown)) {
@@ -252,6 +291,8 @@ class HomeActivity : Activity() {
                 installed = all
                 val s = prefs.load()
                 val shown = AppFilter.arrange(all, s).also { adapter.preload(it, ShelfAdapter.PRELOAD) }
+                val favs = s.favorites.toHashSet()
+                favoriteCount = shown.takeWhile { it.packageName in favs }.size
                 Triple(shown, AppFilter.searchable(all, shown, s), DiscoverTileSpec.shouldAppend(discoverStore.load(), editing = false))
             } catch (e: Exception) {
                 Triple(emptyList<AppEntry>(), emptyList<AppEntry>(), false)
@@ -267,10 +308,11 @@ class HomeActivity : Activity() {
         val oldPos = if (spotlight.isOpen) restoreIndex else adapter.lastFocused
         val focusedPkg = old.getOrNull(oldPos)?.packageName
         strip.reset()
-        adapter.submit(apps, footer)
+        adapter.submit(apps, footer, favoriteCount)
+        layout.listChanged()
         spotlight.setApps(searchable, installed.mapTo(HashSet()) { it.packageName })
         shelfBox.loader.visibility = View.GONE
-        heroBox.setEmpty(apps.isEmpty())
+        layout.setEmpty(apps.isEmpty())
         val wasFirst = firstLoad
         firstLoad = false
         if (wasFirst) {
@@ -298,15 +340,31 @@ class HomeActivity : Activity() {
 
     private fun focusTile(index: Int): Boolean {
         if (adapter.appCount == 0) return false
-        return focusPosition(index.coerceIn(0, adapter.appCount - 1))
+        return focusPosition(adapter.positionOf(index.coerceIn(0, adapter.appCount - 1)))
     }
 
-    /** Any shelf position, the footer tile included; false when there is none. */
+    /**
+     * Any shelf position, the footer tile included; false when there is none. A tile already laid
+     * out takes focus at once (the list scrolls it into view); otherwise the list scrolls (or the
+     * grid flips to its page) and focus follows once it is laid out.
+     */
     private fun focusPosition(i: Int): Boolean {
         if (i < 0 || i >= adapter.itemCount) return false
-        shelf.scrollToPosition(i)
-        shelf.post { shelf.findViewHolderForAdapterPosition(i)?.itemView?.requestFocus() }
+        val paged = layout.showPageOf(i)
+        val now = shelf.findViewHolderForAdapterPosition(i)?.itemView
+        if (!paged && now != null && now.isAttachedToWindow && now.isLaidOut && now.requestFocus()) return true
+        if (!paged) shelf.scrollToPosition(i)
+        focusWhenLaidOut(i, FOCUS_TRIES)
         return true
+    }
+
+    private fun focusWhenLaidOut(i: Int, tries: Int) {
+        shelf.post {
+            val v = shelf.findViewHolderForAdapterPosition(i)?.itemView
+            if (v != null && !shelf.isLayoutRequested) v.requestFocus()
+            else if (tries > 1) focusWhenLaidOut(i, tries - 1)
+            else v?.requestFocus()
+        }
     }
 
     /** Volume keys first (our volume bar), then the controller mapping; remote keys reach [handleKey] unchanged. */
@@ -395,6 +453,11 @@ class HomeActivity : Activity() {
         spotlightConfig = try { spotlightPrefs.load() } catch (e: RuntimeException) { SpotlightConfig.DEFAULT }
         spotlightKeys.reset()
         topBar.applyAppearance(look.settings)
+        // Settings > Home layout (style, names, hero, strip) and tile size: relaid out in place.
+        if (layout.reload()) {
+            strip.reset()
+            if (adapter.appCount > 0 && !firstLoad) focusTile(adapter.lastFocused)
+        }
         // Settings > Home screen may have turned the "Get more apps" tile on or off.
         val footer = DiscoverTileSpec.shouldAppend(discoverStore.load(), editing = false)
         if (!firstLoad && footer != adapter.footer && adapter.appCount > 0) adapter.submit(adapter.getItems(), footer)
@@ -418,6 +481,8 @@ class HomeActivity : Activity() {
 
     private companion object {
         const val HERO_DISCOVER_SUBTITLE = "Popular apps for this TV, from the Play Store"
+        /** Frames to wait for a scrolled list before focusing its tile. */
+        const val FOCUS_TRIES = 4
     }
 
     /** BACK closes a panel or Spotlight, or leaves the quick-strip for its tile. The launcher never finishes. */
