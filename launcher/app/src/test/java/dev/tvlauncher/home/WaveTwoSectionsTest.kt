@@ -10,7 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WaveTwoSectionsTest {
-    @Test fun registerAll_replacesDevicesPlaceholder_andAppendsAmbient() {
+    @Test fun registerAll_replacesDevicesPlaceholder_andAppendsAmbientAndHome() {
         val r = SettingsRegistry.newDefault()
         val before = r.sections().map { it.id }
         WaveTwoSections.registerAll(r)
@@ -19,6 +19,7 @@ class WaveTwoSectionsTest {
         assertEquals(before.indexOf(ModulePlaceholderSection.DEVICES), ids.indexOf(ModulePlaceholderSection.DEVICES))
         assertTrue(after.first { it.id == ModulePlaceholderSection.DEVICES } !is ModulePlaceholderSection)
         assertTrue(WaveTwoSections.AMBIENT_ID in ids)
+        assertTrue(WaveTwoSections.HOME_EXTRAS_ID in ids)
         WaveTwoSections.registerAll(r) // idempotent
         assertEquals(ids, r.sections().map { it.id })
     }

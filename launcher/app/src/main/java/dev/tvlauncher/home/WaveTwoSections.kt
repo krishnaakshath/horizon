@@ -11,6 +11,8 @@ import dev.tvlauncher.ambient.NotificationAccessCard
 import dev.tvlauncher.ambient.WallpaperPickerPanel
 import dev.tvlauncher.ambient.WallpaperSettings
 import dev.tvlauncher.ambient.WallpaperStore
+import dev.tvlauncher.ambient.WeatherCompanion
+import dev.tvlauncher.ambient.WeatherContract
 import dev.tvlauncher.appsettings.ModulePlaceholderSection
 import dev.tvlauncher.appsettings.RowKind
 import dev.tvlauncher.appsettings.SettingsNav
@@ -25,18 +27,23 @@ import dev.tvlauncher.ui.SystemActions
 
 /**
  * Settings pages of the wave-2 modules, registered through the existing [SettingsRegistry] hook
- * (LauncherApp.onCreate calls [registerAll]): "Ambient" (new id) and "Devices" (takes the
- * placeholder's slot). Rows are built from the modules' declarative models.
+ * (LauncherApp.onCreate calls [registerAll]): "Ambient" and "Home screen" (new ids) and "Devices"
+ * (takes the placeholder's slot). Rows are built from the modules' declarative models.
  */
 object WaveTwoSections {
     const val AMBIENT_ID = "ambient"
+    const val HOME_EXTRAS_ID = "home_extras"
 
     val SCREENSAVER_ADB: String = listOf(AmbientDream.ADB_SELECT, AmbientDream.ADB_ENABLE, AmbientDream.ADB_ON_SLEEP).joinToString("\n")
 
     fun registerAll(registry: SettingsRegistry = SettingsRegistry.shared) {
         registry.register(AmbientSection)
         registry.register(DevicesSection)
+        registry.register(HomeExtrasSection)
     }
+
+    /** Value of the "Weather" row: the companion's settings open when it is installed. */
+    fun weatherRowValue(installed: Boolean): String = if (installed) "Open" else "Not installed"
 
     enum class PageKind { ACTION, TOGGLE, STEPPER, CARD, INFO }
 
@@ -149,5 +156,32 @@ object DevicesSection : SettingsSection {
                 super.onDetachedFromWindow()
             }
         }.apply { addView(panel, FrameLayout.LayoutParams(-1, -1)) }
+    }
+}
+
+/** Settings > Home screen: the top-bar weather chip and the weather companion's own settings. */
+object HomeExtrasSection : SettingsSection {
+    override val id = WaveTwoSections.HOME_EXTRAS_ID
+    override val title = "Home screen"
+    override val iconRes = R.drawable.ic_set_home
+
+    override fun buildPage(context: Context, nav: SettingsNav): View {
+        val page = SettingsPage(context, nav.style)
+        val extras = HomeExtrasPrefs(context)
+        page.lead("Extras for the home screen's top bar.")
+        page.row("home.weatherTopBar", "Weather in top bar", RowKind.Toggle(extras.weatherInTopBar) { on ->
+            extras.weatherInTopBar = on
+        }, subtitle = "Icon and temperature next to the clock; hidden when the data is over 3 hours old")
+        val intent = WeatherCompanion.settingsIntent(context)
+        val value = WaveTwoSections.weatherRowValue(intent != null)
+        if (intent != null) {
+            page.row("home.weather", "Weather", RowKind.Action(value) {
+                if (!SystemActions.start(context, intent)) nav.notify("Weather settings could not be opened")
+            }, subtitle = "City and units, in the weather companion")
+        } else {
+            page.row("home.weather", "Weather", RowKind.Info(value),
+                subtitle = "Install the weather companion (${WeatherContract.PACKAGE}) to use it")
+        }
+        return page
     }
 }

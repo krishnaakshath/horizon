@@ -17,6 +17,7 @@ import dev.tvlauncher.home.HomeAmbient
 import dev.tvlauncher.home.HomeLook
 import dev.tvlauncher.home.HomePanels
 import dev.tvlauncher.home.HomeSounds
+import dev.tvlauncher.home.HomeWeather
 import dev.tvlauncher.home.ModeTracker
 import dev.tvlauncher.home.RecentMode
 import dev.tvlauncher.launch.AndroidLaunchBackend
@@ -66,6 +67,7 @@ class HomeActivity : Activity() {
     private lateinit var root: FrameLayout
     private lateinit var panels: HomePanels
     private lateinit var ambient: HomeAmbient
+    private lateinit var weather: HomeWeather
     private val loader = Executors.newSingleThreadExecutor()
     private val generation = AtomicInteger()
     private var firstLoad = true
@@ -144,6 +146,7 @@ class HomeActivity : Activity() {
         root.addView(spotlight, FrameLayout.LayoutParams(-1, -1))
         launchOverlay = LaunchOverlay(this)
         root.addView(launchOverlay, FrameLayout.LayoutParams(-1, -1))
+        weather = HomeWeather(this, topBar)
         ambient = HomeAmbient(this, look, { panels.isShowing }, { spotlight.isOpen }, { splash != null })
         panels = HomePanels(this, root, look, sounds, { splash != null }, { spotlight.close(animate = false) }, ::focusHome) { open ->
             ambient.setPaused(HomeAmbient.PAUSE_PANEL, open)
@@ -291,6 +294,7 @@ class HomeActivity : Activity() {
 
     override fun onPause() {
         ambient.pause()
+        weather.pause()
         launchOverlay.hide()
         super.onPause()
     }
@@ -301,6 +305,7 @@ class HomeActivity : Activity() {
         sounds.reload()
         modes.onResume()
         ambient.resume()
+        weather.resume()
     }
 
     /** Also picks up Settings > Appearance edits when coming back from Settings. */
@@ -340,6 +345,7 @@ class HomeActivity : Activity() {
         if (!::modes.isInitialized) return super.onDestroy() // redirected to safe mode
         tileMenu.dismiss()
         panels.release()
+        weather.release()
         repo.unregister()
         loader.shutdownNow()
         sounds.release()

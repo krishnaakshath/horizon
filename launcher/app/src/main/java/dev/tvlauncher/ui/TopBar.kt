@@ -12,6 +12,8 @@ import android.widget.LinearLayout
 import android.widget.TextClock
 import android.widget.TextView
 import dev.tvlauncher.R
+import dev.tvlauncher.ambient.WeatherCompanion
+import dev.tvlauncher.home.WeatherChip
 import dev.tvlauncher.network.NetIcons
 import dev.tvlauncher.network.SelectableStatusPill
 import dev.tvlauncher.settings.AppearanceFormat
@@ -65,6 +67,17 @@ class TopBar(
         bluetoothPill.contentDescription = "Bluetooth " + (s.bt?.name?.lowercase() ?: "")
         updateStatusVisibility()
     }
+    private val weatherIcon = ImageView(context)
+    private val weatherText = TextView(context).apply { style(Theme.SP_DATE, Theme.regular, Theme.TEXT) }
+    /** Compact, never focusable weather chip next to the clock (HomeWeather feeds it). */
+    private val weather = LinearLayout(context).apply {
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        isFocusable = false
+        visibility = View.GONE
+        addView(weatherIcon, LayoutParams(context.dp(22), context.dp(22)).apply { marginEnd = context.dp(6) })
+        addView(weatherText)
+    }
     private val dot = View(context).apply {
         background = GradientDrawable().apply { setColor(Theme.TEXT_2); shape = GradientDrawable.OVAL }
         alpha = 0.6f
@@ -74,6 +87,7 @@ class TopBar(
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         addView(clock, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+        addView(weather, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { marginStart = context.dp(Theme.S4) })
         addView(dot, LayoutParams(context.dp(4), context.dp(4)).apply {
             marginStart = context.dp(Theme.S3); marginEnd = context.dp(Theme.S3)
         })
@@ -115,6 +129,16 @@ class TopBar(
         if (!statusVisible && networkPill.hasFocus()) inputsButton.requestFocus()
         bluetoothPill.visibility = if (btShown) View.VISIBLE else View.GONE
         networkPill.visibility = if (statusVisible) View.VISIBLE else View.GONE
+    }
+
+    /** Weather chip; independent of the status-icons appearance toggle. */
+    fun showWeather(chip: WeatherChip) {
+        weather.visibility = if (chip.visible) View.VISIBLE else View.GONE
+        if (!chip.visible) return
+        chip.icon?.let { weatherIcon.setImageResource(WeatherCompanion.drawable(it)) }
+        weatherIcon.visibility = if (chip.icon != null) View.VISIBLE else View.GONE
+        weatherText.text = chip.text
+        weather.contentDescription = chip.description
     }
 
     /** Settings > Appearance: clock format, date and status icons. */
