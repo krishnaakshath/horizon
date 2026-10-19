@@ -4,6 +4,7 @@ import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -197,7 +198,20 @@ class BrowserActivity : Activity() {
         setContentView(root)
         if (savedInstanceState == null) root.addView(SplashOverlay(this), FrameLayout.LayoutParams(-1, -1))
         restoreTabs()
+        if (savedInstanceState == null) openExternalQuery(intent)
         root.postDelayed({ hint.show("Arrows move the pointer  ·  OK clicks  ·  MENU for options", 4500) }, 700)
+    }
+
+    /** Spotlight's "Search the web": the launcher hands over text ([ExternalQuery]). */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openExternalQuery(intent)
+    }
+
+    private fun openExternalQuery(i: Intent?) {
+        val target = try { ExternalQuery.target(i?.getStringExtra(ExternalQuery.EXTRA_QUERY), engine) } catch (e: RuntimeException) { null } ?: return
+        i?.removeExtra(ExternalQuery.EXTRA_QUERY) // a recreation must not search again
+        navigate(target)
     }
 
     // ================================================================ UI

@@ -68,6 +68,11 @@ class LauncherApp : Application() {
             // Spotlight keeps its defaults; only the page is missing.
         }
         try {
+            dev.tvlauncher.watch.WatchSection.register() // Settings > Home > Continue watching
+        } catch (e: Throwable) {
+            // The row keeps its defaults; only the page is missing.
+        }
+        try {
             // Launcher-owned system pages that are not built in (Devices, Accessibility,
             // Parental controls, Apps); last, so they take their placeholders' slots.
             dev.tvlauncher.system.SystemSections.registerAll()

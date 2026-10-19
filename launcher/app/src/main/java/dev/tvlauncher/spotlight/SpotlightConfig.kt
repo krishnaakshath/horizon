@@ -7,7 +7,9 @@ import org.json.JSONObject
 /** What the Spotlight search field looks through. */
 enum class SearchScope(val label: String) {
     APPS("Apps only"),
-    ALL("Apps, settings and recent")
+    ALL("Apps, settings and recent"),
+    /** Apps, Continue watching, Settings, quick actions, popular apps, a calculator and web search (search package). */
+    EVERYTHING("Everything")
 }
 
 /** Which key opens Spotlight on a quick double-press (that key's single press keeps its usual job). */

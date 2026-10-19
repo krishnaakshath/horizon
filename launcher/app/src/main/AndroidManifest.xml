@@ -55,6 +55,10 @@
         android:name="dev.tvlauncher.permission.WEATHER_REFRESH"
         android:protectionLevel="signature" />
     <uses-permission android:name="dev.tvlauncher.permission.WEATHER_REFRESH" />
+    <!-- Settings > Home > Continue watching: read the titles apps share in the system's Watch Next
+         list (TV provider). A runtime permission, asked only from that page; without it the
+         row simply stays empty. Nothing read leaves the TV. -->
+    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
@@ -201,6 +205,10 @@
             <action android:name="android.intent.action.DELETE" />
             <data android:scheme="package" />
         </intent>
+        <!-- Continue watching reads the system TV provider; Spotlight's Everything search hands a
+             YouTube search to the YouTube app when installed. -->
+        <provider android:authorities="android.media.tv" />
+        <package android:name="com.google.android.youtube.tv" />
         <!-- Settings > Private DNS: "Cloudflare WARP" opens Cloudflare's own app when installed. -->
         <package android:name="com.cloudflare.onedotonedotonedotone" />
     </queries>

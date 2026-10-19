@@ -82,7 +82,7 @@ class SpotlightConfigTest {
     }
 
     @Test fun wrongTypes_fallBackPerField() {
-        val c = SpotlightConfig.fromJson(JSONObject().put("menuKey", "yes").put("scope", "EVERYTHING").put("showHints", false).toString())
+        val c = SpotlightConfig.fromJson(JSONObject().put("menuKey", "yes").put("scope", "NOT_A_SCOPE").put("showHints", false).toString())
         assertTrue(c.menuKey)
         assertEquals(SearchScope.APPS, c.scope)
         assertFalse(c.showHints)
