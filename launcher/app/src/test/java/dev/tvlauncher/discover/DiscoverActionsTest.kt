@@ -19,10 +19,12 @@ class DiscoverActionsTest {
         assertEquals(Action.OPEN_PLAY_STORE, DiscoverActions.decide(base, emptySet(), true))
     }
 
-    @Test fun fdroid_prefersGetApps_elsePlayWhenListed_elseNone() {
+    @Test fun fdroid_prefersPlayWhenListed_elseGetApps_elseNone() {
+        // Get Apps ignores deep-link extras today, so a Play listing is the more direct path.
         val f = base.copy(packageName = "org.xbmc.kodi", source = Source.Fdroid("org.xbmc.kodi"), onPlay = true)
-        assertEquals(Action.OPEN_GET_APPS, DiscoverActions.decide(f, emptySet(), true))
+        assertEquals(Action.OPEN_PLAY_STORE, DiscoverActions.decide(f, emptySet(), true))
         assertEquals(Action.OPEN_PLAY_STORE, DiscoverActions.decide(f, emptySet(), false))
+        assertEquals(Action.OPEN_GET_APPS, DiscoverActions.decide(f.copy(onPlay = false), emptySet(), true))
         assertEquals(Action.NONE, DiscoverActions.decide(f.copy(onPlay = false), emptySet(), false))
     }
 
@@ -39,7 +41,7 @@ class DiscoverActionsTest {
     @Test fun labels() {
         assertEquals("Open", DiscoverActions.label(Action.OPEN))
         assertEquals("Install", DiscoverActions.label(Action.OPEN_PLAY_STORE))
-        assertEquals("Get via Get Apps", DiscoverActions.label(Action.OPEN_GET_APPS))
+        assertEquals("Open Get Apps", DiscoverActions.label(Action.OPEN_GET_APPS))
         assertEquals("Not available", DiscoverActions.label(Action.NONE))
     }
 

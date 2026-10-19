@@ -137,6 +137,8 @@ class NowPlayingModelsTest {
         assertNull(clean.album)
         assertNull(clean.artUri) // only content:// / android.resource:// / file:// art URIs are read
         assertEquals("content://media/1", NowPlayingPrivacy.sanitize(info.copy(artUri = "content://media/1")).artUri)
+        assertEquals("android.resource://a.b/1", NowPlayingPrivacy.sanitize(info.copy(artUri = "android.resource://a.b/1")).artUri)
+        assertNull(NowPlayingPrivacy.sanitize(info.copy(artUri = "file:///sdcard/a.jpg")).artUri)
     }
 
     // Rate limit ----------------------------------------------------------------------------------
@@ -161,6 +163,52 @@ class NowPlayingModelsTest {
         assertTrue(ArtPlanner.plan(8_000, 8_000) is ArtPlan.Sample) // exactly 64 MP is allowed
         val p = ArtPlanner.plan(8_000, 8_000) as ArtPlan.Sample
         assertTrue((8_000 / p.n).toLong() * (8_000 / p.n) <= 512L * 512)
+    }
+
+    // Art decode steps: the bounds pass returns no bitmap (inJustDecodeBounds), which must not abort.
+    @Test fun artDecode_boundsPassWithoutBitmap_stillDecodes() {
+        var opened = 0
+        var sampleUsed = -1
+        val out = ArtDecode.run(
+            open = { opened++; java.io.ByteArrayInputStream(ByteArray(1)) },
+            readBounds = { _ -> 2000 to 1000 },
+            decode = { _, n -> sampleUsed = n; "bitmap" }
+        )
+        assertEquals("bitmap", out)
+        assertEquals(2, opened)
+        assertEquals(4, sampleUsed) // 2000x1000: /2 = 500 000 px > 512^2, /4 fits
+    }
+
+    @Test fun artDecode_rejectsBadBoundsAndMissingStreams() {
+        assertNull(ArtDecode.run({ java.io.ByteArrayInputStream(ByteArray(1)) }, { _ -> -1 to -1 }, { _, _ -> "x" }))
+        assertNull(ArtDecode.run({ java.io.ByteArrayInputStream(ByteArray(1)) }, { _ -> 10_000 to 7_000 }, { _, _ -> "x" }))
+        assertNull(ArtDecode.run({ null }, { _ -> 100 to 100 }, { _, _ -> "x" }))
+        var calls = 0
+        assertNull(ArtDecode.run({ if (calls++ == 0) java.io.ByteArrayInputStream(ByteArray(1)) else null }, { _ -> 100 to 100 }, { _, _ -> "x" }))
+    }
+
+    @Test fun artFailureMemo() {
+        val k1 = ArtKey("a.b", "t", null, "content://x")
+        val memo = ArtFailureMemo()
+        assertTrue(memo.shouldTry(k1))
+        memo.failed(k1)
+        assertFalse(memo.shouldTry(k1))
+        assertTrue(memo.shouldTry(k1.copy(title = "other")))
+        memo.reset()
+        assertTrue(memo.shouldTry(k1))
+    }
+
+    // Position update time unknown (lastPositionUpdateTime == 0) ---------------------------------------
+    @Test fun positionClock_firstSeenPerTokenAndState() {
+        val c = PositionClock()
+        assertEquals(1_000L, c.updatedAt("tok", PlayState.PAUSED, platformTime = 0, now = 1_000))
+        assertEquals(1_000L, c.updatedAt("tok", PlayState.PAUSED, platformTime = 0, now = 9_000))
+        assertEquals(9_500L, c.updatedAt("tok", PlayState.PLAYING, platformTime = 0, now = 9_500))
+        assertEquals(42L, c.updatedAt("tok", PlayState.PLAYING, platformTime = 42, now = 9_900))
+        assertTrue(PositionClock.isKnown(42))
+        assertFalse(PositionClock.isKnown(0))
+        c.forget("tok")
+        assertEquals(10_000L, c.updatedAt("tok", PlayState.PLAYING, platformTime = 0, now = 10_000))
     }
 
     @Test fun artPlanner_scaledSize() {

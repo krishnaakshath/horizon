@@ -43,7 +43,8 @@ object NowPlayingPrivacy {
     const val LOG_CONTENT = false
     const val MAX_TEXT = 200
     val KEPT_FIELDS: Set<String> = setOf("title", "artist", "album", "art")
-    private val ART_SCHEMES = listOf("content://", "android.resource://", "file://")
+    /** Local, permission-mediated art only (no file:// paths: other apps' files are not ours to open). */
+    private val ART_SCHEMES = listOf("content://", "android.resource://")
 
     fun shouldClear(listenerConnected: Boolean, featureEnabled: Boolean): Boolean = !listenerConnected || !featureEnabled
 
@@ -176,6 +177,59 @@ object ArtPlanner {
         if (w <= MAX_SIDE_PX && h <= MAX_SIDE_PX) return w.coerceAtLeast(1) to h.coerceAtLeast(1)
         val s = minOf(MAX_SIDE_PX.toDouble() / w, MAX_SIDE_PX.toDouble() / h)
         return Math.round(w * s).toInt().coerceIn(1, MAX_SIDE_PX) to Math.round(h * s).toInt().coerceIn(1, MAX_SIDE_PX)
+    }
+}
+
+/**
+ * Two-pass art decode, pure so it is testable: open → [readBounds] (a bounds-only pass yields no
+ * bitmap, only the size) → [ArtPlanner.plan] → open again → [decode] with the sample size.
+ * Any missing stream, bad size or oversized source gives null.
+ */
+object ArtDecode {
+    fun <T : Any> run(
+        open: () -> java.io.InputStream?,
+        readBounds: (java.io.InputStream) -> Pair<Int, Int>,
+        decode: (java.io.InputStream, Int) -> T?
+    ): T? {
+        val (w, h) = open()?.use { readBounds(it) } ?: return null
+        val plan = ArtPlanner.plan(w, h) as? ArtPlan.Sample ?: return null
+        return open()?.use { decode(it, plan.n) }
+    }
+}
+
+/** Remembers the art key whose decode failed so it is not retried on every emission. Main thread. */
+class ArtFailureMemo {
+    private var failed: ArtKey? = null
+
+    fun shouldTry(key: ArtKey): Boolean = key != failed
+
+    fun failed(key: ArtKey) { failed = key }
+
+    fun reset() { failed = null }
+}
+
+/**
+ * Update time for a session whose PlaybackState has no lastPositionUpdateTime (0 = unknown):
+ * the first time this token was seen in its current state, so "paused for 10 minutes" still
+ * expires and nothing is re-stamped to "now" on every read. Known platform times pass through.
+ */
+class PositionClock {
+    private val seen = HashMap<Any, Pair<PlayState, Long>>()
+
+    fun updatedAt(token: Any, state: PlayState, platformTime: Long, now: Long): Long {
+        if (isKnown(platformTime)) { seen.remove(token); return platformTime }
+        val prev = seen[token]
+        if (prev != null && prev.first == state) return prev.second
+        seen[token] = state to now
+        return now
+    }
+
+    fun forget(token: Any) { seen.remove(token) }
+
+    fun clear() = seen.clear()
+
+    companion object {
+        fun isKnown(platformTime: Long) = platformTime > 0
     }
 }
 

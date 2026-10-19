@@ -5,17 +5,18 @@ object DiscoverActions {
     enum class Action { OPEN, OPEN_PLAY_STORE, OPEN_GET_APPS, NONE }
 
     /**
-     * Installed → OPEN. Play apps → the Play Store. F-Droid apps → Get Apps when it is installed,
-     * else the Play Store if the app is also listed there. GitHub apps → Get Apps only.
+     * Installed → OPEN. Play apps → the Play Store. F-Droid apps → the Play Store when also listed
+     * there, else Get Apps when installed. GitHub apps → Get Apps only.
      */
     fun decide(app: PopularApp, installedPackages: Set<String>, getAppsInstalled: Boolean): Action {
         if (!PlayStoreLinks.isValidPackage(app.packageName)) return Action.NONE
         if (app.packageName in installedPackages) return Action.OPEN
         return when (app.source) {
             is Source.Play -> Action.OPEN_PLAY_STORE
+            // Play first: it opens the app's own page, while Get Apps ignores deep-link extras today.
             is Source.Fdroid -> when {
-                getAppsInstalled && GetAppsLink.forSource(app.source) != null -> Action.OPEN_GET_APPS
                 app.onPlay -> Action.OPEN_PLAY_STORE
+                getAppsInstalled && GetAppsLink.forSource(app.source) != null -> Action.OPEN_GET_APPS
                 else -> Action.NONE
             }
             is Source.Github ->
@@ -26,7 +27,7 @@ object DiscoverActions {
     fun label(action: Action): String = when (action) {
         Action.OPEN -> "Open"
         Action.OPEN_PLAY_STORE -> "Install"
-        Action.OPEN_GET_APPS -> "Get via Get Apps"
+        Action.OPEN_GET_APPS -> "Open Get Apps"
         Action.NONE -> "Not available"
     }
 }

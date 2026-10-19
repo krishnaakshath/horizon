@@ -96,7 +96,7 @@ class DiscoverModelTest {
         assertEquals(DiscoverActions.Action.OPEN_PLAY_STORE, kodi.action)
         val s2 = DiscoverModel.build(emptySet(), null, emptySet(), getAppsInstalled = true)
         val kodi2 = s2.sections.flatMap { it.items }.first { it.app.packageName == "org.xbmc.kodi" }
-        assertEquals(DiscoverActions.Action.OPEN_GET_APPS, kodi2.action)
+        assertEquals(DiscoverActions.Action.OPEN_PLAY_STORE, kodi2.action)
     }
 
     @Test fun categoryLine_mentionsUnverifiedTv() {

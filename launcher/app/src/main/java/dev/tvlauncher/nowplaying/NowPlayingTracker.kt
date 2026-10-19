@@ -63,6 +63,8 @@ class NowPlayingTracker(
     private var artKey: ArtKey? = null
     private var art: Bitmap? = null
     private var artPending = false
+    private val artFailures = ArtFailureMemo()
+    private val positionClock = PositionClock()
     private var accessKnown: Boolean? = null
 
     /** False after a SecurityException (no notification access). */
@@ -110,6 +112,17 @@ class NowPlayingTracker(
         clearContent()
     }
 
+    /**
+     * Retries after missing access: if started without access and the user has since granted it
+     * (checked with [NowPlayingAccess.isGranted]), re-subscribes. Cheap when nothing changed.
+     */
+    fun retryIfAccessGranted() {
+        if (!started || accessGranted) return
+        if (!NowPlayingAccess.isGranted(app)) return
+        stop()
+        start()
+    }
+
     /** Sends a transport command to the shown session. */
     fun send(action: TransportAction): Boolean = NowPlayingControls.send(chosen, action)
 
@@ -137,6 +150,7 @@ class NowPlayingTracker(
     }
 
     private fun untrack(c: MediaController) {
+        positionClock.forget(c.sessionToken)
         val entry = tracked.remove(c.sessionToken) ?: return
         try { entry.first.unregisterCallback(entry.second) } catch (e: Exception) { }
     }
@@ -159,12 +173,15 @@ class NowPlayingTracker(
 
     private fun emitNow() {
         val infos = tracked.values.mapNotNull { (c, _) -> read(c)?.let { NowPlayingPrivacy.sanitize(it) to c } }
-        val pick = NowPlayingSelector.choose(infos.map { it.first })
+        val pick = NowPlayingSelector.choose(app.packageName, infos.map { it.first })
         chosen = infos.firstOrNull { it.first === pick }?.second
         val n = pick?.toNowPlaying()
         limiter.emitted(SystemClock.elapsedRealtime())
         // New art identity, or same identity whose bitmap arrived later (apps often set art late).
-        if (n?.art != artKey || (n != null && art == null && !artPending)) loadArt(n?.art, chosen)
+        // A key whose decode failed is not retried until the key changes ([artFailures]).
+        if (n?.art != artKey || (n?.art != null && art == null && !artPending && artFailures.shouldTry(n.art))) {
+            loadArt(n?.art, chosen)
+        }
         deliver(n)
     }
 
@@ -178,6 +195,9 @@ class NowPlayingTracker(
         val md = c.metadata
         val ps = c.playbackState
         val pkg = c.packageName
+        val state = PlayState.fromPlatform(ps?.state ?: PlaybackState.STATE_NONE)
+        val platformTime = ps?.lastPositionUpdateTime ?: 0L
+        val timeKnown = PositionClock.isKnown(platformTime)
         SessionInfo(
             pkg = pkg,
             appLabel = label(pkg),
@@ -186,10 +206,11 @@ class NowPlayingTracker(
                 ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
                 ?: md?.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE),
             album = md?.getString(MediaMetadata.METADATA_KEY_ALBUM),
-            state = PlayState.fromPlatform(ps?.state ?: PlaybackState.STATE_NONE),
+            state = state,
             positionMs = ps?.position ?: 0L,
-            speed = ps?.playbackSpeed ?: 0f,
-            updatedAtMs = ps?.lastPositionUpdateTime?.takeIf { it > 0 } ?: SystemClock.elapsedRealtime(),
+            // Unknown update time: show the reported position without extrapolating.
+            speed = if (timeKnown) ps?.playbackSpeed ?: 0f else 0f,
+            updatedAtMs = positionClock.updatedAt(c.sessionToken, state, platformTime, SystemClock.elapsedRealtime()),
             durationMs = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L,
             actions = ps?.actions ?: 0L,
             artUri = md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI)
@@ -235,6 +256,7 @@ class NowPlayingTracker(
             main.post {
                 if (gen != generation || artKey != key) return@post
                 artPending = false
+                if (out == null) artFailures.failed(key)
                 if (started && out != null) {
                     art = out
                     onArt(key, out)
@@ -253,11 +275,19 @@ class NowPlayingTracker(
     private fun decodeUri(uri: String): Bitmap? {
         val u = Uri.parse(uri)
         val cr = app.contentResolver
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        cr.openInputStream(u)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
-        val plan = ArtPlanner.plan(bounds.outWidth, bounds.outHeight) as? ArtPlan.Sample ?: return null
-        val opts = BitmapFactory.Options().apply { inSampleSize = plan.n; inPreferredConfig = Bitmap.Config.ARGB_8888 }
-        val decoded = cr.openInputStream(u)?.use { BitmapFactory.decodeStream(it, null, opts) } ?: return null
+        val decoded = ArtDecode.run(
+            open = { cr.openInputStream(u) },
+            readBounds = { s ->
+                // Bounds-only pass: decodeStream returns null here by design; only the size matters.
+                val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeStream(s, null, o)
+                o.outWidth to o.outHeight
+            },
+            decode = { s, n ->
+                val o = BitmapFactory.Options().apply { inSampleSize = n; inPreferredConfig = Bitmap.Config.ARGB_8888 }
+                BitmapFactory.decodeStream(s, null, o)
+            }
+        ) ?: return null
         return downscale(decoded)
     }
 
@@ -283,6 +313,8 @@ class NowPlayingTracker(
         art = null
         artKey = null
         artPending = false
+        artFailures.reset()
+        positionClock.clear()
         chosen = null
         labels.clear()
         if (lastEmitted != null) {

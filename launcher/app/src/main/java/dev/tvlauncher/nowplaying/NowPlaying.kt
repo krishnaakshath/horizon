@@ -126,13 +126,12 @@ object NowPlayingAccent {
 
 /** Picks the one session to show. */
 object NowPlayingSelector {
-    const val OWN_PACKAGE = "dev.tvlauncher"
-
     /**
      * Ignores our own package, sessions without title/artist, and stopped/none/error sessions.
      * Then: playing (or buffering) over paused, audio apps over video apps, most recent first.
      */
-    fun choose(sessions: List<SessionInfo>, ownPackage: String = OWN_PACKAGE): SessionInfo? = sessions
+    /** [ownPackage] = context.packageName (our own sessions are never shown). */
+    fun choose(ownPackage: String, sessions: List<SessionInfo>): SessionInfo? = sessions
         .filter { it.pkg != ownPackage && it.hasMetadata && (it.state.isActive || it.state == PlayState.PAUSED) }
         .maxWithOrNull(
             compareBy<SessionInfo> { if (it.state.isActive) 1 else 0 }

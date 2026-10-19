@@ -49,6 +49,8 @@ class DiscoverPanel(
     private var body: LinearLayout? = null
     private var settings = DiscoverSettings()
     private var lastFocusedId: String? = null
+    /** Card ids in on-screen order (sections, then columns), for focusing a neighbour after a hide. */
+    private var shownIds: List<String> = emptyList()
 
     val isShowing: Boolean get() = root != null
 
@@ -146,6 +148,7 @@ class DiscoverPanel(
         val installed = try { installedPackages() } catch (e: Exception) { emptySet() }
         val state = DiscoverModel.build(installed, region, settings.hiddenCatalogIds, StoreLauncher.isGetAppsInstalled(context))
         b.removeAllViews()
+        shownIds = state.sections.flatMap { s -> s.items.map { it.app.id } }
         if (state.isEmpty) {
             b.addView(emptyState(state), LinearLayout.LayoutParams(-1, -2).apply { topMargin = px(48) })
             return
@@ -214,7 +217,7 @@ class DiscoverPanel(
     private fun hide(item: DiscoverItem) {
         val next = DiscoverSettingsRows.hide(store.load(), item.app.id)
         store.save(next)
-        lastFocusedId = null
+        lastFocusedId = DiscoverGrid.neighbourAfterRemoval(shownIds, item.app.id)
         rebuild()
     }
 
@@ -224,6 +227,13 @@ class DiscoverPanel(
         private val light = BrandColors.onColorTextIsLight(color)
         private val fg = if (light) Theme.TEXT else Theme.TEXT_DARK
         private val fg2 = if (light) 0xCCFFFFFF.toInt() else Theme.TEXT_DARK_2
+        // The resting dim is baked into the colours (no view alpha, so no offscreen layer).
+        private val restBg = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+            intArrayOf(BrandColors.blend(color, Theme.BASE, 0.12f), BrandColors.blend(color, Theme.BASE, 0.42f)))
+            .apply { cornerRadius = px(18).toFloat() }
+        private val focusBg = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+            intArrayOf(color, BrandColors.blend(color, Theme.BASE, 0.35f))).apply { cornerRadius = px(18).toFloat() }
+        private val card = LinearLayout(context)
         private val ring = View(context).apply {
             background = GradientDrawable().apply {
                 cornerRadius = px(22).toFloat()
@@ -237,12 +247,9 @@ class DiscoverPanel(
             isClickable = true
             clipChildren = false
             contentDescription = "${item.app.label}, ${DiscoverModel.subtitle(item.app)}, ${DiscoverActions.label(item.action)}"
-            val card = LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(px(16), px(14), px(16), px(12))
-                background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                    intArrayOf(color, BrandColors.blend(color, Theme.BASE, 0.35f))).apply { cornerRadius = px(18).toFloat() }
-            }
+            card.orientation = LinearLayout.VERTICAL
+            card.setPadding(px(16), px(14), px(16), px(12))
+            card.background = restBg
             card.addView(TextView(context).apply {
                 style(30f, Theme.medium, fg)
                 text = DiscoverGrid.initials(item.app.label)
@@ -273,7 +280,6 @@ class DiscoverPanel(
             addView(card, LayoutParams(-1, -1))
             val ro = px(4)
             addView(ring, LayoutParams(-1, -1).apply { setMargins(-ro, -ro, -ro, -ro) })
-            alpha = 0.9f
             setOnClickListener { StoreLauncher.performWithToast(context, item) }
         }
 
@@ -283,7 +289,8 @@ class DiscoverPanel(
             val ms = if (lite) 0L else Motion.ms(160L)
             val s = if (gainFocus) 1.06f else 1f
             animate().cancel()
-            animate().scaleX(s).scaleY(s).alpha(if (gainFocus) 1f else 0.9f).setDuration(ms).start()
+            card.background = if (gainFocus) focusBg else restBg
+            animate().scaleX(s).scaleY(s).setDuration(ms).start()
             ring.animate().cancel()
             ring.animate().alpha(if (gainFocus) 1f else 0f).setDuration(ms).start()
         }

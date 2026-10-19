@@ -34,7 +34,8 @@ import dev.tvlauncher.ui.Theme.style
  * shown and PLAYING ([NowPlayingCardModel.shouldTick]).
  *
  * Host: `card.bind(tracker.current, tracker.currentArt)` from the tracker callbacks;
- * [start]/[stop] from onStart/onStop; [onAction] → `tracker.send(action)`.
+ * `card.tracker = tracker`; [start]/[stop] from onStart/onStop (after `tracker.start()`);
+ * [onAction] → `tracker.send(action)`.
  */
 class NowPlayingCard(
     context: Context,
@@ -165,8 +166,16 @@ class NowPlayingCard(
         note.visibility = if (art != null) GONE else VISIBLE
     }
 
+    /**
+     * Optional: the tracker feeding this card. [start] then re-checks notification access
+     * ([NowPlayingAccess.isGranted]) so a tracker that hit a SecurityException retries once the
+     * user has granted it (e.g. on returning from Settings).
+     */
+    var tracker: NowPlayingTracker? = null
+
     fun start() {
         started = true
+        tracker?.retryIfAccessGranted()
         scheduleTick()
     }
 

@@ -9,7 +9,7 @@ class DiscoverTileSpecTest {
     @Test fun spec_basics() {
         assertEquals("Get more apps", DiscoverTileSpec.LABEL)
         assertTrue(DiscoverTileSpec.KEY.startsWith("discover:"))
-        assertTrue(DiscoverTileSpec.DASH_DP >= 4)
+        assertTrue(DiscoverTileSpec.FILL_FOCUSED != DiscoverTileSpec.FILL)
         assertTrue(DiscoverTileSpec.PLUS_DP in 24..64)
     }
 
@@ -26,6 +26,15 @@ class DiscoverTileSpecTest {
         assertEquals(1 to 0, DiscoverGrid.cell(2))
         assertEquals(3, DiscoverGrid.columns(5))
         assertEquals(0, DiscoverGrid.columns(0))
+    }
+
+    @Test fun hideFocus_movesToNeighbour() {
+        val ids = listOf("a", "b", "c")
+        assertEquals("c", DiscoverGrid.neighbourAfterRemoval(ids, "b"))
+        assertEquals("b", DiscoverGrid.neighbourAfterRemoval(ids, "c"))
+        assertEquals("b", DiscoverGrid.neighbourAfterRemoval(ids, "a"))
+        assertEquals(null, DiscoverGrid.neighbourAfterRemoval(listOf("a"), "a"))
+        assertEquals(null, DiscoverGrid.neighbourAfterRemoval(ids, "zz"))
     }
 
     @Test fun letterTile_initials() {
