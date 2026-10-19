@@ -1,4 +1,4 @@
-package dev.tvlauncher.safemode
+package dev.tvlauncher.debug
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -25,6 +25,14 @@ class DebugTriggersTest {
     fun resetAndCrash() {
         assertEquals(DebugTriggers.Command.Reset, DebugTriggers.decide(DebugTriggers.RESET, true, null))
         assertEquals(DebugTriggers.Command.CrashHome, DebugTriggers.decide(DebugTriggers.CRASH_HOME, true, 7))
+    }
+
+    @Test
+    fun readCount_malformedOrMissing_isNull() {
+        assertNull(DebugTriggers.parseCount(null))
+        assertNull(DebugTriggers.parseCount("3"))
+        assertNull(DebugTriggers.parseCount(3L))
+        assertEquals(4, DebugTriggers.parseCount(4))
     }
 
     @Test

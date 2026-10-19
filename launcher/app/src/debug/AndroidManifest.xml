@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: hooks to exercise safe mode with adb (see DebugReceiver). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <receiver
+            android:name="dev.tvlauncher.debug.DebugReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.debug.TRIP_SAFE_MODE" />
+                <action android:name="dev.tvlauncher.debug.RESET_SAFE_MODE" />
+                <action android:name="dev.tvlauncher.debug.CRASH_HOME" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
