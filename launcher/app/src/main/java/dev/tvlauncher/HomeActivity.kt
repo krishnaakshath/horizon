@@ -102,6 +102,7 @@ class HomeActivity : Activity() {
         if (wantsSpotlight) openSpotlight() // deferred until the first app list arrives
         repo.register { reload() }
         reload()
+        dev.tvlauncher.setup.SetupStatus.onHomeCreated(this, wantsSpotlight) // first run only; never blocks Home
     }
 
     private fun buildUi() {

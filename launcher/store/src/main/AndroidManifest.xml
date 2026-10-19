@@ -18,6 +18,10 @@
     <!-- Package visibility (targetSdk 30): see launchable apps to detect updates, compare signers and open them. -->
     <queries>
         <intent>
+            <action android:name="android.settings.MANAGE_UNKNOWN_APP_SOURCES" />
+            <data android:scheme="package" />
+        </intent>
+        <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
         </intent>

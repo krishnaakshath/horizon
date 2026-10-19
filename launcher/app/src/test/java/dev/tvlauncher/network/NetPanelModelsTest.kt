@@ -5,7 +5,6 @@ import dev.tvlauncher.panel.PanelEntry
 import dev.tvlauncher.panel.Trailing
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -72,6 +71,7 @@ class NetPanelModelsTest {
     @Test fun wifi_states_areOneFriendlyMessage() {
         fun msgKeys(s: WifiSnapshot) = WifiPanelModel.build(s).messages.map { it.key }
         assertEquals(listOf("msg:permission"), msgKeys(wifi(perm = false)))
+        assertTrue(WifiPanelModel.KEY_ALLOW_LOCATION in WifiPanelModel.build(wifi(perm = false)).rows.map { it.key })
         assertEquals(listOf("msg:off"), msgKeys(wifi(enabled = false)))
         assertEquals(listOf("msg:location"), msgKeys(wifi(location = false)))
         assertEquals(listOf("msg:scanning"), msgKeys(wifi(scanning = true)))
@@ -79,8 +79,8 @@ class NetPanelModelsTest {
         assertEquals(emptyList<String>(), msgKeys(wifi(scans = listOf(scan("A", "a", -50)))))
         assertTrue(WifiPanelModel.build(wifi(scanning = true)).messages.single().busy)
         val perm = WifiPanelModel.build(wifi(perm = false)).messages.single()
-        assertNotNull(perm.detail)
-        assertTrue(!perm.detail!!.contains("adb")) // friendly: the setup pointer, never a command
+        assertEquals(dev.tvlauncher.setup.SetupCopy.LOCATION_NEEDED, perm.text)
+        assertTrue(!perm.text.contains("adb")) // friendly: plain words and an Allow row, never a command
     }
 
     @Test fun wifi_searchRowOnlyWhenItCanWork() {
@@ -155,6 +155,7 @@ class NetPanelModelsTest {
         assertEquals(listOf("msg:scanning"), msgs(bt(scanning = true)))
         assertEquals(listOf("msg:empty"), msgs(bt()))
         assertEquals(listOf("msg:permission", "msg:empty"), msgs(bt(note = BluetoothController.Note.NEEDS_LOCATION)))
+        assertTrue(BtPanelModel.KEY_ALLOW_LOCATION in BtPanelModel.build(bt(note = BluetoothController.Note.NEEDS_LOCATION)).rows.map { it.key })
         assertEquals(listOf("msg:location"), msgs(bt(location = false)))
         assertEquals(listOf("msg:notice", "msg:empty"), msgs(bt(), notice = "Nope"))
         assertFalse("act:scan" in BtPanelModel.build(bt(enabled = false)).rows.map { it.key })

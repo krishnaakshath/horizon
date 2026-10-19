@@ -53,9 +53,9 @@ object Installer {
     fun openUnknownSourcesSettings(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < 26) return false
         return try {
-            context.startActivity(
-                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + context.packageName)),
-            )
+            val i = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + context.packageName))
+            if (context.packageManager.resolveActivity(i, 0) == null) return false // no such screen: never a system error
+            context.startActivity(i)
             true
         } catch (_: Exception) {
             false

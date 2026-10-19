@@ -27,7 +27,8 @@
 
     <!-- Optional: the owner's wallpaper collections in Pictures/TVLauncher and on USB sticks. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <!-- "Open home after power on": boot signal, and the Remote helper's HOME action (same signer only). -->
+    <!-- Boot signal: "Open home after power on" (power.PowerOnReceiver) and re-applying the automatic
+         setup after a reboot (setup.SetupBootReceiver). -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Granted only by the owner (Settings > System > Power on opens the TV's page). On Android 10/11
          it lets the launcher bring home forward when the TV wakes; nothing is drawn over other apps. -->
@@ -44,6 +45,11 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+    <!-- Granted only by the one-time setup helper (tools/tvtool provision); lets setup switch on
+         the notification listener and the Helper's accessibility service by itself. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
 
     <queries>
@@ -64,6 +70,72 @@
         </intent>
         <!-- Optional companion apps: Spotlight shows a Browser quick action only when our
              browser is installed; the Settings screen detects the helper and browser. -->
+        <!-- Setup probes for these screens before offering them; every system-screen button
+             resolves its intent first (SystemActions.canStart), so each one is declared here. -->
+        <intent>
+            <action android:name="android.settings.SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.APPLICATION_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.BLUETOOTH_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.DATE_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.DEVICE_INFO_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.DISPLAY_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.INTERNAL_STORAGE_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.SOUND_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.WIFI_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.WIRELESS_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.LOCATION_SOURCE_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.SYNC_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.ADD_ACCOUNT_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.LOCALE_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.INPUT_METHOD_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.APPLICATION_DETAILS_SETTINGS" />
+            <data android:scheme="package" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.HOME_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.MANAGE_DEFAULT_APPS_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.app.role.action.REQUEST_ROLE" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.ACCESSIBILITY_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.USAGE_ACCESS_SETTINGS" />
+        </intent>
         <package android:name="dev.tvlauncher.helper" />
         <package android:name="dev.tvlauncher.browser" />
         <!-- Get Apps companion store: listed on the Settings Add-ons page; Discover also
@@ -152,6 +224,28 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!-- First-run checklist (setup package); also Settings > System > Setup. -->
+        <!-- Exported only for the Helper app's "Finish setup to enable" row; it shows the checklist. -->
+        <activity
+            android:name=".setup.SetupActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:configChanges="keyboard|keyboardHidden|navigation">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.action.SETUP" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <receiver
+            android:name=".setup.SetupBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- System screensaver; select with `settings put secure screensaver_components`. -->
         <service

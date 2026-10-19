@@ -73,7 +73,6 @@ object SystemSection : SettingsSection, SpecifiedPage {
         Shortcut("device", "Device info", Settings.ACTION_DEVICE_INFO_SETTINGS, R.drawable.ic_sc_device)
     )
     private val advanced = listOf(
-        Shortcut("developer", "Developer options", Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS, R.drawable.ic_sc_developer),
         Shortcut("all", "All system settings", Settings.ACTION_SETTINGS, R.drawable.ic_sc_settings)
     )
 
@@ -83,7 +82,7 @@ object SystemSection : SettingsSection, SpecifiedPage {
         val page = SettingsPage(context, nav.style, spec)
         val b = page.body
         val rows = main.associate { it.key to b.shortcut(context, nav, ID, it) }
-        page.advanced(nav, "system.advanced", "Developer options, all system settings") { adv ->
+        page.advanced(nav, "system.advanced", "All system settings") { adv ->
             advanced.forEach { adv.shortcut(context, nav, ID, it) }
         }
         nav.background({ NetworkStatusReader.read(context) }) { st -> rows["storage"]?.setValue(st.storage) }

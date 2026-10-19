@@ -154,10 +154,8 @@ object BitmapRecycler {
  */
 object UserWallpapers {
     const val DEVICE_PATH = "/sdcard/Android/data/dev.tvlauncher/files/wallpapers/"
-    const val ADB_PUSH = "adb push photo.jpg $DEVICE_PATH"
     const val COLLECTIONS_DIR = "TVLauncher"
     const val SHARED_PATH = "/sdcard/Pictures/TVLauncher/"
-    const val ADB_PUSH_FOLDER = "adb push MyCollection /sdcard/Pictures/TVLauncher/"
     const val PERMISSION = android.Manifest.permission.READ_EXTERNAL_STORAGE
 
     fun canReadShared(context: Context): Boolean = try {

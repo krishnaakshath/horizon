@@ -1,0 +1,13 @@
+{
+  "name": "TCL 32S5403AF (Android TV 11)",
+  "match": { "manufacturer": "TCL", "model": "32S5403AF" },
+  "stock_launchers": [
+    "com.google.android.tvlauncher",
+    "com.google.android.leanbacklauncher"
+  ],
+  "notes": [
+    "The Home key always opens the stock launcher; only --take-over-home makes it open TV Launcher.",
+    "The TV has no notification access or accessibility screens; provisioning grants both.",
+    "tv_user_setup_complete can be left at 0, which makes the Home key do nothing; it is set to 1."
+  ]
+}

@@ -18,6 +18,7 @@ object WifiPanelModel {
     const val KEY_SCAN = "act:scan"
     const val KEY_SETTINGS = "act:settings"
     const val KEY_LOCATION = "act:location"
+    const val KEY_ALLOW_LOCATION = "act:allowLocation"
     /** Nearby networks listed at most (the strongest; the connected one always stays). */
     const val MAX_NETWORKS = 15
 
@@ -43,8 +44,10 @@ object WifiPanelModel {
         val e = ArrayList<PanelEntry>()
         e += PanelEntry.Row(KEY_TOGGLE, NetIcons.forWifiLevel(4, s.wifiEnabled), "Wi-Fi", trailing = Trailing.Switch(s.wifiEnabled))
         when (content) {
-            WifiContent.PERMISSION_MISSING -> e += PanelEntry.Message("msg:permission",
-                "Allow location access to see nearby networks.", dev.tvlauncher.ambient.NotificationAccessText.SETUP_LINE)
+            WifiContent.PERMISSION_MISSING -> {
+                e += PanelEntry.Message("msg:permission", dev.tvlauncher.setup.SetupCopy.LOCATION_NEEDED)
+                e += allowLocationRow()
+            }
             WifiContent.LOCATION_OFF -> {
                 e += PanelEntry.Message("msg:location", "Turn on Location to see nearby networks.")
                 e += PanelEntry.Row(KEY_LOCATION, R.drawable.ic_settings, "Location settings", trailing = Trailing.Chevron)
@@ -93,6 +96,7 @@ object BtPanelModel {
     const val KEY_SCAN = "act:scan"
     const val KEY_SETTINGS = "act:settings"
     const val KEY_LOCATION = "act:location"
+    const val KEY_ALLOW_LOCATION = "act:allowLocation"
     const val KEY_FORGET = "act:forget"
 
     fun devKey(d: BtDeviceModel) = "bt:" + d.address
@@ -128,8 +132,10 @@ object BtPanelModel {
         val content = NetworkPanelState.bluetooth(s.present, s.enabled, s.locationEnabled, s.scanning, sec.all.size)
         if (s.enabled) {
             when {
-                s.note == BluetoothController.Note.NEEDS_LOCATION -> e += PanelEntry.Message("msg:permission",
-                    "Allow location access to find new devices.", dev.tvlauncher.ambient.NotificationAccessText.SETUP_LINE)
+                s.note == BluetoothController.Note.NEEDS_LOCATION -> {
+                    e += PanelEntry.Message("msg:permission", dev.tvlauncher.setup.SetupCopy.LOCATION_NEEDED)
+                    e += allowLocationRow()
+                }
                 !s.locationEnabled -> {
                     e += PanelEntry.Message("msg:location", "Turn on Location to find new devices.")
                     e += PanelEntry.Row(KEY_LOCATION, R.drawable.ic_settings, "Location settings", trailing = Trailing.Chevron)
@@ -195,6 +201,10 @@ object BtPanelModel {
         BtKind.OTHER -> R.drawable.ic_net_kind_other
     }
 }
+
+/** The in-app "Allow" row: Android's own location permission dialog (see [NetworkSettings.requestLocation]). */
+internal fun allowLocationRow() = PanelEntry.Row(WifiPanelModel.KEY_ALLOW_LOCATION, R.drawable.ic_settings,
+    dev.tvlauncher.setup.SetupCopy.LOCATION_ALLOW, trailing = Trailing.Chevron)
 
 /** Shared words. */
 object PanelText {

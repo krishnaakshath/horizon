@@ -10,9 +10,6 @@ import android.os.Process
 import android.provider.Settings
 
 object UsageAccess {
-    /** Exact line to show/run when the TV has no usage-access settings screen. */
-    const val ADB_LINE = "adb shell appops set dev.tvlauncher GET_USAGE_STATS allow"
-
     fun hasAccess(context: Context): Boolean = try {
         val ops = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
         val uid = Process.myUid()

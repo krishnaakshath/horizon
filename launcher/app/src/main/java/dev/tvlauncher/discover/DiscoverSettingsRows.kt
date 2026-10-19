@@ -24,9 +24,8 @@ object DiscoverSettingsRows {
     /** Region choices for the stepper; null = automatic. */
     val REGIONS: List<String?> = listOf(null, "IN", "US", "GB", "CA", "AU", "DE", "FR", "ES", "IT", "BR", "MX", "JP")
 
-    const val ADB_ALLOW = "adb shell cmd notification allow_listener dev.tvlauncher/dev.tvlauncher.ambient.AmbientNotificationService"
     const val ACCESS_HINT =
-        "Now Playing needs the same one-time permission as ambient notifications."
+        "Now Playing needs the same one-time permission as ambient notifications. Settings › Setup switches it on."
 
     private fun onOff(b: Boolean) = if (b) "On" else "Off"
 
