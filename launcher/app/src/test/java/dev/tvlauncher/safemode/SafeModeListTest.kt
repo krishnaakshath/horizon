@@ -17,8 +17,8 @@ class SafeModeListTest {
             ownPackage = "dev.tvlauncher",
             stockLauncherAvailable = false
         )
-        assertEquals(SafeModeList.Row.TryNormal, rows[0])
-        assertEquals(SafeModeList.Row.SystemSettings, rows[1])
+        assertEquals(SafeModeList.Row.SystemSettings, rows[0]) // default focus
+        assertEquals(SafeModeList.Row.TryNormal, rows[1])
         val apps = rows.filterIsInstance<SafeModeList.Row.App>().map { it.app.label }
         // Leanback apps sorted case-insensitively, then launcher-only apps; duplicates dropped.
         assertEquals(listOf("apple tv", "Netflix", "YouTube", "Files"), apps)
@@ -35,7 +35,7 @@ class SafeModeListTest {
         val without = SafeModeList.build(emptyList(), emptyList(), "dev.tvlauncher", false)
         assertFalse(SafeModeList.Row.StockLauncher in without)
         val with = SafeModeList.build(emptyList(), emptyList(), "dev.tvlauncher", true)
-        assertEquals(listOf(SafeModeList.Row.TryNormal, SafeModeList.Row.SystemSettings, SafeModeList.Row.StockLauncher), with)
+        assertEquals(listOf(SafeModeList.Row.SystemSettings, SafeModeList.Row.TryNormal, SafeModeList.Row.StockLauncher), with)
     }
 
     @Test
@@ -64,18 +64,18 @@ class SafeModeListTest {
     @Test
     fun appsFailed_showsNoticeRow_afterFixedRows() {
         val rows = SafeModeList.build(emptyList(), emptyList(), "dev.tvlauncher", stockLauncherAvailable = false, appsFailed = true)
-        assertEquals(SafeModeList.Row.TryNormal, rows[0])
+        assertEquals(SafeModeList.Row.SystemSettings, rows[0])
         assertEquals(SafeModeList.Row.Notice(SafeModeList.APPS_FAILED), rows.last())
         assertEquals("Could not list apps", SafeModeList.label(rows.last()))
     }
 
     @Test
     fun minimalScreen_hasSettingsRow_evenWhenAppListFails() {
-        val rows = SafeModeList.minimal(stockLauncherAvailable = false)
+        val rows = SafeModeList.minimal(stockLauncherAvailable = false, stockLabel = "Google TV Home")
         assertEquals(SafeModeList.Row.SystemSettings, rows.first())
         assertTrue(SafeModeList.Row.TryNormal in rows)
         assertTrue(rows.none { it is SafeModeList.Row.App })
-        assertTrue(SafeModeList.Row.Notice(SafeModeList.ENABLE_STOCK_HINT) in rows)
+        assertTrue(SafeModeList.Row.Notice(SafeModeList.enableStockHint("Google TV Home")) in rows)
         assertFalse(SafeModeList.Row.StockLauncher in rows)
         val full = SafeModeList.build(emptyList(), emptyList(), "dev.tvlauncher", false, appsFailed = true)
         assertTrue(SafeModeList.Row.SystemSettings in full)
@@ -83,7 +83,7 @@ class SafeModeListTest {
 
     @Test
     fun minimalScreen_offersStockLauncher_whenAvailable() {
-        val rows = SafeModeList.minimal(stockLauncherAvailable = true)
+        val rows = SafeModeList.minimal(stockLauncherAvailable = true, stockLabel = "Android TV Home")
         assertEquals(listOf(SafeModeList.Row.SystemSettings, SafeModeList.Row.StockLauncher, SafeModeList.Row.TryNormal), rows)
     }
 
@@ -97,5 +97,16 @@ class SafeModeListTest {
             ),
             SettingsEscape.TARGETS
         )
+    }
+
+    @Test
+    fun enableStockHint_namesTheStockLauncher_neverOurApp() {
+        assertEquals(
+            "To get it back: Settings → Apps → See all apps → Show system apps → Google TV Home → Enable",
+            SafeModeList.enableStockHint("Google TV Home")
+        )
+        assertEquals("Android TV Home", SafeModeList.STOCK_LABEL_FALLBACK)
+        assertTrue(SafeModeList.enableStockHint(SafeModeList.STOCK_LABEL_FALLBACK).contains("Android TV Home"))
+        assertFalse(SafeModeList.enableStockHint("Android TV Home").contains("TV launcher"))
     }
 }

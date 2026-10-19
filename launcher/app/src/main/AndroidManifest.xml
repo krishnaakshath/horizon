@@ -57,6 +57,8 @@
         <package android:name="dev.tvlauncher.browser" />
         <!-- Safe mode offers the stock launcher only while it is installed and enabled. -->
         <package android:name="com.google.android.tvlauncher" />
+        <!-- Safe mode's last Settings fallback: the Android TV Settings app's launch intent. -->
+        <package android:name="com.android.tv.settings" />
         <!-- Weather companion app (the launcher has no INTERNET permission). -->
         <package android:name="dev.tvlauncher.weather" />
         <provider android:authorities="dev.tvlauncher.weather" />

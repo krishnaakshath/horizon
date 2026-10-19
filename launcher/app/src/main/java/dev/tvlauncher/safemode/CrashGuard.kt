@@ -16,7 +16,10 @@ data class CrashHistory(
     val safeModeCrashTimes: List<Long> = emptyList(),
     val escapedToSettings: Boolean = false,
     val escapedAt: Long = 0L,
-    val escapeBoot: Int = -1
+    val escapeBoot: Int = -1,
+    /** SystemClock.elapsedRealtime() at the trip / escape (-1 unknown): a smaller value later means a reboot. */
+    val tripElapsed: Long = -1L,
+    val escapeElapsed: Long = -1L
 ) {
     companion object {
         fun encodeTimes(times: List<Long>): String = times.joinToString(",")
@@ -41,7 +44,8 @@ interface CrashStore {
 class CrashGuard(
     private val store: CrashStore,
     private val now: () -> Long,
-    private val bootCount: () -> Int = { -1 }
+    private val bootCount: () -> Int = { -1 },
+    private val elapsedRealtime: () -> Long = { -1L }
 ) {
     /** A crash that [CrashScope] attributes to the home screen (or to process start). */
     @Synchronized
@@ -57,7 +61,8 @@ class CrashGuard(
                     lastException = exceptionClass.take(MAX_NAME),
                     tripped = old.tripped || tripsNow,
                     trippedAt = if (tripsNow) t else old.trippedAt,
-                    tripBoot = if (tripsNow) safeBoot() else old.tripBoot
+                    tripBoot = if (tripsNow) safeBoot() else old.tripBoot,
+                    tripElapsed = if (tripsNow) safeElapsed() else old.tripElapsed
                 )
             )
         } catch (e: Throwable) {
@@ -86,7 +91,7 @@ class CrashGuard(
     @Synchronized
     fun decide(): EscapePlan.Level = try {
         val h = read()
-        val out = EscapePlan.decide(h, now(), safeBoot())
+        val out = EscapePlan.decide(h, now(), safeBoot(), safeElapsed())
         if (out.history != h) try { store.write(out.history) } catch (e: Throwable) { }
         out.level
     } catch (e: Throwable) {
@@ -106,7 +111,15 @@ class CrashGuard(
 
     private fun read(): CrashHistory = try { store.read() } catch (e: Throwable) { CrashHistory() }
 
+    /** Debug reset: forgets everything, including recent safe-mode crashes and the Settings escape. */
+    @Synchronized
+    fun clearAll() {
+        try { store.write(CrashHistory()) } catch (e: Throwable) { }
+    }
+
     private fun safeBoot(): Int = try { bootCount() } catch (e: Throwable) { -1 }
+
+    private fun safeElapsed(): Long = try { elapsedRealtime() } catch (e: Throwable) { -1L }
 
     companion object {
         const val THRESHOLD = 3
@@ -143,26 +156,42 @@ object EscapePlan {
 
     const val SAFE_CRASH_WINDOW_MS = 10 * 60_000L
 
-    /** A reboot (both boot counts known and different), the clock going back, or [CrashGuard.EXPIRY_MS] elapsed. */
-    fun expired(sinceMs: Long, sinceBoot: Int, nowMs: Long, bootCount: Int): Boolean {
+    /** Where the terminal level sends the owner, in order of preference. */
+    enum class Terminal { STOCK_LAUNCHER, SYSTEM_SETTINGS, SAFE_MODE_MINIMAL }
+
+    /**
+     * A usable stock launcher (installed, enabled, resolves HOME) comes first, so re-enabling it in
+     * Settings takes effect on the next HOME press; then the TV's Settings app; the minimal safe
+     * mode only if neither starts.
+     */
+    fun terminalTargets(stockLauncherAvailable: Boolean): List<Terminal> =
+        if (stockLauncherAvailable) listOf(Terminal.STOCK_LAUNCHER, Terminal.SYSTEM_SETTINGS, Terminal.SAFE_MODE_MINIMAL)
+        else listOf(Terminal.SYSTEM_SETTINGS, Terminal.SAFE_MODE_MINIMAL)
+
+    /**
+     * A reboot since then (boot counts known and different, or uptime now below the uptime then,
+     * when both are known), the clock going back, or [CrashGuard.EXPIRY_MS] elapsed.
+     */
+    fun expired(sinceMs: Long, sinceBoot: Int, sinceElapsed: Long, nowMs: Long, bootCount: Int, elapsedNow: Long): Boolean {
         if (bootCount >= 0 && sinceBoot >= 0 && bootCount != sinceBoot) return true
+        if (sinceElapsed >= 0 && elapsedNow >= 0 && elapsedNow < sinceElapsed) return true
         val e = nowMs - sinceMs
         return e < 0 || e >= CrashGuard.EXPIRY_MS
     }
 
-    fun decide(h: CrashHistory, nowMs: Long, bootCount: Int): Outcome {
+    fun decide(h: CrashHistory, nowMs: Long, bootCount: Int, elapsedNow: Long = -1L): Outcome {
         val fresh = CrashHistory(lastException = h.lastException, retriedAt = nowMs)
         if (h.escapedToSettings) {
-            return if (expired(h.escapedAt, h.escapeBoot, nowMs, bootCount)) Outcome(Level.HOME, fresh)
+            return if (expired(h.escapedAt, h.escapeBoot, h.escapeElapsed, nowMs, bootCount, elapsedNow)) Outcome(Level.HOME, fresh)
             else Outcome(Level.SYSTEM_SETTINGS, h)
         }
         if (!h.tripped) return Outcome(Level.HOME, h)
-        if (expired(h.trippedAt, h.tripBoot, nowMs, bootCount)) return Outcome(Level.HOME, fresh)
+        if (expired(h.trippedAt, h.tripBoot, h.tripElapsed, nowMs, bootCount, elapsedNow)) return Outcome(Level.HOME, fresh)
         val safeCrashes = h.safeModeCrashTimes.count { val e = nowMs - it; e in 0 until SAFE_CRASH_WINDOW_MS }
         return when {
             safeCrashes >= 2 -> Outcome(
                 Level.SYSTEM_SETTINGS,
-                h.copy(escapedToSettings = true, escapedAt = nowMs, escapeBoot = bootCount)
+                h.copy(escapedToSettings = true, escapedAt = nowMs, escapeBoot = bootCount, escapeElapsed = elapsedNow)
             )
             safeCrashes == 1 -> Outcome(Level.SAFE_MODE_MINIMAL, h)
             else -> Outcome(Level.SAFE_MODE_FULL, h)
@@ -191,4 +220,21 @@ class CrashScope(private val homeClass: String, private val safeModeClass: Strin
     fun shouldRecordCrash(): Boolean = current.let { it == null || it == homeClass }
 
     fun inSafeMode(): Boolean = current == safeModeClass
+}
+
+/**
+ * What the uncaught handler does with a crash. A crash in safe mode is a safe-mode crash. While the
+ * guard is tripped, the home screen never runs (HomeActivity redirects first), so a crash charged
+ * to home or to process start is safe mode failing before it could report itself (class init,
+ * verify error, attach or theme; on API 24-28 anything before its super.onCreate returns): it is
+ * counted as a safe-mode crash too, so the ladder keeps climbing. Other screens are ignored.
+ */
+object CrashAttribution {
+    enum class Kind { HOME, SAFE_MODE, IGNORE }
+
+    fun classify(scope: CrashScope, tripped: Boolean): Kind = when {
+        scope.inSafeMode() -> Kind.SAFE_MODE
+        scope.shouldRecordCrash() -> if (tripped) Kind.SAFE_MODE else Kind.HOME
+        else -> Kind.IGNORE
+    }
 }

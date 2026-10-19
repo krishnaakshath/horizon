@@ -18,7 +18,7 @@ import dev.tvlauncher.safemode.SafeMode
  * ```
  * # Record 3 home crashes (trips safe mode), then restart the process so HOME redirects:
  * adb shell am broadcast -a dev.tvlauncher.debug.TRIP_SAFE_MODE -n dev.tvlauncher/.debug.DebugReceiver --ei count 3
- * # Clear the crash history, the trip and the escape ladder:
+ * # Clear everything in the ladder (crash history, trip, safe-mode crashes, Settings escape):
  * adb shell am broadcast -a dev.tvlauncher.debug.RESET_SAFE_MODE -n dev.tvlauncher/.debug.DebugReceiver
  * # Crash the main thread; counts as a home crash while the home screen is in front:
  * adb shell am broadcast -a dev.tvlauncher.debug.CRASH_HOME -n dev.tvlauncher/.debug.DebugReceiver
@@ -40,7 +40,7 @@ class DebugReceiver : BroadcastReceiver() {
                 // Like a real crash: the process goes away and the system restarts the home screen.
                 main.postDelayed({ Process.killProcess(Process.myPid()) }, 300)
             }
-            DebugTriggers.Command.Reset -> guard.reset()
+            DebugTriggers.Command.Reset -> guard.clearAll() // everything, incl. safe-mode crashes and the Settings escape
             DebugTriggers.Command.CrashHome -> main.post { throw IllegalStateException("Debug crash requested with ${DebugTriggers.CRASH_HOME}") }
         }
     }

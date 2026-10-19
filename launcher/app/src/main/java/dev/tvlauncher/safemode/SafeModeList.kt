@@ -7,7 +7,12 @@ object SafeModeList {
     const val HEADER = "Safe mode — the main launcher crashed repeatedly"
     const val STOCK_LAUNCHER = "com.google.android.tvlauncher"
     const val APPS_FAILED = "Could not list apps"
-    const val ENABLE_STOCK_HINT = "To get the stock launcher back: Settings → Apps → TV launcher → Enable"
+    /** Shown when the stock launcher's own label cannot be read. */
+    const val STOCK_LABEL_FALLBACK = "Android TV Home"
+
+    /** How to re-enable the stock launcher; [stockLabel] is its label read at runtime. */
+    fun enableStockHint(stockLabel: String): String =
+        "To get it back: Settings → Apps → See all apps → Show system apps → $stockLabel → Enable"
 
     sealed class Row {
         object TryNormal : Row()
@@ -26,8 +31,8 @@ object SafeModeList {
         appsFailed: Boolean = false
     ): List<Row> {
         val rows = ArrayList<Row>()
+        rows += Row.SystemSettings // first: default focus, the always-usable way out
         rows += Row.TryNormal
-        rows += Row.SystemSettings
         if (stockLauncherAvailable) rows += Row.StockLauncher
         val seen = HashSet<String>().apply { add(ownPackage); add(STOCK_LAUNCHER) }
         for (group in listOf(leanback, launcher)) {
@@ -40,9 +45,9 @@ object SafeModeList {
     }
 
     /** The minimal screen (safe mode crashed once): no app list, system Settings first. */
-    fun minimal(stockLauncherAvailable: Boolean): List<Row> = buildList {
+    fun minimal(stockLauncherAvailable: Boolean, stockLabel: String = STOCK_LABEL_FALLBACK): List<Row> = buildList {
         add(Row.SystemSettings)
-        if (stockLauncherAvailable) add(Row.StockLauncher) else add(Row.Notice(ENABLE_STOCK_HINT))
+        if (stockLauncherAvailable) add(Row.StockLauncher) else add(Row.Notice(enableStockHint(stockLabel)))
         add(Row.TryNormal)
     }
 

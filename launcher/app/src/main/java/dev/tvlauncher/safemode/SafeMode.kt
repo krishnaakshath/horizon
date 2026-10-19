@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.Process
+import android.os.SystemClock
 import android.provider.Settings
 import dev.tvlauncher.HomeActivity
 import kotlin.system.exitProcess
@@ -24,7 +25,9 @@ class PrefsCrashStore(context: Context) : CrashStore {
         CrashHistory.decodeTimes(sp.getString(KEY_SAFE_TIMES, null)),
         sp.getBoolean(KEY_ESCAPED, false),
         sp.getLong(KEY_ESCAPED_AT, 0L),
-        sp.getInt(KEY_ESCAPE_BOOT, -1)
+        sp.getInt(KEY_ESCAPE_BOOT, -1),
+        sp.getLong(KEY_TRIP_ELAPSED, -1L),
+        sp.getLong(KEY_ESCAPE_ELAPSED, -1L)
     )
 
     override fun write(history: CrashHistory) {
@@ -39,6 +42,8 @@ class PrefsCrashStore(context: Context) : CrashStore {
             .putBoolean(KEY_ESCAPED, history.escapedToSettings)
             .putLong(KEY_ESCAPED_AT, history.escapedAt)
             .putInt(KEY_ESCAPE_BOOT, history.escapeBoot)
+            .putLong(KEY_TRIP_ELAPSED, history.tripElapsed)
+            .putLong(KEY_ESCAPE_ELAPSED, history.escapeElapsed)
             .remove("safe_mode_crashed") // older format
             .commit()
     }
@@ -54,6 +59,8 @@ class PrefsCrashStore(context: Context) : CrashStore {
         const val KEY_ESCAPED = "escaped_to_settings"
         const val KEY_ESCAPED_AT = "escaped_at"
         const val KEY_ESCAPE_BOOT = "escape_boot"
+        const val KEY_TRIP_ELAPSED = "trip_elapsed"
+        const val KEY_ESCAPE_ELAPSED = "escape_elapsed"
     }
 }
 
@@ -61,10 +68,17 @@ class PrefsCrashStore(context: Context) : CrashStore {
 object SafeMode {
     fun guard(context: Context): CrashGuard {
         val resolver = context.applicationContext.contentResolver
-        return CrashGuard(PrefsCrashStore(context), { System.currentTimeMillis() }) {
-            try { Settings.Global.getInt(resolver, Settings.Global.BOOT_COUNT, -1) } catch (e: Throwable) { -1 }
-        }
+        return CrashGuard(
+            PrefsCrashStore(context),
+            { System.currentTimeMillis() },
+            { try { Settings.Global.getInt(resolver, Settings.Global.BOOT_COUNT, -1) } catch (e: Throwable) { -1 } },
+            { SystemClock.elapsedRealtime() }
+        )
     }
+
+    /** The process's [CrashScope] once [install] ran; the redirect announces safe mode to it. */
+    @Volatile
+    private var scope: CrashScope? = null
 
     /**
      * Application.onCreate: tracks which activity is in charge ([CrashScope]) and records only
@@ -74,14 +88,16 @@ object SafeMode {
     fun install(app: Application) {
         val guard = guard(app)
         val scope = CrashScope(HomeActivity::class.java.name, SafeModeActivity::class.java.name)
+        this.scope = scope
         app.registerActivityLifecycleCallbacks(ScopeCallbacks(scope))
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             try {
                 val name = error.javaClass.simpleName.ifEmpty { "Throwable" }
-                when {
-                    scope.inSafeMode() -> guard.recordSafeModeCrash(name)
-                    scope.shouldRecordCrash() -> guard.recordCrash(name)
+                when (CrashAttribution.classify(scope, guard.isTripped)) {
+                    CrashAttribution.Kind.SAFE_MODE -> guard.recordSafeModeCrash(name)
+                    CrashAttribution.Kind.HOME -> guard.recordCrash(name)
+                    CrashAttribution.Kind.IGNORE -> Unit
                 }
             } catch (e: Throwable) {
             }
@@ -104,8 +120,8 @@ object SafeMode {
             EscapePlan.Level.HOME -> false
             EscapePlan.Level.SAFE_MODE_FULL -> leave(home) { startSafeMode(home, minimal = false) }
             EscapePlan.Level.SAFE_MODE_MINIMAL -> leave(home) { startSafeMode(home, minimal = true) }
-            // Terminal level: only the framework Settings app; safe mode is a last resort if none starts.
-            EscapePlan.Level.SYSTEM_SETTINGS -> leave(home) { SettingsEscape.open(home) || startSafeMode(home, minimal = true) }
+            // Terminal level: a usable stock launcher, else the framework Settings app; safe mode last.
+            EscapePlan.Level.SYSTEM_SETTINGS -> leave(home) { startTerminal(home) }
         }
     } catch (e: Throwable) {
         false
@@ -118,7 +134,21 @@ object SafeMode {
         return true
     }
 
+    private fun startTerminal(home: Activity): Boolean {
+        for (t in EscapePlan.terminalTargets(StockLauncher.intent(home) != null)) {
+            val ok = when (t) {
+                EscapePlan.Terminal.STOCK_LAUNCHER -> StockLauncher.start(home)
+                EscapePlan.Terminal.SYSTEM_SETTINGS -> SettingsEscape.open(home)
+                EscapePlan.Terminal.SAFE_MODE_MINIMAL -> startSafeMode(home, minimal = true)
+            }
+            if (ok) return true
+        }
+        return false
+    }
+
     private fun startSafeMode(home: Activity, minimal: Boolean): Boolean = try {
+        // Anything that fails from here until safe mode reports itself is safe mode's crash.
+        scope?.onCreated(SafeModeActivity::class.java.name)
         home.startActivity(
             Intent(home, SafeModeActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -126,6 +156,7 @@ object SafeMode {
         )
         true
     } catch (e: Throwable) {
+        scope?.onCreated(HomeActivity::class.java.name) // not started: home keeps running
         false
     }
 }
