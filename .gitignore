@@ -1,0 +1,11 @@
+.superpowers/
+scans/
+build/
+.gradle/
+local.properties
+*.jks
+*.keystore
+.idea/
+.DS_Store
+__pycache__/
+.pytest_cache/
