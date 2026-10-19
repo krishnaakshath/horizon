@@ -174,7 +174,7 @@ class InsightsActivity : Activity() {
         })
         val btn = Button(this).apply {
             text = "Open usage access settings"
-            isAllCaps = false
+            transformationMethod = null // no Button all-caps; avoids the API 28 all-caps accessor
             style(Theme.SP_BUTTON, Theme.medium)
             isFocusable = true
             isFocusableInTouchMode = true
