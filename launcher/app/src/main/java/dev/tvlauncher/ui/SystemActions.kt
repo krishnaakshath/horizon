@@ -8,6 +8,7 @@ import android.net.Uri
 import android.media.tv.TvInputInfo
 import android.media.tv.TvInputManager
 import android.provider.Settings
+import dev.tvlauncher.ambient.AmbientActivity
 import dev.tvlauncher.appsettings.AppSettingsActivity
 
 /** System shortcuts. Every launch is guarded so a missing handler never crashes. */
@@ -45,6 +46,9 @@ object SystemActions {
         QuickActions.Item.NETWORK -> settingsPage(context, Settings.ACTION_WIFI_SETTINGS)
         QuickActions.Item.BLUETOOTH -> settingsPage(context, Settings.ACTION_BLUETOOTH_SETTINGS)
         QuickActions.Item.SOUND -> settingsPage(context, Settings.ACTION_SOUND_SETTINGS)
+        // Fallbacks only: the home screen opens its Devices panel / AmbientActivity itself.
+        QuickActions.Item.DEVICES -> launcherSettings(context) || settings(context)
+        QuickActions.Item.AMBIENT -> ambient(context)
         QuickActions.Item.INSIGHTS -> insights(context)
         QuickActions.Item.BROWSER -> launchPackage(context, QuickActions.BROWSER_PACKAGE)
     }
@@ -55,6 +59,9 @@ object SystemActions {
         if (context.packageManager.resolveActivity(i, 0) == null) return false
         return start(context, i)
     }
+
+    /** Our ambient screen (explicit component, so nothing else can answer the action). */
+    fun ambient(context: Context) = start(context, AmbientActivity.intent(context).setPackage(context.packageName))
 
     const val LAUNCHER_SETTINGS_ACTION = "dev.tvlauncher.action.SETTINGS"
     const val INSIGHTS_CLASS = "dev.tvlauncher.insights.InsightsActivity"

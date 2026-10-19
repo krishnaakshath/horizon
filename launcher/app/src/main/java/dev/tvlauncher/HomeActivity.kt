@@ -27,6 +27,7 @@ import dev.tvlauncher.ui.FocusRules
 import dev.tvlauncher.ui.HeroBox
 import dev.tvlauncher.ui.HomeContent
 import dev.tvlauncher.ui.LaunchOverlay
+import dev.tvlauncher.ui.QuickActions
 import dev.tvlauncher.ui.QuickStrip
 import dev.tvlauncher.ui.Shelf
 import dev.tvlauncher.ui.ShelfAdapter
@@ -133,7 +134,7 @@ class HomeActivity : Activity() {
         root.addView(content, FrameLayout.LayoutParams(-1, -1))
         spotlight = SpotlightPanel(
             this, packageManager, full,
-            onAction = { sounds.action(SystemActions.quickAction(this, it)) },
+            onAction = ::onQuickAction,
             onActionLongPress = { tileMenu.showDockMenu(visiblePackages(), installed); sounds.menuOpen() },
             onLaunch = ::launch,
             onClosed = ::onSpotlightClosed
@@ -165,10 +166,19 @@ class HomeActivity : Activity() {
         TopBarNav.Action.OPEN_SPOTLIGHT -> { openSpotlight(); true }
     }
 
+    private fun onQuickAction(item: QuickActions.Item) {
+        val opened = when (QuickActions.route(item, net.hasBluetooth)) {
+            QuickActions.Route.WIFI_PANEL -> openPanel { net.showWifi(null) }
+            QuickActions.Route.BLUETOOTH_PANEL -> openPanel { net.showBluetooth(null) }
+            QuickActions.Route.DEVICES_PANEL, QuickActions.Route.AMBIENT, QuickActions.Route.SYSTEM -> false
+        }
+        if (!opened) sounds.action(SystemActions.quickAction(this, item)) // also the fallback to system settings
+    }
+
     /** Panels and Spotlight are mutually exclusive: Spotlight closes first, without animation. */
-    private inline fun openPanel(open: () -> Boolean) {
+    private inline fun openPanel(open: () -> Boolean): Boolean {
         if (spotlight.isOpen) spotlight.close(animate = false)
-        if (open()) sounds.panel(opened = true)
+        return open().also { if (it) sounds.panel(opened = true) }
     }
 
     private fun focusHome() {

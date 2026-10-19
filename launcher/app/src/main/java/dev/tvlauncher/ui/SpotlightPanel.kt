@@ -262,9 +262,11 @@ class SpotlightPanel(
     private fun iconOf(item: Item) = when (item) {
         Item.INPUTS -> R.drawable.ic_input
         Item.SETTINGS -> R.drawable.ic_settings
-        Item.NETWORK -> R.drawable.ic_wifi_3
-        Item.BLUETOOTH -> R.drawable.ic_bluetooth
+        Item.NETWORK -> R.drawable.ic_net_wifi_4
+        Item.BLUETOOTH -> R.drawable.ic_net_bt_on
         Item.SOUND -> R.drawable.ic_volume
+        Item.DEVICES -> R.drawable.ic_set_devices
+        Item.AMBIENT -> R.drawable.ic_qa_ambient
         Item.INSIGHTS -> R.drawable.ic_insights
         Item.BROWSER -> R.drawable.ic_browser
     }

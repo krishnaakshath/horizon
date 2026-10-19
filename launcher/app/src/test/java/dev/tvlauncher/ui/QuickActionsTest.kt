@@ -20,7 +20,8 @@ class QuickActionsTest {
 
     @Test fun order_isStable() {
         val expected = listOf(
-            Item.INPUTS, Item.SETTINGS, Item.NETWORK, Item.BLUETOOTH, Item.SOUND, Item.INSIGHTS
+            Item.INPUTS, Item.SETTINGS, Item.NETWORK, Item.BLUETOOTH, Item.SOUND,
+            Item.DEVICES, Item.AMBIENT, Item.INSIGHTS
         )
         assertEquals(expected, QuickActions.items(emptySet()))
         assertEquals(expected, QuickActions.items(setOf("a", "b")))
@@ -33,5 +34,30 @@ class QuickActionsTest {
 
     @Test fun browserPackage_isOurs() {
         assertEquals("dev.tvlauncher.browser", QuickActions.BROWSER_PACKAGE)
+    }
+
+    @Test fun ambient_and_devices_always() {
+        for (set in listOf(emptySet(), setOf(QuickActions.BROWSER_PACKAGE))) {
+            val items = QuickActions.items(set)
+            assertTrue(Item.AMBIENT in items)
+            assertTrue(Item.DEVICES in items)
+            assertTrue(items.indexOf(Item.AMBIENT) < items.indexOf(Item.INSIGHTS))
+        }
+    }
+
+    @Test fun route_panelsDirect_withSystemFallback() {
+        assertEquals(QuickActions.Route.WIFI_PANEL, QuickActions.route(Item.NETWORK, bluetoothPresent = true))
+        assertEquals(QuickActions.Route.BLUETOOTH_PANEL, QuickActions.route(Item.BLUETOOTH, bluetoothPresent = true))
+        assertEquals(QuickActions.Route.SYSTEM, QuickActions.route(Item.BLUETOOTH, bluetoothPresent = false))
+        assertEquals(QuickActions.Route.DEVICES_PANEL, QuickActions.route(Item.DEVICES, bluetoothPresent = false))
+        assertEquals(QuickActions.Route.AMBIENT, QuickActions.route(Item.AMBIENT, bluetoothPresent = false))
+        for (i in listOf(Item.INPUTS, Item.SETTINGS, Item.SOUND, Item.INSIGHTS, Item.BROWSER)) {
+            assertEquals(QuickActions.Route.SYSTEM, QuickActions.route(i, bluetoothPresent = true))
+        }
+    }
+
+    @Test fun titles_forNewItems() {
+        assertEquals("Devices", Item.DEVICES.title)
+        assertEquals("Ambient", Item.AMBIENT.title)
     }
 }
