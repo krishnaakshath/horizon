@@ -1,73 +1,60 @@
 package dev.tvlauncher.ambient
 
 import android.content.Context
-import android.graphics.drawable.GradientDrawable
 import android.widget.LinearLayout
 import android.widget.TextView
-import dev.tvlauncher.ui.Theme
-import dev.tvlauncher.ui.Theme.style
+import dev.tvlauncher.R
+import dev.tvlauncher.panel.PanelEntry
+import dev.tvlauncher.panel.PanelRowView
+import dev.tvlauncher.panel.PanelStyle
+import dev.tvlauncher.panel.PanelStyle.panelText
+import dev.tvlauncher.panel.Trailing
+import dev.tvlauncher.type.FontWeight
+import dev.tvlauncher.ui.dp
 
 /**
- * Ready-to-host card for granting notification access (one line to wire:
- * `container.addView(NotificationAccessCard(this))`). Calm, friendly states only:
- * - access granted: the card hides itself (GONE);
- * - not granted and the TV has an access screen: a title, one line and a single "Allow" button;
- * - no such screen: one line pointing at the one-time setup ([NotificationAccessText.SETUP_LINE]).
- * No developer commands are ever shown (they live in the docs). Call [refresh] from the host's
- * onResume to update the state after the user returns.
+ * Ready-to-host block for granting notification access (`container.addView(NotificationAccessCard(this))`).
+ * Calm, friendly states only, never developer commands (those live in docs/adb-setup.md):
+ * - access granted: the block hides itself (GONE);
+ * - not granted and the TV has an access screen: a short explanation and one "Allow" panel row;
+ * - no such screen: the explanation and one line ([NotificationAccessText.SETUP_LINE]).
+ * Call [refresh] from the host's onResume to update the state after the user returns.
  */
 class NotificationAccessCard @JvmOverloads constructor(
     context: Context,
     title: String = DEFAULT_TITLE,
     body: String = DEFAULT_BODY
 ) : LinearLayout(context) {
-    private val density = resources.displayMetrics.density
-    private val body = TextView(context)
+    private val row = PanelRowView(context, ALLOW_ROW)
     private val setup = TextView(context)
-    private val button = TextView(context)
-
-    private fun px(dp: Int) = (dp * density + 0.5f).toInt()
 
     init {
         orientation = VERTICAL
-        setPadding(px(20), px(16), px(20), px(16))
-        background = GradientDrawable().apply {
-            cornerRadius = px(14).toFloat()
-            setColor(0x0AFFFFFF) // the shared resting glass wash (GlassTokens.ROW_REST)
-        }
-        addView(TextView(context).apply { style(Theme.SP_BUTTON + 2f, Theme.medium); text = title; maxLines = 2 })
-        this.body.apply {
-            style(14f, Theme.regular, Theme.TEXT_2)
+        val pad = context.dp(PanelStyle.G2)
+        setPadding(0, context.dp(PanelStyle.G1), 0, context.dp(PanelStyle.G1))
+        addView(TextView(context).apply {
+            panelText(PanelStyle.MESSAGE_SP, FontWeight.MEDIUM, PanelStyle.TEXT, singleLine = false)
+            text = title
+            setPadding(pad, 0, pad, 0)
+        }, params(0))
+        addView(TextView(context).apply {
+            panelText(PanelStyle.DETAIL_SP, FontWeight.REGULAR, PanelStyle.TEXT_2, singleLine = false)
             text = body
             maxLines = 3
-        }
-        addView(this.body, params(4))
-        setup.style(14f, Theme.regular, Theme.TEXT_2)
+            setPadding(pad, 0, pad, 0)
+        }, params(4))
+        row.setOnClickListener { open() }
+        addView(row, params(PanelStyle.G1))
+        setup.panelText(PanelStyle.DETAIL_SP, FontWeight.REGULAR, PanelStyle.TEXT_2, singleLine = false)
+        setup.setPadding(pad, 0, pad, 0)
         setup.text = NotificationAccessText.SETUP_LINE
-        addView(setup, params(8))
-        button.apply {
-            style(Theme.SP_BUTTON, Theme.medium)
-            text = "Allow"
-            isFocusable = true
-            isClickable = true
-            gravity = android.view.Gravity.CENTER
-            minWidth = px(120)
-            minHeight = px(44)
-            setPadding(px(22), px(10), px(22), px(10))
-            background = buttonBg(false)
-            setOnFocusChangeListener { v, f -> v.background = buttonBg(f) }
-            setOnClickListener { open() }
-        }
-        addView(button, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply { topMargin = px(12) })
+        addView(setup, params(PanelStyle.G1))
         refresh()
     }
 
-    private fun params(top: Int) = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = px(top) }
-
-    private fun buttonBg(focused: Boolean) = GradientDrawable().apply {
-        cornerRadius = px(999).toFloat()
-        setColor(if (focused) Theme.TEXT else 0x1FFFFFFF)
-    }.also { button.setTextColor(if (focused) Theme.TEXT_DARK else Theme.TEXT) }
+    private fun params(topDp: Int) = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+        topMargin = context.dp(topDp)
+    }
 
     /** Re-reads whether access is granted. Call from the host's onResume (the user returns from Settings). */
     fun refresh() {
@@ -75,7 +62,7 @@ class NotificationAccessCard @JvmOverloads constructor(
         visibility = if (on) GONE else VISIBLE
         if (on) return
         val screen = NotificationAccess.hasSettingsScreen(context)
-        button.visibility = if (screen) VISIBLE else GONE
+        row.visibility = if (screen) VISIBLE else GONE
         setup.visibility = if (screen) GONE else VISIBLE
     }
 
@@ -86,14 +73,14 @@ class NotificationAccessCard @JvmOverloads constructor(
     }
 
     private fun open() {
-        val opened = NotificationAccess.openSettings(context)
-        if (!opened) {
-            button.visibility = GONE
+        if (!NotificationAccess.openSettings(context)) {
+            row.visibility = GONE
             setup.visibility = VISIBLE
         }
     }
 
     companion object {
+        private val ALLOW_ROW = PanelEntry.Row("notificationAccess", R.drawable.ic_set_helper, "Allow", null, Trailing.Chevron)
         const val DEFAULT_TITLE = "Notifications on the ambient screen"
         const val DEFAULT_BODY = "Shows up to 3 recent notifications. Kept in memory only, never saved."
         const val NOW_PLAYING_TITLE = "Allow Now Playing"

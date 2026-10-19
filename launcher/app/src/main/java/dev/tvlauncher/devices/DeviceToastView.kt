@@ -3,61 +3,51 @@ package dev.tvlauncher.devices
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.AnimatorSet
-import android.animation.Keyframe
 import android.animation.ObjectAnimator
 import android.animation.PropertyValuesHolder
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.Shader
-import android.graphics.Canvas
-import android.graphics.Outline
-import android.provider.Settings
 import android.view.Gravity
 import android.view.View
-import android.view.ViewOutlineProvider
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
-import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import dev.tvlauncher.device.EffectsMode
-import dev.tvlauncher.ui.Theme
-import dev.tvlauncher.ui.Theme.style
+import dev.tvlauncher.panel.PanelMotion
+import dev.tvlauncher.panel.PanelStyle
+import dev.tvlauncher.panel.PanelStyle.panelText
+import dev.tvlauncher.type.FontWeight
+import dev.tvlauncher.ui.Motion
 import dev.tvlauncher.ui.dp
 
 /**
- * One premium glass card: circular icon medallion with a kind-specific accent, a one-shot pulse
- * ring animation, title and subtitle. Each family of devices has its own entrance:
- * consoles pop with an accent glow sweep, USB slides in with a plug-click bounce, Bluetooth audio
- * gets a longer ripple, controllers wiggle. LITE uses shorter timings, one ring and no layers.
+ * One device card in the shared panel style: the near-opaque panel surface, a quiet round icon,
+ * a title and a one-line subtitle. Calm motion: a 220 ms (LITE 160 ms) fade-and-slide in, scaled by
+ * the system animator scale, and for a connection one soft accent ring around the icon. Nothing
+ * animates when motion is off.
  */
 class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLayout(context) {
     private val lite = mode == EffectsMode.LITE
-    private val animationsOn = animatorScale(context) > 0f
-    private val medallionSize = context.dp(56)
-    private val ringCount = if (!animationsOn) 0 else if (lite) 1 else 2
+    private val scale = PanelStyle.animatorScale(context)
+    private val iconSize = context.dp(PanelStyle.G4 + PanelStyle.G1)
 
     private val medallion = FrameLayout(context).apply { clipChildren = false; clipToPadding = false }
     private val disc = View(context)
+    private val ring = View(context).apply { visibility = INVISIBLE }
     private val icon = ImageView(context)
-    private val rings = ArrayList<View>()
-    private val title = TextView(context)
-    private val subtitle = TextView(context)
-    private val sweep = SweepView(context)
-    private val card = FrameLayout(context)
-    private val clipLayer = FrameLayout(context)
+    private val title = TextView(context).apply { panelText(18f, FontWeight.SEMIBOLD) }
+    private val subtitle = TextView(context).apply { panelText(15f, FontWeight.REGULAR, PanelStyle.TEXT_2) }
+    private val card = LinearLayout(context)
     private var running: Animator? = null
     private var pulse: Animator? = null
-    private var kind = DeviceKind.UNKNOWN
-    private var accent = DeviceAccent.SLATE
 
-    val entranceMs: Long get() = if (lite) 160L else 220L
-    val exitMs: Long get() = if (lite) 140L else 180L
+    val entranceMs: Long get() = PanelMotion.duration(lite, scale, Motion.enabled)
+    val exitMs: Long get() = PanelMotion.closeDuration(lite, scale, Motion.enabled)
 
     init {
         clipChildren = false
@@ -66,220 +56,118 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
         isClickable = false
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
 
-        val radius = context.dp(20).toFloat()
-        // Only this layer is clipped to the rounded card; the medallion rings live in the
-        // unclipped parents so they can ripple past the card edge.
-        clipLayer.background = GradientDrawable().apply {
-            setColor(0xCC151922.toInt())
-            cornerRadius = radius
-            setStroke(context.dp(1), 0x33FFFFFF)
+        disc.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(PanelStyle.QUIET_FILL) }
+        ring.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(Color.TRANSPARENT)
+            setStroke(context.dp(2), PanelStyle.ACCENT)
         }
-        clipLayer.clipToOutline = true
-        clipLayer.outlineProvider = object : ViewOutlineProvider() {
-            override fun getOutline(view: View, outline: Outline) = outline.setRoundRect(0, 0, view.width, view.height, radius)
-        }
-        card.clipChildren = false
+        medallion.addView(ring, LayoutParams(iconSize, iconSize))
+        medallion.addView(disc, LayoutParams(iconSize, iconSize))
+        medallion.addView(icon, LayoutParams(context.dp(PanelStyle.ICON_DP), context.dp(PanelStyle.ICON_DP), Gravity.CENTER))
 
-        repeat(if (!animationsOn) 0 else if (lite) 1 else 3) { // 3rd ring only used by the FULL Bluetooth audio ripple
-            rings.add(View(context).apply { visibility = INVISIBLE })
-        }
-        for (r in rings) medallion.addView(r, LayoutParams(medallionSize, medallionSize))
-        medallion.addView(disc, LayoutParams(medallionSize, medallionSize))
-        medallion.addView(icon, LayoutParams(context.dp(28), context.dp(28), Gravity.CENTER))
-
-        title.style(20f, Theme.medium, Theme.TEXT)
-        title.maxLines = 1
-        title.ellipsize = android.text.TextUtils.TruncateAt.END
-        subtitle.style(Theme.SP_SUB, Theme.regular, Theme.TEXT_2)
-        subtitle.maxLines = 1
-        subtitle.ellipsize = android.text.TextUtils.TruncateAt.END
         val texts = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             addView(title)
-            addView(subtitle, LinearLayout.LayoutParams(-2, -2).apply { topMargin = context.dp(2) })
+            addView(subtitle, LinearLayout.LayoutParams(-2, -2).apply { topMargin = context.dp(4) })
         }
-        val row = LinearLayout(context).apply {
+        card.apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             clipChildren = false
             clipToPadding = false
-            setPadding(context.dp(16), context.dp(14), context.dp(24), context.dp(14))
-            addView(medallion, LinearLayout.LayoutParams(medallionSize, medallionSize))
-            addView(texts, LinearLayout.LayoutParams(-2, -2).apply { marginStart = context.dp(16) })
+            background = PanelStyle.surface(context, lite, radiusDp = 20)
+            setPadding(context.dp(PanelStyle.G2), context.dp(PanelStyle.G2), context.dp(PanelStyle.G3), context.dp(PanelStyle.G2))
+            addView(medallion, LinearLayout.LayoutParams(iconSize, iconSize))
+            addView(texts, LinearLayout.LayoutParams(-2, -2).apply { marginStart = context.dp(PanelStyle.G2) })
+            minimumWidth = context.dp(280)
         }
-        clipLayer.addView(sweep, LayoutParams(context.dp(120), LayoutParams.MATCH_PARENT))
-        card.addView(clipLayer, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        card.addView(row, LayoutParams(-2, -2))
-        sweep.visibility = GONE
         addView(card, LayoutParams(-2, -2))
-        minimumWidth = context.dp(300)
-        // Padding gives the rings room to ripple past the card edge without being clipped.
+        // Room for the ring to breathe past the card edge without being clipped.
         setPadding(context.dp(12), context.dp(12), context.dp(12), context.dp(12))
     }
 
     fun bind(event: DeviceEvent) {
         val connected = event !is DeviceEvent.Disconnected
-        kind = event.device.kind
-        accent = DeviceAccent.of(kind)
         title.text = DeviceCopy.title(event.device, connected)
         subtitle.text = DeviceCopy.subtitle(event.device, connected)
         contentDescription = "${title.text}. ${subtitle.text}"
-        icon.setImageResource(DeviceIcons.res(kind))
-        icon.setColorFilter(Color.WHITE)
-        icon.alpha = if (connected) 1f else 0.7f
-        disc.background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor((accent and 0x00FFFFFF) or (if (connected) 0x66000000 else 0x33000000))
-            setStroke(context.dp(2), (accent and 0x00FFFFFF) or (if (connected) 0xFF000000.toInt() else 0x80000000.toInt()))
-        }
-        for (r in rings) r.background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(Color.TRANSPARENT)
-            setStroke(context.dp(2), accent)
-        }
-        sweep.accent = accent
+        icon.setImageResource(DeviceIcons.res(event.device.kind))
+        icon.imageTintList = ColorStateList.valueOf(PanelStyle.TEXT)
+        icon.alpha = if (connected) 1f else 0.6f
     }
 
-    /** Plays the kind-specific entrance. [onShown] runs when the card has landed. */
+    /** Fades and slides in; [onShown] runs when the card has landed. */
     fun animateIn(connected: Boolean, onShown: () -> Unit) {
         cancel()
-        val d = if (animationsOn) entranceMs else 0L
-        val slide = context.dp(40).toFloat()
+        val d = entranceMs
+        if (d <= 0) {
+            alpha = 1f; card.translationX = 0f
+            onShown()
+            return
+        }
         alpha = 0f
-        card.translationX = slide
-        medallion.scaleX = 1f; medallion.scaleY = 1f; icon.rotation = 0f
-
+        card.translationX = context.dp(PanelStyle.G3).toFloat()
         val set = AnimatorSet()
-        val parts = ArrayList<Animator>()
-        parts.add(ObjectAnimator.ofFloat(this, ALPHA, 0f, 1f).setDuration(d))
-        when {
-            kind == DeviceKind.USB_STORAGE || kind == DeviceKind.USB_HID_OTHER -> {
-                // Slide in from the edge and settle with a short "plug click" bounce.
-                val kf = PropertyValuesHolder.ofKeyframe(
-                    TRANSLATION_X,
-                    Keyframe.ofFloat(0f, context.dp(120).toFloat()),
-                    Keyframe.ofFloat(0.7f, -context.dp(8).toFloat()),
-                    Keyframe.ofFloat(1f, 0f)
-                )
-                parts.add(ObjectAnimator.ofPropertyValuesHolder(card, kf).setDuration(d).apply { interpolator = DecelerateInterpolator() })
-            }
-            else -> parts.add(ObjectAnimator.ofFloat(card, TRANSLATION_X, slide, 0f).setDuration(d).apply { interpolator = DecelerateInterpolator() })
-        }
-        if (connected && animationsOn) {
-            when {
-                DeviceAccent.isConsole(kind) -> {
-                    medallion.scaleX = 0.4f; medallion.scaleY = 0.4f
-                    val pop = ObjectAnimator.ofPropertyValuesHolder(
-                        medallion,
-                        PropertyValuesHolder.ofFloat(SCALE_X, 0.4f, 1f),
-                        PropertyValuesHolder.ofFloat(SCALE_Y, 0.4f, 1f)
-                    ).setDuration(if (lite) 220L else 320L)
-                    pop.interpolator = OvershootInterpolator(2.2f)
-                    pop.startDelay = if (lite) 20L else 40L
-                    parts.add(pop)
-                    if (!lite) parts.add(sweepAnimator())
-                }
-                kind == DeviceKind.GAMEPAD || kind == DeviceKind.BT_GAMEPAD -> {
-                    val kf = PropertyValuesHolder.ofKeyframe(
-                        ROTATION,
-                        Keyframe.ofFloat(0f, 0f), Keyframe.ofFloat(0.25f, -16f), Keyframe.ofFloat(0.55f, 12f),
-                        Keyframe.ofFloat(0.8f, -6f), Keyframe.ofFloat(1f, 0f)
-                    )
-                    parts.add(ObjectAnimator.ofPropertyValuesHolder(icon, kf).setDuration(if (lite) 320L else 480L).apply { startDelay = d / 2 })
-                }
-                else -> {
-                    medallion.scaleX = 0.8f; medallion.scaleY = 0.8f
-                    parts.add(ObjectAnimator.ofPropertyValuesHolder(
-                        medallion,
-                        PropertyValuesHolder.ofFloat(SCALE_X, 0.8f, 1f),
-                        PropertyValuesHolder.ofFloat(SCALE_Y, 0.8f, 1f)
-                    ).setDuration(d + 60))
-                }
-            }
-        }
-        set.playTogether(parts)
-        set.addListener(object : AnimatorListenerAdapter() {
-            private var cancelled = false
-            override fun onAnimationCancel(a: Animator) { cancelled = true }
-            override fun onAnimationEnd(a: Animator) {
-                running = null
-                if (!cancelled) onShown()
-            }
-        })
-        running = set
-        set.start()
-        if (connected) startPulse(d)
+        set.playTogether(
+            ObjectAnimator.ofFloat(this, ALPHA, 0f, 1f).setDuration(d),
+            ObjectAnimator.ofFloat(card, TRANSLATION_X, card.translationX, 0f).setDuration(d)
+        )
+        set.interpolator = DecelerateInterpolator(2f)
+        run(set, onShown)
+        if (connected) pulse = ringPulse(d).also { it.start() }
     }
 
     fun animateOut(onGone: () -> Unit) {
         cancel()
-        val d = if (animationsOn) exitMs else 0L
+        val d = exitMs
+        if (d <= 0) { alpha = 0f; onGone(); return }
         val set = AnimatorSet()
         set.playTogether(
             ObjectAnimator.ofFloat(this, ALPHA, alpha, 0f).setDuration(d),
-            ObjectAnimator.ofFloat(card, TRANSLATION_X, card.translationX, context.dp(24).toFloat()).setDuration(d)
+            ObjectAnimator.ofFloat(card, TRANSLATION_X, card.translationX, context.dp(PanelStyle.G2).toFloat()).setDuration(d)
         )
         set.interpolator = AccelerateInterpolator()
+        run(set, onGone)
+    }
+
+    private fun run(set: AnimatorSet, then: () -> Unit) {
         set.addListener(object : AnimatorListenerAdapter() {
             private var cancelled = false
             override fun onAnimationCancel(a: Animator) { cancelled = true }
             override fun onAnimationEnd(a: Animator) {
-                running = null
-                if (!cancelled) onGone()
+                if (running === set) running = null
+                if (!cancelled) then()
             }
         })
         running = set
         set.start()
+    }
+
+    /** One soft accent ring that grows and fades around the icon. */
+    private fun ringPulse(delay: Long): Animator {
+        ring.visibility = VISIBLE
+        ring.alpha = 0f
+        return ObjectAnimator.ofPropertyValuesHolder(
+            ring,
+            PropertyValuesHolder.ofFloat(SCALE_X, 1f, 1.6f),
+            PropertyValuesHolder.ofFloat(SCALE_Y, 1f, 1.6f),
+            PropertyValuesHolder.ofFloat(ALPHA, 0.6f, 0f)
+        ).setDuration(((if (lite) 480L else 640L) * scale.coerceAtMost(10f)).toLong()).apply {
+            startDelay = delay
+            interpolator = DecelerateInterpolator()
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) { ring.visibility = INVISIBLE }
+                override fun onAnimationCancel(animation: Animator) { ring.visibility = INVISIBLE }
+            })
+        }
     }
 
     /** Cancels every running animator and resets transient state. */
     fun cancel() {
         running?.cancel(); running = null
         pulse?.cancel(); pulse = null
-        for (r in rings) { r.visibility = INVISIBLE; r.animate().cancel() }
-        sweep.visibility = GONE
-        sweep.animate().cancel()
-    }
-
-    private fun sweepAnimator(): Animator {
-        sweep.visibility = VISIBLE
-        val w = context.dp(120).toFloat()
-        val a = ObjectAnimator.ofFloat(sweep, TRANSLATION_X, -w, context.dp(380).toFloat()).setDuration(620)
-        a.startDelay = 80
-        a.addListener(object : AnimatorListenerAdapter() {
-            override fun onAnimationEnd(animation: Animator) { sweep.visibility = GONE }
-            override fun onAnimationCancel(animation: Animator) { sweep.visibility = GONE }
-        })
-        return a
-    }
-
-    /** One-shot expanding, fading rings around the medallion (3 waves for Bluetooth audio in FULL). */
-    private fun startPulse(delay: Long) {
-        if (ringCount == 0) return
-        val waves = if (!lite && (kind == DeviceKind.BT_HEADPHONES || kind == DeviceKind.BT_SPEAKER)) 3 else ringCount
-        val animators = ArrayList<Animator>()
-        for (i in 0 until waves.coerceAtMost(rings.size)) {
-            val ring = rings[i]
-            ring.visibility = VISIBLE
-            ring.alpha = 0f
-            val a = ObjectAnimator.ofPropertyValuesHolder(
-                ring,
-                PropertyValuesHolder.ofFloat(SCALE_X, 1f, 1.9f),
-                PropertyValuesHolder.ofFloat(SCALE_Y, 1f, 1.9f),
-                PropertyValuesHolder.ofFloat(ALPHA, 0.55f, 0f)
-            ).setDuration(if (lite) 600L else 800L)
-            a.startDelay = delay + i * 220L
-            a.interpolator = DecelerateInterpolator()
-            a.addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: Animator) { ring.visibility = INVISIBLE }
-                override fun onAnimationCancel(animation: Animator) { ring.visibility = INVISIBLE }
-            })
-            animators.add(a)
-        }
-        val set = AnimatorSet()
-        set.playTogether(animators)
-        pulse = set
-        set.start()
+        ring.visibility = INVISIBLE
     }
 
     override fun onDetachedFromWindow() {
@@ -287,28 +175,7 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
         super.onDetachedFromWindow()
     }
 
-    /** Soft horizontal accent band swept once across a console card. */
-    private class SweepView(context: Context) : View(context) {
-        private val paint = Paint()
-        var accent: Int = DeviceAccent.SLATE
-            set(v) { field = v; paint.shader = null; invalidate() }
-
-        override fun onDraw(canvas: Canvas) {
-            if (paint.shader == null) {
-                val mid = (accent and 0x00FFFFFF) or 0x55000000
-                paint.shader = LinearGradient(0f, 0f, width.toFloat(), 0f,
-                    intArrayOf(Color.TRANSPARENT, mid, Color.TRANSPARENT), null, Shader.TileMode.CLAMP)
-            }
-            canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
-        }
-    }
-
     companion object {
         const val HOLD_MS = 2600L
-
-        /** Settings.Global.ANIMATOR_DURATION_SCALE; 1 when unreadable. */
-        fun animatorScale(context: Context): Float = try {
-            Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
-        } catch (e: RuntimeException) { 1f }
     }
 }

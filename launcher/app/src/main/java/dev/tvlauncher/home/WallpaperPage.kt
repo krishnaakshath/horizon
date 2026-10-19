@@ -15,7 +15,9 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import dev.tvlauncher.R
 import dev.tvlauncher.ambient.BitmapRecycler
-import dev.tvlauncher.ambient.BuiltInWallpapers
+import dev.tvlauncher.ambient.AmbientSettingsRows
+import dev.tvlauncher.ambient.UserCollection
+import dev.tvlauncher.ambient.WallpaperCatalog
 import dev.tvlauncher.ambient.UserWallpapers
 import dev.tvlauncher.ambient.WallpaperLoader
 import dev.tvlauncher.ambient.WallpaperPlan
@@ -34,17 +36,17 @@ import dev.tvlauncher.device.EffectsMode
 import dev.tvlauncher.ui.GlassTokens
 import dev.tvlauncher.ui.Theme
 import dev.tvlauncher.ui.Theme.style
-import java.io.File
 
 /**
  * Settings > Ambient > Wallpaper: a normal Settings sub-page in the same glass style as every other
  * page (no overlay panel). One horizontally scrolling strip of wallpaper thumbnails (built-ins,
- * then the user's pictures), a ring on focus and a check on the chosen one; then the wallpaper's
- * own rows ([SPEC]: slideshow, interval, dim, pictures folder). Notification chips, their text and
+ * then the owner's folders), a ring on focus and a check on the chosen one; then the wallpaper's
+ * own rows ([SPEC]: collection, slideshow, interval, dim, your own pictures). Notification chips, their text and
  * the access card live only in the Ambient page's Advanced block.
  *
- * The strip's content comes from the picker data model ([collections]: BuiltInWallpapers,
- * UserWallpapers, WallpaperSource), so new collections show up here as further strip entries.
+ * The strip shows one collection at a time (the "Collection" row picks it) from the picker data
+ * model ([collections]: WallpaperCatalog collections such as Classic and Anime, then the owner's
+ * folders from CollectionScanner), so new collections appear here without code changes.
  * Thumbnails are 320x180 (RGB_565 in LITE), loaded off the main thread and recycled when the page
  * leaves the screen.
  */
@@ -56,22 +58,66 @@ object WallpaperPage {
 
     val SPEC = PageSpec(
         ID,
-        listOf("wallpaper.slideshow", "wallpaper.interval", "wallpaper.dim", "wallpaper.folder")
+        listOf("wallpaper.collection", "wallpaper.slideshow", "wallpaper.interval", "wallpaper.dim", "wallpaper.pictures")
     )
 
     val INTERVALS = intArrayOf(30, 60, 120, 300, 600)
 
+    /** Thumbnails per owner collection in the strip (memory: 320x180 each). */
+    const val MAX_USER_THUMBS = 12
+
     /** One strip entry: what it selects, its label and the colour shown until the thumbnail loads. */
     data class Entry(val source: WallpaperSource, val title: String, val baseColor: Int, val key: String)
 
-    /** A titled group of entries (Built-in, My pictures, ...), in strip order. */
+    /** A titled group of entries (Classic, Anime, an owner folder ...), in strip order. */
     data class Collection(val title: String, val entries: List<Entry>)
 
-    /** The strip's model: built-ins first, then the user's pictures (when there are any). Pure. */
-    fun collections(userFiles: List<File>): List<Collection> {
-        val builtIns = BuiltInWallpapers.ALL.map { Entry(WallpaperSource.BuiltIn(it.id), it.title, it.baseColor, "wallpaper.tile.${it.id}") }
-        val mine = userFiles.map { Entry(WallpaperSource.UserImage(it), it.nameWithoutExtension, Theme.SURFACE, "wallpaper.tile.file.${it.name}") }
-        return listOfNotNull(Collection("Built-in", builtIns), mine.takeIf { it.isNotEmpty() }?.let { Collection("My pictures", it) })
+    /**
+     * The picker data model as strip collections: the built-in catalog collections
+     * ([WallpaperCatalog]), then the owner's folders ([UserCollection]). Pure.
+     */
+    fun collections(user: List<UserCollection>): List<Collection> {
+        val builtIn = WallpaperCatalog.COLLECTIONS.map { name ->
+            Collection(name, WallpaperCatalog.inCollection(name).map {
+                Entry(WallpaperSource.BuiltIn(it.id), it.title, it.baseColor, "wallpaper.tile.${it.id}")
+            })
+        }
+        val mine = user.map { c ->
+            Collection(c.name, c.files.take(MAX_USER_THUMBS).map {
+                Entry(WallpaperSource.UserImage(it), it.nameWithoutExtension, Theme.SURFACE, "wallpaper.tile.${c.name}/${it.name}")
+            })
+        }
+        return builtIn + mine
+    }
+
+    /** The collection [src] belongs to (its index in [all]), 0 when unknown. */
+    fun collectionOf(src: WallpaperSource, all: List<Collection>, user: List<UserCollection>): Int {
+        val name = when (src) {
+            is WallpaperSource.BuiltIn -> WallpaperCatalog.meta(src.id).collection
+            is WallpaperSource.BuiltInSlideshow -> src.collection
+            is WallpaperSource.UserImage -> user.firstOrNull { it.folder == src.file.parentFile }?.name
+            is WallpaperSource.Slideshow -> user.firstOrNull { it.folder == src.folder }?.name
+        }
+        return all.indexOfFirst { it.title == name }.coerceAtLeast(0)
+    }
+
+    /** Slideshow on: of the current picture's collection. Off: that collection's first picture. Pure. */
+    fun toggledSlideshow(src: WallpaperSource, user: List<UserCollection>, interval: Int): WallpaperSource = when (src) {
+        is WallpaperSource.Slideshow ->
+            user.firstOrNull { it.folder == src.folder }?.files?.firstOrNull()?.let { WallpaperSource.UserImage(it) } ?: WallpaperSource.DEFAULT
+        is WallpaperSource.BuiltInSlideshow ->
+            WallpaperSource.BuiltIn(WallpaperCatalog.inCollection(src.collection).firstOrNull()?.id ?: WallpaperSource.DEFAULT_ID)
+        is WallpaperSource.UserImage -> src.file.parentFile?.let { WallpaperSource.Slideshow(it, interval) } ?: src
+        is WallpaperSource.BuiltIn -> WallpaperSource.BuiltInSlideshow(WallpaperCatalog.meta(src.id).collection, interval)
+    }
+
+    fun isSlideshow(src: WallpaperSource) = AmbientSettingsRows.slideInterval(src) != null
+
+    /** [src] with its slideshow interval set to [sec] (other sources unchanged). */
+    fun withInterval(src: WallpaperSource, sec: Int): WallpaperSource = when (src) {
+        is WallpaperSource.Slideshow -> src.copy(intervalSec = sec)
+        is WallpaperSource.BuiltInSlideshow -> src.copy(intervalSec = sec)
+        else -> src
     }
 
     /** Slideshow interval step [delta] from [current] within [INTERVALS]. */
@@ -82,84 +128,113 @@ object WallpaperPage {
 
     fun intervalLabel(sec: Int) = if (sec < 60) "$sec s" else "${sec / 60} min"
 
-    /** Friendly, no developer commands: where the pictures go and what works. */
-    fun folderNote(path: String) =
-        "Copy pictures into the folder ${friendlyPath(path)} with a file manager app.\n" +
-            "JPG, PNG or WebP, up to 8 MB each, ${WallpaperPlan.MAX_FILES} pictures at most."
-
-    /** "Android/data/dev.tvlauncher/files/wallpapers" instead of an absolute /storage/emulated/0/... path. */
-    fun friendlyPath(path: String): String {
-        val i = path.indexOf("Android/")
-        return (if (i >= 0) path.substring(i) else path).trimEnd('/')
-    }
+    /** Friendly, no developer commands: where collections go and what works. */
+    const val FOLDER_NOTE =
+        "Each folder in Pictures/TVLauncher on the TV, or TVLauncher on a USB stick, becomes a collection named after the folder. " +
+            "JPG, PNG or WebP up to 8 MB."
 
     fun build(context: Context, nav: SettingsNav): View {
         val store = WallpaperStore(context)
         var s = store.load()
         val page = SettingsPage(context, nav.style, SPEC)
         val lite = nav.profile.effectsMode == EffectsMode.LITE
+        var user: List<UserCollection> = lastScan
+        var all = collections(user)
+        var shown = collectionOf(s.source, all, user)
         val strip = Strip(context, nav.style, lite) { src ->
             s = store.load().copy(source = src).normalized()
             store.save(s)
-            nav.notify("Wallpaper chosen")
         }
         page.lead("Used by the ambient screen and the screensaver.")
+        lateinit var collectionRow: SettingsRow
+        lateinit var slideshowRow: SettingsRow
+        lateinit var intervalRow: SettingsRow
+        fun showStrip() {
+            strip.show(all.getOrNull(shown)?.entries.orEmpty(), s.source)
+        }
+        collectionRow = page.row("wallpaper.collection", "Collection",
+            RowKind.Choice(all.map { it.title }, shown) { i -> shown = i; showStrip() }, iconRes = R.drawable.ic_set_palette)
         page.add(strip)
-        strip.show(collections(emptyList()), s.source)
+        showStrip()
         page.preferredFocus = strip.keyOf(s.source)
 
-        var userFiles: List<File> = emptyList()
-        val folder = UserWallpapers.folder(context)
-        lateinit var intervalRow: SettingsRow
-        val slideshowRow = page.row("wallpaper.slideshow", "Slideshow of my pictures",
-            RowKind.Toggle(s.source is WallpaperSource.Slideshow) { on ->
-                val cur = store.load()
-                val next = when {
-                    on && folder != null && userFiles.isNotEmpty() ->
-                        cur.copy(source = WallpaperSource.Slideshow(folder, WallpaperPlan.DEFAULT_INTERVAL_SEC))
-                    on -> { nav.notify("Add pictures first (see Pictures folder)"); nav.refresh(); return@Toggle }
-                    else -> cur.copy(source = userFiles.firstOrNull()?.let { WallpaperSource.UserImage(it) } ?: WallpaperSource.DEFAULT)
-                }
-                s = next.normalized()
-                store.save(s)
-                strip.setChosen(s.source)
-                intervalRow.visibility = if (on) View.VISIBLE else View.GONE
-            }, subtitle = "Changes picture on the ambient screen", iconRes = R.drawable.ic_set_motion)
-        val interval = (s.source as? WallpaperSource.Slideshow)?.intervalSec ?: WallpaperPlan.DEFAULT_INTERVAL_SEC
+        slideshowRow = page.row("wallpaper.slideshow", "Slideshow", RowKind.Toggle(isSlideshow(s.source)) { on ->
+            val cur = store.load()
+            if (on == isSlideshow(cur.source)) return@Toggle
+            s = cur.copy(source = toggledSlideshow(cur.source, user, AmbientSettingsRows.slideInterval(cur.source)
+                ?: WallpaperPlan.DEFAULT_INTERVAL_SEC)).normalized()
+            store.save(s)
+            strip.setChosen(s.source)
+            intervalRow.visibility = if (isSlideshow(s.source)) View.VISIBLE else View.GONE
+        }, subtitle = "Cycles through the chosen collection", iconRes = R.drawable.ic_set_tiles)
+        val interval = AmbientSettingsRows.slideInterval(s.source) ?: WallpaperPlan.DEFAULT_INTERVAL_SEC
         intervalRow = page.row("wallpaper.interval", "Change picture every",
             RowKind.Stepper(INTERVALS.indexOfFirst { it >= interval }.coerceAtLeast(0), 0, INTERVALS.size - 1,
                 { intervalLabel(INTERVALS[it]) }) { i ->
                 val cur = store.load()
-                val sl = cur.source as? WallpaperSource.Slideshow ?: return@Stepper
-                s = cur.copy(source = sl.copy(intervalSec = INTERVALS[i])).normalized()
+                s = cur.copy(source = withInterval(cur.source, INTERVALS[i])).normalized()
                 store.save(s)
             }, iconRes = R.drawable.ic_set_clock)
-        intervalRow.visibility = if (s.source is WallpaperSource.Slideshow) View.VISIBLE else View.GONE
+        intervalRow.visibility = if (isSlideshow(s.source)) View.VISIBLE else View.GONE
         page.row("wallpaper.dim", "Dim wallpaper",
             RowKind.Stepper(s.dimPercent / 10, 0, WallpaperSettings.MAX_DIM / 10, { "${it * 10} %" }, bar = true) { v ->
                 s = store.load().copy(dimPercent = v * 10).normalized()
                 store.save(s)
             }, iconRes = R.drawable.ic_set_eye)
-        lateinit var help: TextView
-        lateinit var folderRow: SettingsRow
-        folderRow = page.row("wallpaper.folder", "Pictures folder", RowKind.Action {
-            val open = help.visibility != View.VISIBLE
-            help.visibility = if (open) View.VISIBLE else View.GONE
-            folderRow.setExpanded(open)
-        }, subtitle = "How to add your own pictures", iconRes = R.drawable.ic_set_import)
-        help = page.body.note(folderNote(folder?.path ?: UserWallpapers.DEVICE_PATH), maxLines = 4)
-        help.visibility = View.GONE
-        folderRow.setExpanded(false)
 
-        WallpaperLoader.background({ UserWallpapers.list(folder) }) { files ->
-            if (!page.isAttachedToWindow) return@background
-            userFiles = files
-            strip.show(collections(files), store.load().source)
-            slideshowRow.alpha = if (files.isNotEmpty() || s.source is WallpaperSource.Slideshow) 1f else 0.6f
+        lateinit var help: TextView
+        lateinit var picturesRow: SettingsRow
+        val granted = UserWallpapers.canReadShared(context)
+        picturesRow = page.row("wallpaper.pictures", "Your own pictures",
+            RowKind.Action(if (granted) null else "Allow access") {
+                if (!UserWallpapers.canReadShared(context) && requestPictures(context)) return@Action
+                val open = help.visibility != View.VISIBLE
+                help.visibility = if (open) View.VISIBLE else View.GONE
+                picturesRow.setExpanded(open)
+            }, subtitle = "Folders on the TV or a USB stick", iconRes = R.drawable.ic_set_import)
+        help = page.body.note(FOLDER_NOTE, maxLines = 4)
+        help.visibility = View.GONE
+        if (granted) picturesRow.setExpanded(false)
+
+        fun scan() {
+            val roots = UserWallpapers.roots(context)
+            WallpaperLoader.background({ UserWallpapers.collections(roots) }) { found ->
+                if (!page.isAttachedToWindow || found == lastScan) return@background
+                // New or changed folders: rebuild once with them (the next scan finds no change).
+                lastScan = found
+                nav.refresh()
+            }
         }
-        page.doOnDetach { strip.release() }
+        // Back from the permission dialog (no restart): rescan once access exists.
+        var hadAccess = granted
+        val focusWatch = android.view.ViewTreeObserver.OnWindowFocusChangeListener { has ->
+            if (has && !hadAccess && UserWallpapers.canReadShared(context)) { hadAccess = true; nav.refresh() }
+        }
+        page.viewTreeObserver.addOnWindowFocusChangeListener(focusWatch)
+        page.doOnDetach {
+            strip.release()
+            try { page.viewTreeObserver.removeOnWindowFocusChangeListener(focusWatch) } catch (e: RuntimeException) {}
+        }
+        page.post { scan() }
         return page
     }
+
+    /** Asks for the "Photos and media" permission; false when it cannot be asked here. */
+    private fun requestPictures(context: Context): Boolean {
+        var x: Context? = context
+        while (x is android.content.ContextWrapper) {
+            if (x is android.app.Activity) {
+                return try { x.requestPermissions(arrayOf(UserWallpapers.PERMISSION), REQ_PICTURES); true } catch (e: Exception) { false }
+            }
+            x = x.baseContext
+        }
+        return false
+    }
+
+    private const val REQ_PICTURES = 4711
+
+    /** The last folder scan (small: names and file lists), so a rebuild starts complete. Main thread. */
+    private var lastScan: List<UserCollection> = emptyList()
 
     /**
      * The thumbnail strip. Its own row of focusable tiles inside a HorizontalScrollView (horizontal
@@ -194,10 +269,18 @@ object WallpaperPage {
 
         fun keyOf(src: WallpaperSource): String? = tiles.values.firstOrNull { it.entry.source == src }?.entry?.key
 
-        fun show(collections: List<Collection>, current: WallpaperSource) {
+        /** Shows [entries] (one collection): the previous tiles and their thumbnails are released first. */
+        fun show(entries: List<Entry>, current: WallpaperSource) {
             chosen = current
-            val wanted = collections.flatMap { it.entries }
-            for (e in wanted) if (e.key !in tiles) addTile(e)
+            if (entries.map { it.key } != tiles.keys.toList()) {
+                val hadFocus = hasFocus()
+                release()
+                row.removeAllViews()
+                tiles.clear()
+                scrollTo(0, 0)
+                for (e in entries) addTile(e)
+                if (hadFocus) (tiles.values.firstOrNull { it.entry.source == chosen } ?: tiles.values.firstOrNull())?.requestFocus()
+            }
             tiles.values.forEach { it.refresh() }
         }
 
@@ -216,7 +299,7 @@ object WallpaperPage {
             jobs += when (val src = e.source) {
                 is WallpaperSource.BuiltIn -> WallpaperLoader.builtIn(src.id, size, config = config, done = done)
                 is WallpaperSource.UserImage -> WallpaperLoader.file(src.file, size, config, cover = true, done = done)
-                is WallpaperSource.Slideshow -> return
+                is WallpaperSource.Slideshow, is WallpaperSource.BuiltInSlideshow -> return
             }
         }
 

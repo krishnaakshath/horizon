@@ -6,8 +6,8 @@ import android.widget.FrameLayout
 import dev.tvlauncher.ui.QuickActions
 
 /**
- * Coordinates the home screen's overlay panels: Wi-Fi/Ethernet and Bluetooth ([HomeNetwork]) and
- * Devices ([HomeDevices]). One panel at a time; Spotlight closes (without animation) before a panel
+ * Coordinates the home screen's overlay panels: Wi-Fi/Ethernet and Bluetooth ([HomeNetwork]),
+ * Devices and Inputs ([HomeDevices]). One panel at a time; Spotlight closes (without animation) before a panel
  * opens, and the host keeps Spotlight closed while [isShowing]. Also routes Spotlight's quick
  * actions ([QuickActions.route]).
  *
@@ -42,20 +42,24 @@ class HomePanels(
     /** HOME press / onDestroy: close everything at once. */
     fun release() {
         net.release()
-        devices.onBack()
+        devices.release()
     }
 
     fun onBack(): Boolean = net.onBack() || devices.onBack()
 
     fun openWifi(from: View?) = open { net.showWifi(from) }
     fun openBluetooth(from: View?) = open { net.showBluetooth(from) }
+    fun openDevices(from: View?) = open { devices.showPanel(from) }
+    /** False when the TV has no passthrough inputs (the caller then uses the system input switch). */
+    fun openInputs(from: View?) = open { devices.showInputs(from) }
 
     /** True when the item opened a panel or ambient here; false means "use SystemActions". */
     fun quickAction(item: QuickActions.Item, startAmbient: () -> Boolean): Boolean =
         when (QuickActions.route(item, net.hasBluetooth)) {
             QuickActions.Route.WIFI_PANEL -> openWifi(null)
             QuickActions.Route.BLUETOOTH_PANEL -> openBluetooth(null)
-            QuickActions.Route.DEVICES_PANEL -> open { devices.showPanel() }
+            QuickActions.Route.DEVICES_PANEL -> openDevices(null)
+            QuickActions.Route.INPUTS_PANEL -> openInputs(null)
             QuickActions.Route.AMBIENT -> { sounds.action(startAmbient()); true } // handled here, even on failure
             QuickActions.Route.ROOM_CYCLE, QuickActions.Route.SYSTEM -> false
         }

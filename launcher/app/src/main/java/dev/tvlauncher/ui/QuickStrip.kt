@@ -10,6 +10,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import dev.tvlauncher.R
 import dev.tvlauncher.apps.AppEntry
+import dev.tvlauncher.panel.PanelStyle
 import dev.tvlauncher.ui.Theme.style
 
 /**
@@ -52,7 +53,7 @@ class QuickStrip(
         Glass.track(this)
     }
     private val label = TextView(context).apply {
-        style(Theme.SP_LABEL, Theme.medium)
+        style(PanelStyle.DETAIL_SP, Theme.medium)
         gravity = Gravity.CENTER
         alpha = 0f
     }

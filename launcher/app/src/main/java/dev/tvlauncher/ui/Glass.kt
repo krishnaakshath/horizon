@@ -21,6 +21,9 @@ import android.os.Looper
 import android.view.View
 import android.view.ViewOutlineProvider
 import android.widget.ImageView
+import dev.tvlauncher.audit.AuditTags
+import dev.tvlauncher.audit.auditAddTag
+import dev.tvlauncher.panel.PanelStyle
 import dev.tvlauncher.room.RoomTheme
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -40,17 +43,17 @@ import java.util.concurrent.Executors
  * ([GlassBackdrop.version]) change.
  */
 object Glass {
-    // Legacy constants (kept for callers outside this package).
-    const val FILL_FULL = 0xB8151922.toInt()
-    const val FILL_LITE = 0xE6151922.toInt()
+    // Aliases of the shared panel surface (dev.tvlauncher.panel.PanelStyle), kept for callers.
+    const val FILL_FULL = PanelStyle.SURFACE
+    const val FILL_LITE = PanelStyle.SURFACE_LITE
     const val BORDER = 0x33FFFFFF
     const val HIGHLIGHT = GlassTokens.SHEEN_TOP
     /**
      * Legacy near-opaque panel fills. The frosted card that replaced them is opaque by
      * construction (it paints the backdrop sample first), so content never reads through it.
      */
-    const val PANEL_FULL = 0xF5151922.toInt()
-    const val PANEL_LITE = 0xFC151922.toInt()
+    const val PANEL_FULL = PanelStyle.SURFACE
+    const val PANEL_LITE = PanelStyle.SURFACE_LITE
 
     /** Frosted card on [view] (sets its background; FULL: elevation shadow). Returns the drawable. */
     fun frost(view: View, full: Boolean, radiusDp: Int = GlassTokens.RADIUS_PANEL): GlassDrawable {
@@ -62,6 +65,8 @@ object Glass {
             view.elevation = view.context.dp(GlassTokens.SHADOW_DP).toFloat()
         }
         GlassBackdrop.track(view)
+        // Opaque by construction; clickable cards are focusable on API 26+, so say so explicitly.
+        view.auditAddTag(AuditTags.OPAQUE)
         return d
     }
 

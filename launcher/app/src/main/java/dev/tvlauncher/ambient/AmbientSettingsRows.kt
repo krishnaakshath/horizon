@@ -25,16 +25,18 @@ object AmbientSettingsRows {
     private fun interval(sec: Int) = if (sec < 60) "$sec s" else "${sec / 60} min"
 
     fun rows(s: WallpaperSettings, accessGranted: Boolean): List<Row> {
-        val slide = s.source as? WallpaperSource.Slideshow
+        val slideSec = slideInterval(s.source)
         val wallpaper = when (val src = s.source) {
-            is WallpaperSource.BuiltIn -> src.id.replaceFirstChar { it.uppercase() }
+            is WallpaperSource.BuiltIn -> WallpaperCatalog.meta(src.id).title
             is WallpaperSource.UserImage -> src.file.nameWithoutExtension
-            is WallpaperSource.Slideshow -> "Slideshow of my pictures"
+            is WallpaperSource.Slideshow ->
+                if (src.folder.name == "wallpapers") "Slideshow of my pictures" else "${CollectionScanner.displayName(src.folder.name)} slideshow"
+            is WallpaperSource.BuiltInSlideshow -> "${src.collection} slideshow"
         }
         return listOf(
             Row("wallpaper", "Wallpaper", Kind.ACTION, wallpaper),
             Row("slideshowInterval", "Change picture every", Kind.STEPPER,
-                interval(slide?.intervalSec ?: WallpaperPlan.DEFAULT_INTERVAL_SEC), visible = slide != null),
+                interval(slideSec ?: WallpaperPlan.DEFAULT_INTERVAL_SEC), visible = slideSec != null),
             Row("dim", "Dim wallpaper", Kind.STEPPER, "${s.dimPercent} %"),
             Row("notificationsEnabled", "Notification chips on ambient", Kind.TOGGLE, onOff(s.notificationsEnabled),
                 hint = if (s.notificationsEnabled) null else "Turn on notification chips first"),
@@ -71,9 +73,19 @@ object AmbientSettingsRows {
             val all = ClockPosition.values()
             s.copy(clockPosition = all[Math.floorMod(s.clockPosition.ordinal + delta, all.size)])
         }
-        "slideshowInterval" -> (s.source as? WallpaperSource.Slideshow)
-            ?.let { s.copy(source = it.copy(intervalSec = stepIn(INTERVALS, it.intervalSec, delta))) } ?: s
+        "slideshowInterval" -> when (val src = s.source) {
+            is WallpaperSource.Slideshow -> s.copy(source = src.copy(intervalSec = stepIn(INTERVALS, src.intervalSec, delta)))
+            is WallpaperSource.BuiltInSlideshow -> s.copy(source = src.copy(intervalSec = stepIn(INTERVALS, src.intervalSec, delta)))
+            else -> s
+        }
         else -> s
+    }
+
+    /** Interval of a slideshow source (pictures or built-ins), else null. */
+    fun slideInterval(src: WallpaperSource): Int? = when (src) {
+        is WallpaperSource.Slideshow -> src.intervalSec
+        is WallpaperSource.BuiltInSlideshow -> src.intervalSec
+        else -> null
     }
 
     private fun stepIn(steps: IntArray, current: Int, delta: Int): Int {

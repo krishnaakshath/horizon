@@ -113,7 +113,8 @@ class HomeActivity : Activity() {
             this,
             onNetwork = { v -> modules.openWifi(v) },
             onBluetooth = { v -> modules.openBluetooth(v) },
-            onInputs = { sounds.action(SystemActions.inputs(this)) },
+            // The Inputs pill opens the Inputs panel; a TV without inputs keeps the system switch.
+            onInputs = { if (!modules.panels.openInputs(topBar.inputsButton)) sounds.action(SystemActions.inputs(this)) },
             onSettings = { if (SystemActions.launcherSettings(this)) sounds.action(true) else openSpotlight() },
             onSettingsLongPress = { tileMenu.showDockMenu(visiblePackages(), installed); sounds.menuOpen() },
             onDown = ::onTopBarDown
@@ -276,12 +277,12 @@ class HomeActivity : Activity() {
         return true
     }
 
-    /** MENU / SEARCH toggle Spotlight from anywhere on the home screen (including its search field). */
+    /** MENU / SEARCH toggle Spotlight from anywhere on the home screen (including its search field), not over the tile menu. */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (redirected) return super.dispatchKeyEvent(event)
         modules.onUserActivity() // any key, repeats included, resets the ambient idle timer
         sounds.onKey(event)
-        if (!SpotlightKeys.isToggleKey(event.keyCode)) return super.dispatchKeyEvent(event)
+        if (!SpotlightKeys.togglesSpotlight(event.keyCode, tileMenu.isVisible)) return super.dispatchKeyEvent(event)
         if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
             if (spotlight.isOpen) { spotlight.close(); sounds.panel(opened = false) } else openSpotlight()
         }

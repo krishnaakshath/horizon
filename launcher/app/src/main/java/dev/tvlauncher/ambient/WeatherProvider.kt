@@ -16,6 +16,8 @@ class ContentProviderWeatherSource(context: Context) : WeatherSource {
     override fun queryCurrent(): List<Map<String, Any?>>? = query(WeatherContract.CURRENT_URI)
     override fun queryDaily(): List<Map<String, Any?>>? = query(WeatherContract.DAILY_URI)
 
+    override fun isInstalled(): Boolean = installed()
+
     private fun installed(): Boolean = try {
         app.packageManager.resolveContentProvider(WeatherContract.AUTHORITY, 0) != null
     } catch (e: Exception) {

@@ -78,3 +78,38 @@ object AmbientLayoutModel {
         )
     }
 }
+
+/**
+ * Keeps the ambient clock on one line at its full text, whatever the format, font or screen.
+ *
+ * Root cause of the "01..." clock: the clock TextView sat in a WRAP_CONTENT vertical LinearLayout
+ * with the default (MATCH_PARENT) width. LinearLayout ignores MATCH_PARENT children when it sizes
+ * itself, so the block took the width of the date line and the clock was squeezed into it and
+ * ellipsized. The clock now wraps its own text and, as a guard, [fitSp] shrinks it when even the
+ * widest possible time would not fit the content box.
+ */
+object ClockFit {
+    /**
+     * Upper-bound sample for a clock pattern: every digit replaced by the widest digit of the font
+     * ([widestDigit]); a 12-hour clock's first hour digit is at most "1".
+     */
+    fun widestSample(h24: Boolean, widestDigit: Char): String {
+        val d = widestDigit
+        return if (h24) "$d$d:$d$d" else "1$d:$d$d"
+    }
+
+    /** The widest of '0'..'9' by [advance]. */
+    fun widestDigit(advance: (Char) -> Float): Char = ('0'..'9').maxByOrNull(advance) ?: '0'
+
+    /**
+     * Largest size <= [baseSp] (in 2 sp steps, never below [minSp]) at which [widthAtSp] fits
+     * [availablePx]. Text width scales linearly with the size, so this is one division.
+     */
+    fun fitSp(baseSp: Float, minSp: Float, availablePx: Int, widthAtSp: (Float) -> Float): Float {
+        if (availablePx <= 0) return baseSp
+        val w = widthAtSp(baseSp)
+        if (w <= availablePx) return baseSp
+        val scaled = baseSp * availablePx / w
+        return maxOf(minSp, kotlin.math.floor(scaled / 2f) * 2f)
+    }
+}

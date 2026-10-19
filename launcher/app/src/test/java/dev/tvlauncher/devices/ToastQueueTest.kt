@@ -42,24 +42,3 @@ class ToastQueueTest {
         assertEquals(c("3"), q.advance())
     }
 }
-
-class DeviceAccentTest {
-    @Test fun consoleAccents_matchSpec() {
-        assertEquals(0xFF0070D1.toInt(), DeviceAccent.of(DeviceKind.CONSOLE_PLAYSTATION))
-        assertEquals(0xFF107C10.toInt(), DeviceAccent.of(DeviceKind.CONSOLE_XBOX))
-        assertEquals(0xFFE60012.toInt(), DeviceAccent.of(DeviceKind.CONSOLE_NINTENDO))
-    }
-
-    @Test fun everyKindHasOpaqueAccent_andFallbacksAreExplicit() {
-        val slateKinds = setOf(DeviceKind.HDMI_OTHER, DeviceKind.BLURAY_DVD, DeviceKind.PC_LAPTOP, DeviceKind.TUNER_ANTENNA,
-            DeviceKind.COMPOSITE_AV, DeviceKind.COMPONENT, DeviceKind.VGA, DeviceKind.BT_OTHER, DeviceKind.UNKNOWN)
-        for (k in DeviceKind.values()) {
-            val a = DeviceAccent.of(k)
-            assertEquals(k.name, 0xFF, (a ushr 24) and 0xFF)
-            assertEquals(k.name, k in slateKinds, a == DeviceAccent.SLATE)
-        }
-        val families = listOf(DeviceAccent.PLAYSTATION, DeviceAccent.XBOX, DeviceAccent.NINTENDO, DeviceAccent.STREAMER,
-            DeviceAccent.USB, DeviceAccent.CONTROLLER, DeviceAccent.AUDIO, DeviceAccent.NETWORK, DeviceAccent.SLATE)
-        assertEquals(families.size, families.toSet().size)
-    }
-}

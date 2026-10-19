@@ -26,6 +26,8 @@ import dev.tvlauncher.devices.DeviceMonitor
 import dev.tvlauncher.devices.DevicesPanel
 import dev.tvlauncher.discover.DiscoverSettingsRows
 import dev.tvlauncher.discover.DiscoverStore
+import dev.tvlauncher.discover.GetAppsLink
+import dev.tvlauncher.discover.StoreLauncher
 import dev.tvlauncher.discover.RegionGuess
 import dev.tvlauncher.nowplaying.NowPlayingAccess
 import java.util.Locale
@@ -52,7 +54,12 @@ object WaveTwoSections {
     }
 
     /** Value of the "Weather" row: the companion's settings open when it is installed. */
-    fun weatherRowValue(installed: Boolean): String = if (installed) "Open" else "Not installed"
+    /** Installed: "Open" (its settings). Missing: "Get Weather" through Get Apps, else "Not installed". */
+    fun weatherRowValue(installed: Boolean, getAppsInstalled: Boolean = false): String = when {
+        installed -> "Open"
+        getAppsInstalled -> "Get Weather"
+        else -> "Not installed"
+    }
 
     enum class PageKind { ACTION, TOGGLE, STEPPER, CARD, INFO }
 
@@ -178,7 +185,7 @@ object DevicesSection : SettingsSection {
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val panel = DevicesPanel(context)
-        panel.onSwitchResult = { ok -> if (!ok) nav.notify("Could not open input") }
+        // A failed switch shows inline in the list.
         val monitor = DeviceMonitor(context) { } // the list only; cards belong to the home screen
         return object : FrameLayout(context) {
             override fun onAttachedToWindow() {
@@ -216,11 +223,16 @@ object HomeExtrasSection : SettingsSection, SpecifiedPage {
             extras.weatherInTopBar = on
         }, subtitle = "Icon and temperature next to the clock; hidden when the data is over 3 hours old")
         val intent = WeatherCompanion.settingsIntent(context)
-        val value = WaveTwoSections.weatherRowValue(intent != null)
+        val getApps = intent == null && StoreLauncher.isGetAppsInstalled(context)
+        val value = WaveTwoSections.weatherRowValue(intent != null, getApps)
         if (intent != null) {
             page.row("home.weather", "Weather", RowKind.Action(value) {
                 if (!SystemActions.start(context, intent)) nav.notify("Weather settings could not be opened")
-            }, subtitle = "City and units, in the weather companion")
+            }, subtitle = "City and units, in the Weather app")
+        } else if (getApps) {
+            page.row("home.weather", "Weather", RowKind.Action(value) {
+                if (!StoreLauncher.openApp(context, GetAppsLink.PACKAGE)) nav.notify(StoreLauncher.GET_APPS_MISSING_TEXT)
+            }, subtitle = "Install the Weather app from Get Apps to show weather here")
         } else {
             page.row("home.weather", "Weather", RowKind.Info(value),
                 subtitle = "Install the weather companion (${WeatherContract.PACKAGE}) to use it")

@@ -420,3 +420,39 @@ object HomeFixture {
         return t
     }
 }
+
+/** `audit:opaque` cards (frosted glass, panel cards) hide what is beneath them even when clickable. */
+class AuditOpaqueCardTest {
+    private fun audit(t: Tree) = AuditEngine.audit(t.nodes, 1280, 720, 1f)
+
+    private fun panelOverHero(tag: String?, bgKnown: Boolean): List<Finding> {
+        val t = Tree.screen()
+        t.text(0, 100, 200, 600, 260, "Netflix") // hero text, drawn first
+        val scrim = t.frame(0, 0, 0, 1280, 720, tag = AuditTags.SCRIM, bg = 0.55f)
+        // A clickable card (focusable on API 26+) with a custom drawable whose opacity is unknown.
+        val card = t.add(scrim, "android.widget.LinearLayout", 80, 150, 700, 600, focusable = true, tag = tag, bg = 1f, bgKnown = bgKnown)
+        t.text(card, 100, 210, 680, 250, "Connected · Excellent signal")
+        return audit(t)
+    }
+
+    @Test
+    fun untaggedClickableCard_reportsHighOverlaps() {
+        assertTrue(panelOverHero(null, bgKnown = false).any { it.severity == Severity.HIGH })
+    }
+
+    @Test
+    fun taggedCard_yieldsNoHighOverlaps() {
+        val f = panelOverHero(AuditTags.OPAQUE, bgKnown = false)
+        assertTrue(f.toString(), f.none { it.severity == Severity.HIGH })
+        assertTrue(f.none { it.kind == Kind.OVERLAP })
+    }
+
+    @Test
+    fun taggedCard_fadedOut_doesNotHide() {
+        val t = Tree.screen()
+        t.text(0, 100, 200, 600, 260, "Netflix")
+        val card = t.add(0, "android.widget.LinearLayout", 80, 150, 700, 600, tag = AuditTags.OPAQUE, bg = 1f, alpha = 0.5f)
+        t.text(card, 100, 210, 680, 250, "Row")
+        assertTrue(audit(t).any { it.kind == Kind.OVERLAP })
+    }
+}

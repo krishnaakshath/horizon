@@ -92,8 +92,10 @@ object AuditEngine {
         fun hasText(n: Node) = !n.text.isNullOrBlank()
         /** Text or focusable: the "strong" content whose collisions are HIGH. */
         fun strong(n: Node) = hasText(n) || n.focusable
-        fun content(n: Node) = strong(n) || AuditTokens.CONTENT in own.getValue(n.id) ||
-            c.contentClassHints.any { n.cls.contains(it) }
+        /** An `audit:opaque` card: an occluder, never content itself (unless it shows text). */
+        fun opaqueCard(n: Node) = AuditTokens.OPAQUE in own.getValue(n.id)
+        fun content(n: Node) = !(opaqueCard(n) && !hasText(n)) && (strong(n) || AuditTokens.CONTENT in own.getValue(n.id) ||
+            c.contentClassHints.any { n.cls.contains(it) })
         fun shown(n: Node) = n.visible && n.width > 0 && n.height > 0
         fun opaque(n: Node) = n.visible && n.bgKnown && n.bgAlpha >= c.opaqueAlpha && n.alpha >= c.opaqueAlpha
         fun translucent(n: Node) = n.bgKnown && n.bgAlpha >= c.seeThroughMinAlpha && n.bgAlpha < c.opaqueAlpha
@@ -246,7 +248,8 @@ object AuditEngine {
             val x = lca(upper, lower)
             for (a in anc.getValue(upper.id)) {
                 if (a.id == x?.id) break
-                if (!content(a) && opaque(a) && rect(a).contains(area)) return true
+                val hides = if (opaqueCard(a)) a.visible && a.alpha >= c.opaqueAlpha else !content(a) && opaque(a)
+                if (hides && rect(a).contains(area)) return true
             }
             return false
         }

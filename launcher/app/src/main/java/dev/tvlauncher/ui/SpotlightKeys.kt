@@ -11,6 +11,9 @@ object SpotlightKeys {
 
     fun isToggleKey(code: Int): Boolean = code == KeyEvent.KEYCODE_MENU || code == KeyEvent.KEYCODE_SEARCH
 
+    /** MENU / SEARCH toggle Spotlight, except while the tile menu is on screen. */
+    fun togglesSpotlight(code: Int, tileMenuVisible: Boolean): Boolean = isToggleKey(code) && !tileMenuVisible
+
     /** DPAD_DOWN on a shelf tile enters a visible quick-strip, otherwise opens Spotlight. */
     fun onTileDown(stripVisible: Boolean): TileDown = if (stripVisible) TileDown.STRIP else TileDown.SPOTLIGHT
 
