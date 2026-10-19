@@ -8,6 +8,23 @@ enum class AnimationLevel { AUTO, FULL, LITE, OFF }
 
 enum class TileSize { SMALL, MEDIUM, LARGE }
 
+/**
+ * How glass surfaces look (Settings > Appearance > Glass style). LIQUID: Apple-style liquid glass
+ * (lensing rim, specular highlights, springy shapes); FROSTED: blurred translucent panels; CLEAR:
+ * light translucent glass with a scrim behind text; SOLID: the old near-opaque cards.
+ */
+enum class GlassStyle(val label: String) {
+    LIQUID("Liquid Glass"), FROSTED("Frosted"), CLEAR("Clear"), SOLID("Solid");
+
+    companion object {
+        /** Liquid Glass on capable TVs; Clear (with its text scrim) on LITE ones. */
+        fun default(full: Boolean): GlassStyle = if (full) LIQUID else CLEAR
+
+        /** [chosen] (null = never picked) resolved for this TV. */
+        fun resolve(chosen: GlassStyle?, full: Boolean): GlassStyle = chosen ?: default(full)
+    }
+}
+
 /** AUTO follows the TV's own 12/24-hour setting. */
 enum class ClockFormat { AUTO, H24, H12 }
 
@@ -23,7 +40,9 @@ data class AppearanceSettings(
     val clockFormat: ClockFormat = ClockFormat.AUTO,
     val showDate: Boolean = true,
     val showStatusIcons: Boolean = true,
-    val rowTileSize: TileSize = TileSize.MEDIUM
+    val rowTileSize: TileSize = TileSize.MEDIUM,
+    /** Null until the user picks one: [GlassStyle.default] for the TV then. */
+    val glassStyle: GlassStyle? = null
 ) {
     fun toJson(): String = JSONObject().apply {
         put("version", VERSION)
@@ -34,6 +53,7 @@ data class AppearanceSettings(
         put("showDate", showDate)
         put("showStatusIcons", showStatusIcons)
         put("rowTileSize", rowTileSize.name)
+        glassStyle?.let { put("glassStyle", it.name) }
     }.toString()
 
     companion object {
@@ -68,7 +88,8 @@ data class AppearanceSettings(
                     clockFormat = clockFormatOf(json),
                     showDate = boolOr(json, "showDate", d.showDate),
                     showStatusIcons = boolOr(json, "showStatusIcons", d.showStatusIcons),
-                    rowTileSize = enumOr(json, "rowTileSize", d.rowTileSize)
+                    rowTileSize = enumOr(json, "rowTileSize", d.rowTileSize),
+                    glassStyle = (json.opt("glassStyle") as? String)?.let { raw -> GlassStyle.values().firstOrNull { it.name == raw } }
                 )
             } catch (e: Exception) {
                 d

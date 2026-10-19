@@ -17,6 +17,9 @@ import dev.tvlauncher.R
  * - [OPAQUE]: a card that hides everything beneath it (frosted glass, panel cards): an occluder even
  *   when it is clickable (API 26+ makes clickable views focusable) or its drawable's opacity cannot be
  *   read, and never content itself.
+ * - [GLASS]: a glass card that may be translucent (Settings > Appearance > Glass style). Never
+ *   content itself; what is beneath it is hidden when its coverage (its drawable's [AuditOpacity])
+ *   together with the scrims between them leaves less than AuditConfig.glassLeakMax showing.
  *
  * Usage: `view.auditTag(AuditTags.LAYER)` or `view.auditTag(AuditTags.FULLBLEED, AuditTags.LAYER)`.
  */
@@ -28,9 +31,15 @@ object AuditTags {
     const val CONTENT = "audit:content"
     const val SCRIM = "audit:scrim"
     const val OPAQUE = "audit:opaque"
+    const val GLASS = "audit:glass"
 
     /** The key for [View.setTag]/[View.getTag]; frees the plain `view.tag` for app use. */
     val KEY: Int get() = R.id.audit_tag
+}
+
+/** A drawable whose real coverage (0..1) the debug auditor should read instead of guessing. */
+interface AuditOpacity {
+    val auditAlpha: Float
 }
 
 /** Marks this view for the layout auditor; a plain keyed string tag, inert in release. */

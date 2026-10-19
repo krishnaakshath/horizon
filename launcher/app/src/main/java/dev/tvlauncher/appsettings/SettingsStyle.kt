@@ -54,8 +54,14 @@ data class SettingsStyle(val accent: Int, val motion: EffectsMode?) {
         const val FOCUS_TINT = 0.26f
 
         /** Settings has no focused app, so "auto from brand" uses the launcher's default accent. */
-        fun accentOf(a: AppearanceSettings): Int =
-            if (a.accentMode == AccentMode.FIXED) a.fixedAccent else AppearanceSettings.DEFAULT_ACCENT
+        fun accentOf(a: AppearanceSettings): Int {
+            val fixed = a.accentMode == AccentMode.FIXED
+            val color = a.fixedAccent
+            return when (fixed) {
+                true -> color
+                false -> AppearanceSettings.DEFAULT_ACCENT
+            }
+        }
 
         fun from(a: AppearanceSettings, device: EffectsMode, systemAnimatorScale: Float) =
             SettingsStyle(accentOf(a), EffectiveMode.resolve(a.animationLevel, device, systemAnimatorScale))

@@ -48,6 +48,7 @@ object ViewTreeSnapshotter {
         val cur = try { d.current ?: d } catch (t: Throwable) { d }
         return try {
             when (cur) {
+                is AuditOpacity -> cur.auditAlpha.coerceIn(0f, 1f) * (cur.alpha / 255f) to true
                 is ColorDrawable -> Color.alpha(cur.color) / 255f to true
                 is GradientDrawable -> {
                     val colors = cur.colors
