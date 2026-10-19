@@ -9,10 +9,14 @@ class UrlResolverTest {
 
     @Test fun bareWord_searches() {
         assertEquals(UrlResolver.SEARCH_PREFIX + "weather", UrlResolver.resolve("weather"))
-        assertEquals(UrlResolver.SEARCH_PREFIX + "tv+shows+2026", UrlResolver.resolve("  tv shows 2026 "))
-        assertEquals(UrlResolver.SEARCH_PREFIX + "c%2B%2B+%26+more", UrlResolver.resolve("c++ & more"))
+        assertEquals(UrlResolver.SEARCH_PREFIX + "tv%20shows%202026", UrlResolver.resolve("  tv shows 2026 "))
+        assertEquals(UrlResolver.SEARCH_PREFIX + "c%2B%2B%20%26%20more", UrlResolver.resolve("c++ & more"))
         // A dot with spaces is still a search.
-        assertEquals(UrlResolver.SEARCH_PREFIX + "node.js+tutorial", UrlResolver.resolve("node.js tutorial"))
+        assertEquals(UrlResolver.SEARCH_PREFIX + "node.js%20tutorial", UrlResolver.resolve("node.js tutorial"))
+    }
+
+    @Test fun searchEngine_selectable() {
+        assertEquals("https://www.google.com/search?q=tv", UrlResolver.resolve("tv", dev.tvlauncher.browser.net.SearchEngine.GOOGLE))
     }
 
     @Test fun searchEngine_isDuckDuckGo() {

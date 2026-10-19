@@ -36,7 +36,7 @@ class CursorModel(width: Float, height: Float, private val density: Float = 1f) 
     fun move(dir: Dir): Step {
         if (heldDir != dir) {
             heldDir = dir
-            speed = START_DP * density
+            speed = START_DP * density * speedFactor
         }
         val d = speed
         var scroll = 0f
@@ -54,13 +54,23 @@ class CursorModel(width: Float, height: Float, private val density: Float = 1f) 
                 y = ny.coerceAtMost(maxY)
             }
         }
-        speed = (speed + RAMP_DP * density).coerceAtMost(MAX_DP * density)
+        speed = (speed + RAMP_DP * density * speedFactor).coerceAtMost(MAX_DP * density * speedFactor)
         return Step(x, y, scroll)
+    }
+
+    /** Scales the whole ramp (cursor speed setting, 0.5x-2x). */
+    var speedFactor = 1f
+        set(v) { field = v.coerceIn(0.25f, 4f); if (heldDir == null) speed = START_DP * density * field }
+
+    /** Small programmatic move (magnetic snapping), clamped. */
+    fun nudge(dx: Float, dy: Float) {
+        x = (x + dx).coerceIn(0f, maxX)
+        y = (y + dy).coerceIn(0f, maxY)
     }
 
     fun release() {
         heldDir = null
-        speed = START_DP * density
+        speed = START_DP * density * speedFactor
     }
 
     companion object {

@@ -1,6 +1,5 @@
 package dev.tvlauncher.browser
 
-import java.net.URLEncoder
 import java.util.Locale
 
 /**
@@ -17,7 +16,7 @@ object UrlResolver {
     private val SCHEME = Regex("^([a-zA-Z][a-zA-Z0-9+.-]*):(.*)$", RegexOption.DOT_MATCHES_ALL)
     private val HOST_PORT = Regex("^[0-9]+(/.*)?$", RegexOption.DOT_MATCHES_ALL)
 
-    fun resolve(input: String): String {
+    fun resolve(input: String, engine: dev.tvlauncher.browser.net.SearchEngine = dev.tvlauncher.browser.net.SearchEngine.DUCKDUCKGO): String {
         val text = input.trim()
         if (text.isEmpty()) return HOME_PAGE
         val m = SCHEME.matchEntire(text)
@@ -28,7 +27,7 @@ object UrlResolver {
         return if (!hasSpace && text.contains('.') && !text.startsWith('.') && !text.endsWith('.')) {
             "https://$text"
         } else {
-            SEARCH_PREFIX + URLEncoder.encode(text, "UTF-8")
+            dev.tvlauncher.browser.net.SearchEngines.urlFor(engine, text)
         }
     }
 

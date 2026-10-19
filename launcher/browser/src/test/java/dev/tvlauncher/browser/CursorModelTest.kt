@@ -89,3 +89,24 @@ class CursorModelTest {
         assertEquals(CursorModel.EDGE_SCROLL_DP * d, steps.scrollY, eps)
     }
 }
+
+class CursorModelSpeedTest {
+    @Test fun speedFactor_scalesRamp() {
+        val m = CursorModel(4000f, 4000f, density = 1f)
+        m.speedFactor = 2f
+        assertEquals(CursorModel.START_DP * 2f, m.speed, 0.001f)
+        repeat(50) { m.move(CursorModel.Dir.RIGHT) }
+        assertEquals(CursorModel.MAX_DP * 2f, m.speed, 0.001f)
+        m.speedFactor = 0.5f
+        m.release()
+        assertEquals(CursorModel.START_DP * 0.5f, m.speed, 0.001f)
+    }
+
+    @Test fun nudge_movesAndClamps() {
+        val m = CursorModel(100f, 100f)
+        m.nudge(5f, -3f)
+        assertEquals(55f, m.x, 0.001f); assertEquals(47f, m.y, 0.001f)
+        m.nudge(1000f, 1000f)
+        assertEquals(99f, m.x, 0.001f); assertEquals(99f, m.y, 0.001f)
+    }
+}
