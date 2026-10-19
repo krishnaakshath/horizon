@@ -27,6 +27,8 @@ import dev.tvlauncher.store.core.ComponentRisk
 import dev.tvlauncher.store.core.DisplayText
 import dev.tvlauncher.store.core.HashExpectation
 import dev.tvlauncher.store.core.InstallFallbackPolicy
+import dev.tvlauncher.store.core.InstallOutcomeResolver
+import dev.tvlauncher.store.core.ReviewModel
 import dev.tvlauncher.store.core.InstalledState
 import dev.tvlauncher.store.core.ReceiverTokenPolicy
 import dev.tvlauncher.store.core.FdroidApp
@@ -119,7 +121,9 @@ class StoreActivity : Activity(), Installer.Listener {
     private var pendingJob: DownloadJob? = null
     private var pendingInspected: Inspected? = null
     /** The install handed to Android, kept apart from [pendingFile] so a late result is attributed correctly. */
-    private class Installing(val file: File, val inspected: Inspected, val job: DownloadJob)
+    private class Installing(val file: File, val inspected: Inspected, val job: DownloadJob) {
+        var committedAt: Long = System.currentTimeMillis()
+    }
     private var installing: Installing? = null
     private var fallbackStartedAt = 0L
 
@@ -131,7 +135,11 @@ class StoreActivity : Activity(), Installer.Listener {
         inspector = ApkInspector(this)
         fdroid = FdroidRepository(files, http)
         github = GithubRepository(http)
-        if (Installer.currentToken == null) ApkDownloader.cleanStale(this)
+        if (Installer.currentToken == null) {
+            // Nothing in flight: abandon our leftover sessions (e.g. after process death) and stale downloads.
+            Installer.abandonStaleSessions(this)
+            ApkDownloader.cleanStale(this)
+        }
         root = FrameLayout(this)
         root.setBackgroundColor(Kit.BASE)
         setContentView(root)
@@ -429,7 +437,7 @@ class StoreActivity : Activity(), Installer.Listener {
             "Download size" to Format.size(app.size),
             "SHA-256 (from F-Droid)" to Sha256Stream.short(app.sha256),
             "Signer (from F-Droid)" to (app.signerSha256?.let { SignerCompare.shortFingerprint(it) } ?: "not published"),
-            "Categories" to app.categories.joinToString(", ").ifEmpty { "—" },
+            "Categories" to DisplayText.sanitize(app.categories.joinToString(", "), 120).ifEmpty { "—" },
         )), lp())
         if (!app.tvReady) body.addView(callout("F-Droid doesn't list this app as made for TV. It may need a mouse or touch screen.", Kit.WARN, Kit.WARN_BG))
         if (app.antiFeatures.isNotEmpty()) {
@@ -646,7 +654,7 @@ class StoreActivity : Activity(), Installer.Listener {
                 InstalledRecord.Source.GITHUB -> "GitHub · ${r.ref}"
                 InstalledRecord.Source.LINK -> "Link"
             }
-            val ver = info?.versionName ?: "not installed"
+            val ver = info?.let { DisplayText.sanitize(it.versionName, ReviewModel.VERSION_MAX).ifEmpty { "?" } } ?: "not installed"
             mid.addView(text("$src · $ver", 14f, if (info == null) Kit.WARN else Kit.TEXT_2))
             row.addView(mid, lp(0, weight = 1f))
             if (info != null) {
@@ -705,9 +713,9 @@ class StoreActivity : Activity(), Installer.Listener {
                     app == null -> showInfo("Not in the catalog", "F-Droid doesn't currently offer a version of this app for this TV.")
                     app.versionCode > installedCode -> {
                         modal = null
-                        push(Screen.FdroidDetail(app, "Update available: ${info?.versionName ?: "?"} → ${app.versionName}"))
+                        push(Screen.FdroidDetail(app, "Update available: ${DisplayText.sanitize(info?.versionName, ReviewModel.VERSION_MAX).ifEmpty { "?" }} → ${app.versionName}"))
                     }
-                    else -> showInfo("You're up to date", "${r.label} ${info?.versionName ?: ""} is the newest version on F-Droid for this TV.")
+                    else -> showInfo("You're up to date", "${r.label} ${DisplayText.sanitize(info?.versionName, ReviewModel.VERSION_MAX)} is the newest version on F-Droid for this TV.")
                 }
             }
             InstalledRecord.Source.GITHUB -> {
@@ -857,9 +865,11 @@ class StoreActivity : Activity(), Installer.Listener {
         }
         for (w in review.warnings) left.addView(callout(w, Kit.WARN, Kit.WARN_BG, 14f))
 
-        val installedVer = if (review.isUpdate) inspector.installedInfo(f.packageName ?: "")?.versionName else null
+        val model = ReviewModel.build(f)
+        val installedVer = if (review.isUpdate) inspector.installedInfo(f.packageName ?: "")?.versionName
+            ?.let { DisplayText.sanitize(it, ReviewModel.VERSION_MAX) } else null
         left.addView(facts(listOfNotNull(
-            "Version" to "${f.versionName ?: "?"} (${f.versionCode})",
+            "Version" to model.versionText,
             installedVer?.let { "Installed now" to it },
             "Size" to Format.size(ins.fileSize),
             "SHA-256" to Sha256Stream.short(ins.sha256) + if (ins.hashVerified) "  ✓ matches source" else "",
@@ -870,6 +880,19 @@ class StoreActivity : Activity(), Installer.Listener {
             },
             "From" to (hostOf(job.url) ?: job.url),
         )), lp())
+
+        // Sensitive capabilities stay visible right next to the action (up to 5, then "and N more").
+        if (model.leftCapabilities.isNotEmpty()) {
+            val capList = vertical(this, 4)
+            for (c in model.leftCapabilities) {
+                val color = if (c.severity == ComponentRisk.Severity.HIGH) Kit.DANGER else Kit.WARN
+                capList.addView(text("▲  " + c.text, 15f, color, Kit.medium))
+            }
+            if (model.leftMore > 0) capList.addView(text("and ${model.leftMore} more (see the list on the right)", 13f, Kit.TEXT_2))
+            capList.setPadding(dp(16), dp(10), dp(16), dp(10))
+            capList.background = rounded(Kit.DANGER_BG, Kit.RADIUS_SMALL)
+            left.addView(capList, lp())
+        }
 
         val actions = horizontal(this, 14)
         val install = button(if (review.isUpdate) "Install update" else "Install", ButtonKind.PRIMARY) { confirmInstall() }
@@ -883,39 +906,43 @@ class StoreActivity : Activity(), Installer.Listener {
         left.addView(actions)
         cancel.primaryFocus()
 
-        val perms = PermissionRisk.sort(f.permissions)
         val right = vertical(this, 8)
-        // Capabilities first (they never appear as permissions), then permissions riskiest-first.
+        // Our own summary first, then capabilities (they never appear as permissions), then permissions.
         right.addView(text(
             if (review.sensitiveCount > 0) InstallReview.summary(review.sensitiveCount) else "No sensitive capabilities or permissions",
             15f, if (review.sensitiveCount > 0) Kit.WARN else Kit.TEXT_2, Kit.medium,
         ))
-        for (c in f.capabilities) {
-            val color = when (c.severity) {
-                ComponentRisk.Severity.HIGH -> Kit.DANGER
-                ComponentRisk.Severity.MEDIUM -> Kit.WARN
-                ComponentRisk.Severity.INFO -> Kit.TEXT_2
-            }
+        for (c in model.sensitiveCapabilities) {
+            val color = if (c.severity == ComponentRisk.Severity.HIGH) Kit.DANGER else Kit.WARN
             val r = vertical(this, 2)
-            r.addView(text("▲  " + c.text, 15f, if (c.severity == ComponentRisk.Severity.INFO) Kit.TEXT else color, Kit.medium))
+            r.addView(text("▲  " + c.text, 15f, color, Kit.medium))
             r.addView(text("Declares a component protected by ${c.key}", 11f, Kit.TEXT_3, Kit.mono).apply { maxLines = 1; setPadding(dp(20), 0, 0, 0) })
             right.addView(r, lp())
         }
-        right.addView(text(if (perms.isEmpty()) "Requests no permissions" else "Permissions (${perms.size})", 17f, Kit.TEXT, Kit.medium)
-            .apply { setPadding(0, dp(6), 0, 0) })
-        for (p in perms) {
-            val level = PermissionRisk.classify(p)
-            val color = when (level) {
+        if (model.infoCapabilities.isNotEmpty()) {
+            right.addView(text("Also declares: " + model.infoCapabilities.joinToString("; ") { it.text.lowercase() }, 13f, Kit.TEXT_3))
+        }
+        right.addView(text(
+            if (model.totalPermissions == 0) "Requests no permissions" else "Permissions requested by the app (${model.totalPermissions})",
+            17f, Kit.TEXT, Kit.medium,
+        ).apply { setPadding(0, dp(6), 0, 0) })
+        // APK-supplied rows: fixed neutral bullet, sanitised, recognised names only — they can't mimic our lines.
+        for (p in model.permissions) {
+            val color = when (p.level) {
                 PermissionRisk.Level.SPECIAL -> Kit.DANGER
                 PermissionRisk.Level.DANGEROUS -> Kit.WARN
                 PermissionRisk.Level.NORMAL -> Kit.TEXT_2
             }
             val r = vertical(this, 2)
-            r.addView(text((if (level == PermissionRisk.Level.NORMAL) "•  " else "▲  ") + PermissionRisk.label(p), 15f,
-                if (level == PermissionRisk.Level.NORMAL) Kit.TEXT else color,
-                if (level == PermissionRisk.Level.NORMAL) Kit.regular else Kit.medium))
-            r.addView(text(p, 11f, Kit.TEXT_3, Kit.mono).apply { maxLines = 1; setPadding(dp(20), 0, 0, 0) })
+            r.addView(text(APK_BULLET + p.label, 14f, color,
+                if (p.level == PermissionRisk.Level.NORMAL) Kit.regular else Kit.medium))
+            r.addView(text(p.name, 11f, Kit.TEXT_3, Kit.mono).apply { maxLines = 1; setPadding(dp(20), 0, 0, 0) })
             right.addView(r, lp())
+        }
+        if (model.permissionsMore > 0) right.addView(text("and ${model.permissionsMore} more permissions", 13f, Kit.TEXT_2))
+        if (model.unrecognizedPermissions > 0) {
+            right.addView(text("Unrecognized permission name" + (if (model.unrecognizedPermissions > 1) "s" else "") +
+                " (${model.unrecognizedPermissions}) not shown", 13f, Kit.WARN))
         }
         // Focusable so the remote can move into the list and scroll it with up/down.
         val permScroll = ScrollView(this).apply {
@@ -996,16 +1023,46 @@ class StoreActivity : Activity(), Installer.Listener {
         }
     }
 
-    /** If Android's confirmation never resolves, give up after 10 minutes: abandon the session, clean up. */
+    /**
+     * If Android's confirmation never resolves, give up after 12 minutes (the status token stays valid for 14):
+     * abandon the session and clean up — but first check whether the app did get installed.
+     */
     private fun scheduleInstallTimeout(inst: Installing) {
+        inst.committedAt = System.currentTimeMillis()
         main.postDelayed({
             if (installing === inst) {
                 installing = null
                 Installer.abandonCurrent(this)
                 ApkDownloader.cleanStale(this)
-                if (!isDestroyed) showInfo("Install didn't finish", "Android's confirmation wasn't answered, so the install was cancelled. You can try again any time.")
+                if (!isDestroyed) {
+                    if (resolveOutcome(inst, InstallOutcomeResolver.Reported.TIMED_OUT) == InstallOutcomeResolver.Reported.SUCCESS) {
+                        reportSuccess(inst, null)
+                    } else {
+                        showInfo("Install didn't finish", "Android's confirmation wasn't answered, so the install was cancelled. You can try again any time.")
+                    }
+                }
             }
-        }, ReceiverTokenPolicy.MAX_PENDING_MILLIS)
+        }, ReceiverTokenPolicy.SESSION_TIMEOUT_MILLIS)
+    }
+
+    private fun resolveOutcome(inst: Installing, reported: InstallOutcomeResolver.Reported): InstallOutcomeResolver.Reported {
+        val pkg = inst.inspected.facts.packageName ?: return reported
+        val now = inspector.installedInfo(pkg)
+        return InstallOutcomeResolver.resolve(
+            reported = reported,
+            expectedVersionCode = inst.inspected.facts.versionCode,
+            previousVersionCode = inst.inspected.facts.installedVersionCode,
+            nowVersionCode = now?.let { ApkInspector.versionCodeOf(it) },
+            lastUpdateTimeMillis = now?.lastUpdateTime,
+            committedAtMillis = inst.committedAt,
+        )
+    }
+
+    private fun reportSuccess(inst: Installing?, packageName: String?) {
+        val ins = inst?.inspected
+        val pkg = packageName ?: ins?.facts?.packageName
+        if (pkg != null && inst != null) recordInstall(pkg, ins?.label ?: pkg, inst.job, ins?.facts?.versionCode ?: 0)
+        showSuccess(ins?.label ?: pkg ?: "App", pkg)
     }
 
     /** Status from the system installer (main thread). */
@@ -1017,16 +1074,16 @@ class StoreActivity : Activity(), Installer.Listener {
         val inst = installing
         installing = null
         inst?.file?.delete()
-        val ins = inst?.inspected
         val outcome = InstallStatusMapper.map(status, message)
         when (outcome.kind) {
-            InstallStatusMapper.Kind.SUCCESS -> {
-                val pkg = packageName ?: ins?.facts?.packageName
-                if (pkg != null && inst != null) recordInstall(pkg, ins?.label ?: pkg, inst.job, ins?.facts?.versionCode ?: 0)
-                showSuccess(ins?.label ?: pkg ?: "App", pkg)
+            InstallStatusMapper.Kind.SUCCESS -> reportSuccess(inst, packageName)
+            InstallStatusMapper.Kind.CANCELLED -> {
+                // Never claim "cancelled" for an app that is in fact installed.
+                if (inst != null && resolveOutcome(inst, InstallOutcomeResolver.Reported.CANCELLED) == InstallOutcomeResolver.Reported.SUCCESS) {
+                    reportSuccess(inst, packageName)
+                } else { modal = null; render() }
             }
-            InstallStatusMapper.Kind.CANCELLED -> { modal = null; render() }
-            else -> showError(outcome.title, outcome.message, outcome.detail) { modal = null; render() }
+            else -> showError(outcome.title, outcome.message, DisplayText.sanitize(outcome.detail, 200)) { modal = null; render() }
         }
         return true
     }
@@ -1038,7 +1095,7 @@ class StoreActivity : Activity(), Installer.Listener {
     }
 
     private fun checkFallbackResult() {
-        // Called when we come back from the classic installer UI (ACTION_VIEW fallback).
+        // Called when we come back from the system installer UI (legacy ACTION_INSTALL_PACKAGE fallback).
         if (SystemClock.uptimeMillis() - fallbackStartedAt < 500) return
         fallbackStartedAt = 0
         val inst = installing ?: return
@@ -1171,6 +1228,8 @@ class StoreActivity : Activity(), Installer.Listener {
 
     companion object {
         private const val FOCUS_TAG = "primary-focus"
+        /** Fixed, dimmed prefix for every APK-supplied row. */
+        private const val APK_BULLET = "·  "
         const val ADB_GRANT = "adb shell appops set dev.tvlauncher.store REQUEST_INSTALL_PACKAGES allow"
     }
 }

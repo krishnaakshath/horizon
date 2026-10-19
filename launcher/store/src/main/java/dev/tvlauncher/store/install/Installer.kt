@@ -12,6 +12,7 @@ import android.os.Build
 import android.provider.Settings
 import dev.tvlauncher.store.core.InstallFallbackPolicy
 import dev.tvlauncher.store.core.ReceiverTokenPolicy
+import dev.tvlauncher.store.core.SessionJanitor
 import java.io.File
 import java.io.FileInputStream
 
@@ -113,6 +114,18 @@ object Installer {
             try { pi.abandonSession(id) } catch (_: Exception) {}
             clearToken()
             throw StageFailure(stage, e)
+        }
+    }
+
+    /** After process death our sessions may linger: abandon every session we own except the active one. */
+    fun abandonStaleSessions(context: Context) {
+        try {
+            val pi = context.packageManager.packageInstaller
+            val views = pi.mySessions.map { SessionJanitor.SessionView(it.sessionId, it.installerPackageName) }
+            for (id in SessionJanitor.toAbandon(views, context.packageName, currentSessionId.takeIf { it >= 0 })) {
+                try { pi.abandonSession(id) } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {
         }
     }
 

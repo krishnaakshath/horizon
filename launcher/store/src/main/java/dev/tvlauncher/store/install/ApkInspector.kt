@@ -9,7 +9,7 @@ import android.os.Build
 import dev.tvlauncher.store.core.ApkFacts
 import dev.tvlauncher.store.core.ComponentRisk
 import dev.tvlauncher.store.core.DisplayText
-import dev.tvlauncher.store.core.InstalledState
+import dev.tvlauncher.store.core.InstalledLookupResult
 import dev.tvlauncher.store.core.FdroidIndexParser
 import dev.tvlauncher.store.core.LeanbackDetector
 import dev.tvlauncher.store.core.Sha256Stream
@@ -80,7 +80,9 @@ class ApkInspector(private val context: Context) {
             featureLeanback -> true
             else -> null
         }
-        val (state, installed) = installedLookup(info.packageName)
+        val looked = lookup(info.packageName)
+        val installed = (looked as? InstalledLookupResult.Found<PackageInfo>)?.value
+        val state = InstalledLookupResult.state(looked, sdk, apkDeclaresLauncher = scan?.launchable == true)
         val incoming = signersOf(info)
         val installedSigners = installed?.let { signersOf(it).current }
         val components = ArrayList<Pair<ComponentRisk.Kind, String?>>()
@@ -108,34 +110,22 @@ class ApkInspector(private val context: Context) {
         return Inspected(facts, shown, icon, file.length(), sha256, hashVerified)
     }
 
-    /**
-     * INSTALLED with its info; NOT_INSTALLED only when the answer can be trusted (before API 30 there is no
-     * package-visibility filtering); otherwise UNKNOWN, because on API 30+ "not found" may just mean "hidden"
-     * (we only query launchable apps).
-     */
-    fun installedLookup(packageName: String): Pair<InstalledState, PackageInfo?> {
-        val info = installedInfo(packageName)
-        return when {
-            info != null -> InstalledState.INSTALLED to info
-            Build.VERSION.SDK_INT < 30 && lastLookupWasNotFound -> InstalledState.NOT_INSTALLED to null
-            else -> InstalledState.UNKNOWN to null
-        }
-    }
-
-    @Volatile private var lastLookupWasNotFound = false
-
+    /** Looks the package up; the result type distinguishes "not found" from a failed lookup (no shared state). */
     @Suppress("DEPRECATION")
-    fun installedInfo(packageName: String): PackageInfo? = try {
-        lastLookupWasNotFound = false
+    fun lookup(packageName: String): InstalledLookupResult<PackageInfo> = try {
         val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
-        if (Build.VERSION.SDK_INT >= 33) pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags.toLong()))
-        else pm.getPackageInfo(packageName, flags)
+        InstalledLookupResult.Found(
+            if (Build.VERSION.SDK_INT >= 33) pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags.toLong()))
+            else pm.getPackageInfo(packageName, flags),
+        )
     } catch (_: PackageManager.NameNotFoundException) {
-        lastLookupWasNotFound = true
-        null
-    } catch (_: Exception) {
-        null
+        InstalledLookupResult.NotFound
+    } catch (e: Exception) {
+        InstalledLookupResult.Failed(e.javaClass.simpleName)
     }
+
+    fun installedInfo(packageName: String): PackageInfo? =
+        (lookup(packageName) as? InstalledLookupResult.Found<PackageInfo>)?.value
 
     /** Manifest scan through the archive's own Resources; null when it can't be read reliably. */
     private fun scanManifest(info: PackageInfo): LeanbackDetector.Result? {
