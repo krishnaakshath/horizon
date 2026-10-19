@@ -3,6 +3,8 @@ package dev.tvlauncher
 import android.app.Application
 import dev.tvlauncher.appsettings.ModuleSections
 import dev.tvlauncher.home.WaveTwoSections
+import dev.tvlauncher.power.PowerOn
+import dev.tvlauncher.power.PowerOnSection
 import dev.tvlauncher.safemode.SafeMode
 import dev.tvlauncher.ui.Theme
 
@@ -19,6 +21,11 @@ class LauncherApp : Application() {
             // No guard this run; the home screen still starts.
         }
         try {
+            PowerOn.install(this) // "Open home after power on": screen-on signal and home tracking
+        } catch (e: Throwable) {
+            // The manifest receiver still covers boot and TCL's wake broadcast.
+        }
+        try {
             Theme.installFonts(this) // Inter everywhere; preloaded off the main thread
         } catch (e: Throwable) {
             // System sans instead.
@@ -27,6 +34,10 @@ class LauncherApp : Application() {
             ModuleSections.registerAll()
         } catch (e: Throwable) {
             // Settings then shows the placeholders; the home screen is unaffected.
+        }
+        try {
+            PowerOnSection.register() // Settings > System > Power on
+        } catch (e: Throwable) {
         }
         try {
             WaveTwoSections.registerAll()

@@ -9,9 +9,11 @@ import android.view.accessibility.AccessibilityEvent
 class HelperService : AccessibilityService() {
     private var machine: KeyStateMachine? = null
     private var foreground: String? = null
+    @Volatile private var lastUserKeyAt = -1L
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        current = this
         val prefs = HelperPrefs(this)
         machine = KeyStateMachine(
             now = { SystemClock.uptimeMillis() },
@@ -30,8 +32,27 @@ class HelperService : AccessibilityService() {
 
     override fun onInterrupt() = Unit
 
+    override fun onUnbind(intent: Intent?): Boolean {
+        if (current === this) current = null
+        return super.onUnbind(intent)
+    }
+
+    override fun onDestroy() {
+        if (current === this) current = null
+        super.onDestroy()
+    }
+
+    /** The launcher's "Open home after power on": HOME as if pressed on the remote, unless [PowerOnGate] says no. */
+    fun homeAfterPowerOn(): Boolean {
+        if (!PowerOnGate.allow(foreground, lastUserKeyAt, SystemClock.uptimeMillis())) return false
+        return performGlobalAction(GLOBAL_ACTION_HOME)
+    }
+
     override fun onKeyEvent(event: KeyEvent): Boolean {
         return try {
+            if (event.action == KeyEvent.ACTION_DOWN && PowerOnGate.countsAsNavigation(event.keyCode)) {
+                lastUserKeyAt = SystemClock.uptimeMillis()
+            }
             val machine = machine ?: return false
             val action = when (event.action) {
                 KeyEvent.ACTION_DOWN -> KeyAction.DOWN
@@ -50,6 +71,13 @@ class HelperService : AccessibilityService() {
             machine?.reset()
             false
         }
+    }
+
+    companion object {
+        /** The connected service, for [PowerOnHomeReceiver]; null while the service is off. */
+        @Volatile
+        var current: HelperService? = null
+            private set
     }
 
     private fun openSpotlight() {

@@ -27,6 +27,15 @@
 
     <!-- Optional: the owner's wallpaper collections in Pictures/TVLauncher and on USB sticks. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <!-- "Open home after power on": boot signal, and the Remote helper's HOME action (same signer only). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Granted only by the owner (Settings > System > Power on opens the TV's page). On Android 10/11
+         it lets the launcher bring home forward when the TV wakes; nothing is drawn over other apps. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <permission
+        android:name="dev.tvlauncher.permission.POWER_ON_HOME"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="dev.tvlauncher.permission.POWER_ON_HOME" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
@@ -155,6 +164,18 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </service>
+
+        <!-- "Open home after power on" (Settings > System > Power on): cold boot, and TCL's
+             wake-from-standby broadcast (sent with FLAG_RECEIVER_INCLUDE_BACKGROUND).
+             Nothing else is accepted; PowerOnPolicy acts at most once per wake. -->
+        <receiver
+            android:name=".power.PowerOnReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="tcl.sys.intent.action.STR_RESUME_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Opt-in notification chips; bound only by the system after the user grants access. -->
         <service
