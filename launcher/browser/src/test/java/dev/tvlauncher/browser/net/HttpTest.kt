@@ -125,4 +125,12 @@ class HttpTest {
         assertNull(http(emptyMap(), opened) { private }.get("https://192.168.1.1/i.png", 256, 4000, img))
         assertTrue(opened.isEmpty())
     }
+
+    @Test fun mixedPublicPrivateDnsAnswers_refused() {
+        val opened = ArrayList<String>()
+        val mixed = listOf(byteArrayOf(8, 8, 8, 8), byteArrayOf(10, 0, 0, 1))
+        assertNull(http(mapOf("https://a.com/i" to FakeConn(200, contentType = "image/png", body = byteArrayOf(1))), opened) { mixed }
+            .get("https://a.com/i", 256, 4000, img))
+        assertTrue(opened.isEmpty())
+    }
 }

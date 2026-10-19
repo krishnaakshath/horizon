@@ -24,7 +24,12 @@ object SslErrorPolicy {
             val u = URI(url.trim())
             val host = u.host?.lowercase(Locale.ROOT) ?: return null
             val scheme = u.scheme?.lowercase(Locale.ROOT) ?: return null
-            val port = if (u.port > 0) ":${u.port}" else ""
+            val port = when {
+                u.port <= 0 -> ""
+                scheme == "https" && u.port == 443 -> ""
+                scheme == "http" && u.port == 80 -> ""
+                else -> ":${u.port}"
+            }
             val path = (u.rawPath ?: "").trimEnd('/')
             val q = u.rawQuery?.let { "?$it" } ?: ""
             "$scheme://$host$port$path$q"
@@ -41,5 +46,36 @@ object SslErrorPolicy {
         3 -> "its certificate isn't from a trusted authority"
         4 -> "its certificate has an invalid date"
         else -> "its certificate is invalid"
+    }
+}
+
+
+/**
+ * A suppressed (non-matching) SSL error becomes a page error when the main frame never commits
+ * within [timeoutMs] or finishes in a failed state; reported at most once.
+ */
+class SslFallback(private val timeoutMs: Long = 8000) {
+    data class Pending(val url: String, val primaryError: Int)
+
+    private var pending: Pending? = null
+    private var since = 0L
+
+    fun onSuppressed(url: String, primaryError: Int, now: Long) {
+        if (pending == null) { pending = Pending(url, primaryError); since = now }
+    }
+
+    fun onCommitted() { pending = null }
+
+    fun onFinished(failed: Boolean): Pending? {
+        val p = pending
+        pending = null
+        return if (failed) p else null
+    }
+
+    fun due(now: Long): Pending? {
+        val p = pending ?: return null
+        if (now - since < timeoutMs) return null
+        pending = null
+        return p
     }
 }
