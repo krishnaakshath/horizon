@@ -58,7 +58,6 @@ gives a sideloaded app no API for it, so the only way is the TV's own menu.
 |---|---|---|---|
 | Media volume level | Ours | Settings > Sound > Volume & output > Volume; remote volume keys | `AudioManager.setStreamVolume(STREAM_MUSIC, level, 0)`; flags 0, so no system popup is requested. Read back after every change; if the TV does not take it, the page says "The TV is managing the volume for this output". |
 | Mute | Ours | Volume & output > Mute; remote mute key | `adjustStreamVolume(STREAM_MUSIC, ADJUST_MUTE/UNMUTE, 0)`, read back with `isStreamMute`. |
-| Volume popup (bar) | Ours, best effort | Drawn by the launcher (while it is in front) and by Launcher Helper (every app) | Needs the volume key to reach our code. See "Volume keys" below. Switch: Volume & output > Volume bar, and Launcher Helper > Use launcher volume bar (default on). |
 | Where the sound plays (read) | Ours | Volume & output > Output, Advanced > Connected outputs | `MediaRouter.getSelectedRoute(ROUTE_TYPE_LIVE_AUDIO)` plus `AudioManager.getDevices(GET_DEVICES_OUTPUTS)`. |
 | Switching output (speakers / ARC / optical / Bluetooth) | TV only | TCL Settings > Sound > Audio output | Selecting the media output is a system API on Android 11 (`setPreferredDeviceForStrategy`, MODIFY_AUDIO_ROUTING). Shown as "Managed by the TV". Pairing a Bluetooth speaker is ours (home Bluetooth panel); routing to it is automatic. |
 | Left/right balance | TV only | TCL Settings > Sound | `master_balance` is a hidden system setting; apps cannot write it. Not shown in our pages. |
@@ -69,17 +68,9 @@ gives a sideloaded app no API for it, so the only way is the TV's own menu.
 | Picture modes, backlight | TV only | TCL Settings > Picture | TCL middleware. |
 | UI sounds (launcher clicks) | Ours | Settings > Sound > UI sounds | Unchanged. |
 
-### Volume keys: how the bar gets them, and the fallback
+### Volume keys stay with the TV
 
-1. Launcher Helper's accessibility service filters keys (`flagRequestFilterKeyEvents`,
-   `canRequestFilterKeyEvents`). If VOLUME_UP/DOWN/MUTE reach `onKeyEvent`, the helper applies the
-   change, reads it back and only then consumes the key; otherwise it returns false and the TV
-   handles the key as before.
-2. While a launcher screen (home, Settings) is in front, the activity does the same in
-   `dispatchKeyEvent`, so the bar works there without the helper.
-3. Expected limit (AOSP Android 11, not yet verified on this TCL): on TV builds
-   `PhoneWindowManager` handles volume keys itself (`mUseTvRouting`), and the accessibility
-   `KeyboardInterceptor` asks the window policy about VOLUME_UP/DOWN before any accessibility
-   service sees them. If TCL keeps that behaviour, UP/DOWN never reach either path, the TV shows its
-   own popup, and only MUTE may be ours. The helper's settings line ("this TV keeps the volume keys
-   for itself so far") shows which case applies. No app can hide the TV's popup in that case.
+On this TCL TV the system handles the remote's volume keys itself (TV routing in the window
+policy), so no app ever receives them and the TV's own popup always shows. The launcher therefore
+has no volume bar or popup replacement: the remote's keys go straight to the TV, and Settings >
+Sound > Volume & output sets and shows the volume through `AudioManager`.

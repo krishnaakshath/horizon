@@ -2,9 +2,11 @@ package dev.tvlauncher.volume
 
 import android.content.Context
 import android.media.AudioManager
+import android.media.AudioDeviceInfo
 import android.media.MediaRouter
-import dev.tvlauncher.volume.core.StreamBackend
-import dev.tvlauncher.volume.core.VolumeState
+
+/** The media volume as Settings shows it. */
+data class VolumeState(val level: Int, val max: Int, val muted: Boolean)
 
 /** Read and set the media volume for Settings (flags 0: never the system popup). Every call is guarded. */
 class SystemVolume(context: Context) {
@@ -40,7 +42,7 @@ class SystemVolume(context: Context) {
         false
     }
 
-    fun outputTypes(): List<Int> = try { StreamBackend.outputTypes(app) } catch (e: Throwable) { emptyList() }
+    fun outputTypes(): List<Int> = try { am?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)?.map(AudioDeviceInfo::getType) ?: emptyList() } catch (e: Throwable) { emptyList() }
 
     /** The selected media route: (name, isTheTvItself), or null when unknown. */
     fun selectedRoute(): Pair<String, Boolean>? = try {

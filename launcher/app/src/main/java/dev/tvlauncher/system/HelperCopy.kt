@@ -19,5 +19,5 @@ object HelperCopy {
     }
 
     /** Line under "Open" on the Helper's add-on page. */
-    const val OPEN_NOTE = "Double-Back, volume bar and Guide button in other apps"
+    const val OPEN_NOTE = "Double-Back and Guide button in other apps"
 }

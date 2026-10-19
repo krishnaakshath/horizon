@@ -13,9 +13,10 @@ class HelperCopyTest {
         assertEquals(HelperCopy.PAUSED, HelperCopy.status(false))
     }
 
-    @Test fun memoryNote_namesWhatPausesAndWhatKeepsWorking() {
+    @Test fun memoryNote_isOneCalmLine() {
         val n = HelperCopy.MEMORY_NOTE
-        for (w in listOf("Double-Back", "volume bar", "Guide", "launcher", "power-on", "keep working")) assertTrue(w, n.contains(w))
+        assertEquals("May pause on this TV", n)
+        assertFalse(n, n.contains("volume", ignoreCase = true))
         for (s in listOf(n, HelperCopy.RUNNING, HelperCopy.PAUSED)) assertFalse(s, banned.containsMatchIn(s))
     }
 }

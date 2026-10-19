@@ -166,8 +166,8 @@ shortcut key that opens Spotlight is chosen in the Helper app.
 ### The honest limit on TCL TVs
 
 On TCL TVs the memory manager can stop the Helper. When it does, the Helper's extras in
-**other apps** drop out until it runs again: double-Back to Home, the launcher's volume bar
-over other apps, and the game controller's Guide button going to Home. **H02 itself
+**other apps** drop out until it runs again: double-Back to Home, the shortcut key
+and the game controller's Guide button going to Home. **H02 itself
 is not affected**: the home screen, power-on (which uses "Display over other apps", not the
 Helper) and everything inside the launcher keep working. Re-running provisioning switches the
 Helper back on. The Helper's own screen and the launcher's Settings say the same in plain

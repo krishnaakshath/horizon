@@ -4,9 +4,6 @@ import dev.tvlauncher.appsettings.SectionIds
 import dev.tvlauncher.appsettings.PageSpec
 import dev.tvlauncher.appsettings.SettingsGroup
 import dev.tvlauncher.appsettings.SettingsRegistry
-import dev.tvlauncher.brand.Brand
-import dev.tvlauncher.device.EffectsMode
-import dev.tvlauncher.volume.core.BarMotion
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -34,29 +31,6 @@ class VolumeCopyTest {
         assertEquals("TV speakers or HDMI ARC sound system", PlayingOn.label("TV" to true, listOf("TV speakers", "HDMI ARC sound system")))
         assertEquals("TV speakers", PlayingOn.label(null, emptyList()))
         assertEquals("Headphones", PlayingOn.label(null, listOf("Headphones")))
-    }
-
-    @Test fun bar_motion_follows_the_launcher() {
-        assertEquals(BarMotion.OFF, VolumeCopy.barMotion(null, 1f))
-        assertEquals(BarMotion.OFF, VolumeCopy.barMotion(EffectsMode.FULL, 0f))
-        assertEquals(BarMotion.LITE, VolumeCopy.barMotion(EffectsMode.LITE, 1f))
-        assertEquals(BarMotion.FULL, VolumeCopy.barMotion(EffectsMode.FULL, 1f))
-        assertEquals("lite", VolumeCopy.motionWord(BarMotion.LITE))
-    }
-
-    @Test fun bar_subtitles_are_calm_and_explain_the_helper() {
-        val s = VolumeCopy.HelperState.PENDING
-        assertEquals("Off: the TV shows its own volume popup", VolumeCopy.barSubtitle(false, s))
-        assertEquals("Shown when you change the volume", VolumeCopy.barSubtitle(true, s))
-        assertTrue(VolumeCopy.barSubtitle(true, VolumeCopy.HelperState.NOT_INSTALLED).contains("Add ${Brand.HELPER}"))
-        assertEquals("Shown in every app when you change the volume",
-            VolumeCopy.barSubtitle(true, VolumeCopy.HelperState(true, true, true, true)))
-        assertTrue(VolumeCopy.barSubtitle(true, VolumeCopy.HelperState(true, true, false, true)).contains("running again"))
-        assertTrue(VolumeCopy.barSubtitle(true, VolumeCopy.HelperState.NOT_RUNNING).contains("Turn on ${Brand.HELPER}"))
-        for (st in listOf(s, VolumeCopy.HelperState.NOT_INSTALLED, VolumeCopy.HelperState.NOT_RUNNING)) {
-            val t = VolumeCopy.barSubtitle(true, st).lowercase()
-            assertFalse(t, t.contains("adb") || t.contains("accessibility") || t.contains("service"))
-        }
     }
 
     @Test fun level_label() {

@@ -44,11 +44,6 @@
         android:name="dev.tvlauncher.permission.SPOTLIGHT_SYNC"
         android:protectionLevel="signature" />
     <uses-permission android:name="dev.tvlauncher.permission.SPOTLIGHT_SYNC" />
-    <!-- Settings > Volume & output reads and sets Launcher Helper's volume bar switch (same signer only). -->
-    <permission
-        android:name="dev.tvlauncher.permission.VOLUME_BAR"
-        android:protectionLevel="signature" />
-    <uses-permission android:name="dev.tvlauncher.permission.VOLUME_BAR" />
     <!-- Asks the weather companion to refresh when its data is stale (same signer only). Declared in
          both apps so install order does not matter. -->
     <permission

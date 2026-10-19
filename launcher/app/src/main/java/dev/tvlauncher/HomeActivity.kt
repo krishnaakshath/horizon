@@ -55,7 +55,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 class HomeActivity : Activity() {
-    private val volume by lazy { dev.tvlauncher.volume.LauncherVolume(this) }
     private lateinit var repo: AppRepository
     private lateinit var prefs: Prefs
     private lateinit var look: HomeLook
@@ -387,10 +386,9 @@ class HomeActivity : Activity() {
         }
     }
 
-    /** Volume keys first (our volume bar), then the controller mapping; remote keys reach [handleKey] unchanged. */
+    /** The controller mapping; remote keys reach [handleKey] unchanged (volume keys stay with the TV). */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (redirected) return super.dispatchKeyEvent(event)
-        if (volume.dispatch(event)) return true // our volume bar; false = the TV handles the key
         return pad.dispatch(event, ::handleKey)
     }
 
@@ -494,7 +492,6 @@ class HomeActivity : Activity() {
             // "Close after an action" off: Spotlight is still there when the owner comes back.
             if (!spotlight.keepOpenOnStop) spotlight.close(animate = false)
         }
-        volume.release()
         topBar.stopStatus() // always paired with startStatus (TopBar tracks it)
         modules.stop() // panels closed; controllers, device monitor and idle timer stopped
         watch?.stop()

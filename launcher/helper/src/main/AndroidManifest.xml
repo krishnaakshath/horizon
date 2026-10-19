@@ -13,10 +13,6 @@
     <permission
         android:name="dev.tvlauncher.permission.POWER_ON_HOME"
         android:protectionLevel="signature" />
-    <!-- Same signer only: the launcher's Settings > Volume & output reads and sets the volume bar switch. -->
-    <permission
-        android:name="dev.tvlauncher.permission.VOLUME_BAR"
-        android:protectionLevel="signature" />
 
     <!-- Granted only by the one-time setup helper; lets this app switch its own service on
          on TVs without an accessibility screen. -->
@@ -96,16 +92,6 @@
             android:permission="dev.tvlauncher.permission.SPOTLIGHT_SYNC">
             <intent-filter>
                 <action android:name="dev.tvlauncher.helper.action.SPOTLIGHT_SYNC" />
-            </intent-filter>
-        </receiver>
-
-        <!-- Volume bar switch and status for the launcher (volume/VolumeBarReceiver). -->
-        <receiver
-            android:name=".volume.VolumeBarReceiver"
-            android:exported="true"
-            android:permission="dev.tvlauncher.permission.VOLUME_BAR">
-            <intent-filter>
-                <action android:name="dev.tvlauncher.helper.action.VOLUME_BAR" />
             </intent-filter>
         </receiver>
     </application>

@@ -12,14 +12,12 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
-import dev.tvlauncher.helper.volume.HelperVolume
 
 class HelperService : AccessibilityService() {
     private var machine: KeyStateMachine? = null
     private var foreground: String? = null
     @Volatile private var lastUserKeyAt = -1L
     private var actions: BroadcastReceiver? = null
-    private var volume: HelperVolume? = null
     /** The launcher's "Guide button opens Home" (Settings > System > Controllers); on by default. */
     @Volatile private var guideHome = true
     private var padObserver: ContentObserver? = null
@@ -37,7 +35,6 @@ class HelperService : AccessibilityService() {
         )
         // Ask the launcher for its Spotlight key (it pushes only when ours is stale).
         SpotlightSync.sendState(this, hello = true, serviceOn = true)
-        volume = try { HelperVolume(this) } catch (e: Throwable) { null } // our volume bar (volume/*)
         watchPadSettings()
     }
 
@@ -82,16 +79,12 @@ class HelperService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         SpotlightSync.sendState(this, hello = false, serviceOn = false)
-        volume?.release()
-        volume = null
         unwatchPadSettings()
         if (current === this) current = null
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
-        volume?.release()
-        volume = null
         unwatchPadSettings()
         if (current === this) current = null
         actions?.let { try { unregisterReceiver(it) } catch (e: Exception) { } }
@@ -140,7 +133,6 @@ class HelperService : AccessibilityService() {
             if (event.action == KeyEvent.ACTION_DOWN && PowerOnGate.countsAsNavigation(event.keyCode)) {
                 lastUserKeyAt = SystemClock.uptimeMillis()
             }
-            if (volume?.onKey(event) == true) return true // false: the TV handles the volume key itself
             val machine = machine ?: return false
             val action = when (event.action) {
                 KeyEvent.ACTION_DOWN -> KeyAction.DOWN

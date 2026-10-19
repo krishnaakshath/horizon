@@ -1,9 +1,5 @@
 package dev.tvlauncher.volume
 
-import dev.tvlauncher.brand.Brand
-import dev.tvlauncher.device.EffectsMode
-import dev.tvlauncher.volume.core.BarMotion
-
 /** Words and small decisions for Settings > Volume & output (pure, JVM-tested). */
 object VolumeCopy {
     // android.media.AudioDeviceInfo TYPE_* values (stable platform constants).
@@ -56,40 +52,6 @@ object VolumeCopy {
             "Bluetooth headphones", "Headphones", "Line out", "USB audio", "HDMI", "Hearing aid", "Dock"
         )
         return types.mapNotNull(::outputLabel).distinct().sortedBy { order.indexOf(it) }
-    }
-
-    /** The bar's animation from the launcher's resolved motion (null = animations off). */
-    fun barMotion(mode: EffectsMode?, animatorScale: Float): BarMotion = when {
-        animatorScale <= 0f || mode == null -> BarMotion.OFF
-        mode == EffectsMode.LITE -> BarMotion.LITE
-        else -> BarMotion.FULL
-    }
-
-    /** What the helper is told about the launcher's animation level. */
-    fun motionWord(m: BarMotion): String = when (m) {
-        BarMotion.FULL -> "full"
-        BarMotion.LITE -> "lite"
-        BarMotion.OFF -> "off"
-    }
-
-    /** The helper's answer to "how is the volume bar doing?" ([resolved] false while we wait). */
-    data class HelperState(val installed: Boolean, val resolved: Boolean, val bound: Boolean, val serviceOn: Boolean) {
-        companion object {
-            val PENDING = HelperState(true, false, false, false)
-            val NOT_INSTALLED = HelperState(false, true, false, false)
-            /** Installed, but no answer (or a failed send): treat as not running. */
-            val NOT_RUNNING = HelperState(true, true, false, false)
-        }
-    }
-
-    /** Subtitle of the "Volume bar" row: calm, no setup jargon. */
-    fun barSubtitle(on: Boolean, h: HelperState): String = when {
-        !on -> "Off: the TV shows its own volume popup"
-        !h.installed -> "Shown on the home screen. Add ${Brand.HELPER} to see it in every app"
-        !h.resolved -> "Shown when you change the volume"
-        h.bound -> "Shown in every app when you change the volume"
-        h.serviceOn -> "Shown on the home screen. In other apps it returns once ${Brand.HELPER} is running again"
-        else -> "Shown on the home screen. Turn on ${Brand.HELPER} to see it in every app"
     }
 
     /** Volume row value. */

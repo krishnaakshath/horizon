@@ -17,15 +17,11 @@ import dev.tvlauncher.appsettings.SettingsSection
 import dev.tvlauncher.appsettings.SpecifiedPage
 import dev.tvlauncher.system.InsistGate
 import dev.tvlauncher.system.TvScreens
-import dev.tvlauncher.volumecover.CoverCopy
-import dev.tvlauncher.volumecover.CoverPrefs
-import dev.tvlauncher.volumecover.VolumeCover
 
 /**
  * Settings > Sound > Volume & output: our own volume page (also what Spotlight's Sound action
  * opens). Volume and Mute change the media volume directly (never the TV's popup); Output says
- * where the sound plays; Volume bar is the switch for our bar (here and in Launcher Helper);
- * "Replace the TV's volume popup" is the switch for the helper's cover over the TV's popup.
+ * where the sound plays.
  * What only the TV can do (switching outputs, sound modes, equaliser) is listed under Advanced.
  */
 object VolumeSection : SettingsSection, SpecifiedPage {
@@ -37,7 +33,7 @@ object VolumeSection : SettingsSection, SpecifiedPage {
     override val description = "Volume, mute and where the sound plays."
     override val spec = PageSpec(
         ID,
-        listOf("sound_output.volume", "sound_output.mute", "sound_output.output", "sound_output.bar", "sound_output.cover"),
+        listOf("sound_output.volume", "sound_output.mute", "sound_output.output"),
         listOf("sound_output.outputs", "sound_output.switch", "sound_output.modes")
     )
 
@@ -71,33 +67,6 @@ object VolumeSection : SettingsSection, SpecifiedPage {
         page.row("sound_output.output", "Output", RowKind.Info(PlayingOn.label(vol.selectedRoute(), outputs)),
             subtitle = "Where the sound plays", iconRes = R.drawable.ic_dev_speaker)
 
-        val prefs = LauncherVolumePrefs(context)
-        val motion = VolumeCopy.motionWord(VolumeCopy.barMotion(nav.style.motion, 1f))
-        val bar = page.row("sound_output.bar", "Volume bar", RowKind.Toggle(prefs.enabled) { on ->
-            prefs.enabled = on
-            HelperVolumeLink.query(context, on, motion) { _, h -> rowSubtitle?.invoke(on, h) }
-        }, subtitle = VolumeCopy.barSubtitle(prefs.enabled, VolumeCopy.HelperState.PENDING),
-            iconRes = R.drawable.ic_set_status)
-        rowSubtitle = { on, h -> bar.setSubtitle(VolumeCopy.barSubtitle(on, h)) }
-        // "Replace the TV's volume popup" (volumecover): drawn by the helper, only on TVs whose
-        // popup place is known.
-        val cover = CoverPrefs(context)
-        var coverRow: SettingsRow? = null
-        if (VolumeCover.supported) {
-            coverRow = page.row("sound_output.cover", CoverCopy.TITLE, RowKind.Toggle(cover.enabled) { on ->
-                cover.enabled = on
-                HelperVolumeLink.query(context, null, null, setCover = on) { _, h ->
-                    coverRow?.setSubtitle(CoverCopy.subtitle(on, h))
-                }
-            }, subtitle = CoverCopy.subtitle(cover.enabled, VolumeCopy.HelperState.PENDING), iconRes = R.drawable.ic_volume)
-        }
-        page.doOnDetach { rowSubtitle = null; coverRow = null }
-        // Keep the helper in step with these switches and the launcher's animation level.
-        HelperVolumeLink.query(context, prefs.enabled, motion, setCover = if (VolumeCover.supported) cover.enabled else null) { _, h ->
-            rowSubtitle?.invoke(prefs.enabled, h)
-            coverRow?.setSubtitle(CoverCopy.subtitle(cover.enabled, h))
-        }
-
         page.advanced(nav, "sound_output.advanced", "Connected outputs, sound modes") { adv ->
             adv.row("sound_output.outputs", "Connected outputs", RowKind.Action(if (outputs.isEmpty()) "None" else "${outputs.size}") {
                 nav.push("Connected outputs") { c, n -> outputsPage(c, n, outputs) }
@@ -115,9 +84,6 @@ object VolumeSection : SettingsSection, SpecifiedPage {
         }
         return page
     }
-
-    /** The Volume bar row of the page on screen (one Settings screen at a time). */
-    private var rowSubtitle: ((Boolean, VolumeCopy.HelperState) -> Unit)? = null
 
     private fun outputsPage(context: Context, nav: SettingsNav, outputs: List<String>): View {
         val page = SettingsPage(context, nav.style)
