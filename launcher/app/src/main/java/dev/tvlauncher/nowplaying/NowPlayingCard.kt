@@ -318,30 +318,3 @@ class NowPlayingCard(
         }
     }
 }
-
-/**
- * Hero chip: "♪ Title — Artist" in a small glass pill; hidden unless
- * [NowPlayingChipModel] says visible. Call [bind] from the tracker callback and once a minute
- * (a paused item disappears 10 minutes after it paused).
- */
-class NowPlayingChip(context: Context) : TextView(context) {
-    private val density = resources.displayMetrics.density
-    private fun px(dp: Int) = (dp * density + 0.5f).toInt()
-    private val bg = GradientDrawable().apply { cornerRadius = 999f * density; setColor(Theme.GLASS_CHIP) }
-
-    init {
-        style(Theme.SP_LABEL, Theme.medium)
-        isSingleLine = true
-        ellipsize = TextUtils.TruncateAt.END
-        setPadding(px(12), px(6), px(14), px(6))
-        background = bg
-        visibility = GONE
-    }
-
-    fun bind(n: NowPlaying?, nowElapsed: Long = SystemClock.elapsedRealtime()) {
-        val chip = NowPlayingChipModel.from(n, nowElapsed)
-        visibility = if (chip.visible) VISIBLE else GONE
-        text = chip.text
-        contentDescription = if (chip.visible) "Now playing: " + chip.text.removePrefix(NowPlayingChipModel.NOTE).trim() else null
-    }
-}

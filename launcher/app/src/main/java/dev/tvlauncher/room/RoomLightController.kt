@@ -55,9 +55,6 @@ class RoomLightController(
         }
     }
 
-    /** Whether this device has an ambient light sensor (false on the TCL 32S5403AF). */
-    val hasLightSensor: Boolean get() = sensor.isAvailable
-
     /** The mode and palette last emitted (STANDARD before the first emission). */
     fun current(): Pair<RoomMode, Palette> = engine.current()
 

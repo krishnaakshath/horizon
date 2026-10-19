@@ -20,12 +20,7 @@ object Theme {
     const val STROKE = 0x1FFFFFFF
 
     // Glass layers (Settings screen): translucent white/near-black over BASE, no blur.
-    /** SURFACE at 85% opacity: the content pane. */
-    const val GLASS_PANEL = (0xD9 shl 24) or (SURFACE and 0x00FFFFFF)
-    const val GLASS_ROW = 0x0FFFFFFF
     const val GLASS_ROW_FOCUS = 0x26FFFFFF
-    const val GLASS_CHIP = 0x14FFFFFF
-    const val GLASS_SHEEN = 0x08FFFFFF
     const val GLASS_SCRIM = 0xF2101319.toInt()
     /** Track of a switch that is off. */
     const val TOGGLE_OFF = 0x40FFFFFF

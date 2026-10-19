@@ -195,8 +195,6 @@ class WallpaperDrawable(private var baseColor: Int) : Drawable() {
         if (old != null && old !== b) BitmapRecycler.defer(old)
     }
 
-    val isReady: Boolean get() = bitmap != null
-
     override fun onBoundsChange(bounds: Rect) {
         bitmap?.let { centerCrop(matrix, it, bounds.width(), bounds.height()) }
     }

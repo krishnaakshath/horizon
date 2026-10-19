@@ -124,19 +124,6 @@ class AmbientView(
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
     }
 
-    fun updateSettings(s: WallpaperSettings) {
-        settings = s
-        clockFormat = timeFormat(s.clock24h)
-        fitClock()
-        placeBlocks()
-        updateClock()
-        if (isAttachedToWindow) {
-            wallpaperController.start(s)
-            syncFeedListener()
-            updateDim(animate = false)
-        }
-    }
-
     // --- construction -------------------------------------------------------------------------
 
     private fun sp(v: Float) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, v, dm)

@@ -11,9 +11,6 @@ data class Schedule(
     val eveningStart: Int = 18 * 60 + 30,
     val nightStart: Int = 23 * 60 + 30
 ) {
-    /** End of the night = start of the morning lamp-time EVENING hour. */
-    val nightEnd: Int get() = Math.floorMod(dayStart - MORNING_MIN, 1440)
-
     companion object {
         const val MORNING_MIN = 60
         val DEFAULT = Schedule()

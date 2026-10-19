@@ -152,8 +152,6 @@ object SystemText {
 
     fun linkSpeed(mbps: Int) = if (mbps > 0) "$mbps Mbps" else "Unknown"
 
-    fun androidName(sdk: Int, release: String): String = "Android $release"
-
     /** Volume as "7 of 15" style words for a stepper. */
     fun volume(level: Int, max: Int) = if (max <= 0) "$level" else "${(level * 100 + max / 2) / max} %"
 

@@ -47,8 +47,6 @@ object Speed {
     private var pendingHome: Runnable? = null
     private var pendingScreenOff: Runnable? = null
 
-    val isHomeInFront: Boolean get() = homeResumed
-
     fun install(app: Application) {
         if (installed) return
         installed = true

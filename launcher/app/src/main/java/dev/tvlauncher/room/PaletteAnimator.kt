@@ -63,9 +63,6 @@ class PaletteAnimator(
         animator.start()
     }
 
-    /** Jumps to [target] immediately. */
-    fun snapTo(target: Palette) = animateTo(target, 0L)
-
     fun cancel() {
         if (animator.isRunning) animator.cancel()
         frame.set(to)

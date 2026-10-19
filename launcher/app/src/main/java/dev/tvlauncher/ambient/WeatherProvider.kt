@@ -98,15 +98,6 @@ object WeatherCompanion {
         return { try { app.contentResolver.unregisterContentObserver(o) } catch (e: RuntimeException) { } }
     }
 
-    /** Explicit broadcast to the companion package; no-op when absent. */
-    fun requestRefresh(context: Context, nowMs: Long = System.currentTimeMillis()) {
-        if (!refreshThrottle.tryAcquire(nowMs)) return
-        try {
-            context.sendBroadcast(Intent(WeatherContract.ACTION_REFRESH).setPackage(WeatherContract.PACKAGE))
-        } catch (e: Exception) {
-        }
-    }
-
     /** The companion's settings screen (location/units), or null when it is not installed. */
     fun settingsIntent(context: Context): Intent? {
         val i = Intent(WeatherContract.ACTION_SETTINGS).setPackage(WeatherContract.PACKAGE)
