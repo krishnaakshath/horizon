@@ -557,3 +557,10 @@ def test_home_holder_from_dumpsys_role_when_cmd_role_lacks_get_role_holders():
     out = "  {\n      name=android.app.role.HOME\n      holders=dev.tvlauncher\n  }\n"
     assert parse_dumpsys_role_holder(out) == "dev.tvlauncher"
     assert parse_dumpsys_role_holder("name=android.app.role.DIALER\nholders=x.y\n") is None
+
+
+def test_reasons_use_the_h02_brand_not_the_old_name():
+    import pathlib
+    src = (pathlib.Path(__file__).resolve().parents[1] / "tvtool" / "provision.py").read_text(encoding="utf-8")
+    assert "TV Launcher" not in src
+    assert "Lets H02 bring the home screen forward" in src

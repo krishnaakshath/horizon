@@ -391,7 +391,7 @@ def plan_steps(p: Probe, apks: dict[str, str], profile: ProvisionProfile, take_o
     if LAUNCHER in apks or overlay != "allow":
         undo = (("appops", "set", LAUNCHER, OVERLAY_OP, overlay),) if not fresh_launcher and overlay in APPOP_MODES else ()
         steps.append(Step(("appops", "set", LAUNCHER, OVERLAY_OP, "allow"),
-                          "Lets TV Launcher bring the home screen forward when the TV turns on (Android 11 needs this; "
+                          "Lets H02 bring the home screen forward when the TV turns on (Android 11 needs this; "
                           "the launcher never draws over other apps).", undo=undo, verify="appop"))
     if STORE in after and (STORE not in p.installed or not p.store_install_allowed):
         steps.append(Step(("appops", "set", STORE, "REQUEST_INSTALL_PACKAGES", "allow"),
@@ -458,12 +458,12 @@ def self_test_steps() -> list[Step]:
              "Self-test: opens the TV's Settings so another app is in front (nothing in it is changed).",
              optional=True, warn="the TV's Settings did not open, so the self-test was skipped", selftest=True),
         Step(("am", "broadcast", "-a", TCL_RESUME, "-n", POWER_RECEIVER),
-             f"Self-test: after {SELFTEST_WAIT_S} seconds, tells TV Launcher the TV just woke up, as the TV does after "
+             f"Self-test: after {SELFTEST_WAIT_S} seconds, tells H02 the TV just woke up, as the TV does after "
              "standby. The home screen should come forward by itself.",
              wait_s=SELFTEST_WAIT_S, verify="selftest", soft=True, selftest=True,
              warn="home did not come forward by itself; on the TV, see Settings > System > Power & sleep > Power on"),
         Step(("run-as", LAUNCHER, "rm", "-f", "shared_prefs/power_on.xml"),
-             "Self-test: forgets the test wake-up, so it does not count against real power-ons. TV Launcher restarts "
+             "Self-test: forgets the test wake-up, so it does not count against real power-ons. H02 restarts "
              "on its home screen.",
              then=(("am", "force-stop", LAUNCHER), ("am", "start", "-n", HOME_ACTIVITY)),
              optional=True, selftest=True,
