@@ -18,14 +18,14 @@ class TextStylesTest {
         TextStyles.all.forEach {
             assertTrue(it.name, it.sizeSp in 10f..140f)
             assertTrue(it.name, it.letterSpacingEm in -0.02f..0.12f)
-            assertTrue(it.name, it.lineHeightMult in 0.7f..1.1f)
+            assertTrue(it.name, it.lineHeightMult in 0.7f..1.25f)
         }
         assertEquals(TextStyles.all.size, TextStyles.all.map { it.name }.toSet().size)
     }
 
     @Test fun specifics() {
         assertEquals(FontWeight.SEMIBOLD, TextStyles.Display.weight)
-        assertEquals(-0.005f, TextStyles.Display.letterSpacingEm, 1e-6f)
+        assertEquals(-0.018f, TextStyles.Display.letterSpacingEm, 1e-6f)
         assertTrue(TextStyles.Display.sizeSp in 44f..48f)
         assertEquals(0.06f, TextStyles.Label.letterSpacingEm, 1e-6f)
         assertTrue(TextStyles.Label.allCaps)

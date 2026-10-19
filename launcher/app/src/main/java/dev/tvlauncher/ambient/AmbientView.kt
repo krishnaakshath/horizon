@@ -162,7 +162,7 @@ class AmbientView(
     private fun buildClock() {
         clockBlock.orientation = LinearLayout.VERTICAL
         clock.ambient(model.clockSp, Theme.light)
-        clock.letterSpacing = -0.02f
+        clock.letterSpacing = -0.015f
         // A clock is never truncated: no ellipsis, and [fitClock] sizes it so the widest time fits.
         clock.ellipsize = null
         date.ambient(model.dateSp, Theme.regular, 0xE6F5F7FA.toInt())

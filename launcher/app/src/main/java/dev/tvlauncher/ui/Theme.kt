@@ -7,6 +7,7 @@ import android.util.TypedValue
 import android.widget.TextView
 import dev.tvlauncher.type.FontWeight
 import dev.tvlauncher.type.Fonts
+import dev.tvlauncher.type.Tracking
 
 /** Visual system: palette, type scale, spacing (dp) and radii (dp). */
 object Theme {
@@ -57,12 +58,12 @@ object Theme {
     const val SP_LABEL = 13f
     const val SP_BUTTON = 15f
 
-    // Faces: the bundled Manrope instances (dev.tvlauncher.type.Fonts) once [installFonts] ran at
+    // Faces: the bundled Inter instances (dev.tvlauncher.type.Fonts) once [installFonts] ran at
     // process start, else the system sans. Fonts caches each weight, so these getters are cheap.
     @SuppressLint("StaticFieldLeak") // the application context only (see installFonts)
     @Volatile private var fontContext: Context? = null
 
-    /** Process start (LauncherApp): every [medium]/[light]/[regular]/[semibold] after this is Manrope. */
+    /** Process start (LauncherApp): every [medium]/[light]/[regular]/[semibold] after this is Inter. */
     fun installFonts(context: Context) {
         fontContext = context.applicationContext
         Fonts.warmUp(context)
@@ -86,5 +87,6 @@ object Theme {
         typeface = face
         setTextColor(color)
         includeFontPadding = false
+        if (letterSpacing == 0f) letterSpacing = Tracking.forSp(sp) // explicit tracking set earlier (caps labels) wins
     }
 }

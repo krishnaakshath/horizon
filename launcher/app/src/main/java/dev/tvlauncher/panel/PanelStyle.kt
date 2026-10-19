@@ -70,7 +70,7 @@ object PanelStyle {
         cornerRadius = context.dp(radiusDp).toFloat()
     }
 
-    /** Manrope (bundled) at [weight]; falls back to the system family inside [Fonts]. */
+    /** Inter (bundled) at [weight]; falls back to the system family inside [Fonts]. */
     fun TextView.panelText(sp: Float, weight: FontWeight, color: Int = TEXT, singleLine: Boolean = true) {
         typeface = Fonts.typeface(context, weight)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, sp)

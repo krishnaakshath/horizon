@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReferenceArray
 
 /**
- * Loads the bundled Manrope instances from assets/fonts (Typeface.createFromAsset works on
+ * Loads the bundled Inter instances (Light = Inter Display Light) from assets/fonts (Typeface.createFromAsset works on
  * API 24; res/font needs API 26 or androidx). Each weight is loaded once and cached; a missing
  * or corrupt asset degrades to the system family from [FontPlan].
  */

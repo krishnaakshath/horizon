@@ -19,7 +19,7 @@ class LauncherApp : Application() {
             // No guard this run; the home screen still starts.
         }
         try {
-            Theme.installFonts(this) // Manrope everywhere; preloaded off the main thread
+            Theme.installFonts(this) // Inter everywhere; preloaded off the main thread
         } catch (e: Throwable) {
             // System sans instead.
         }

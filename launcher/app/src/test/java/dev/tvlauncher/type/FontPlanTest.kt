@@ -62,8 +62,8 @@ class FontPlanTest {
 
     @Test fun licenseAndNoticeAreBundled() {
         assertTrue(File("src/main/res/raw/font_license_ofl.txt").readText().contains("SIL OPEN FONT LICENSE"))
-        assertTrue(FontNotices.THIRD_PARTY.contains("Copyright 2018 The Manrope Project Authors (https://github.com/googlefonts/manrope)"))
-        assertTrue(FontNotices.THIRD_PARTY.contains("Manrope"))
+        assertTrue(FontNotices.THIRD_PARTY.contains("Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter)"))
+        assertTrue(FontNotices.THIRD_PARTY.contains("Inter typeface"))
         assertTrue(FontNotices.THIRD_PARTY.contains("SIL Open Font License"))
     }
 }
@@ -72,7 +72,7 @@ class LicenseHashTest {
     @Test fun licenseIsVerbatimOfficialText() {
         val bytes = File("src/main/res/raw/font_license_ofl.txt").readBytes()
         val hex = java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-        // google/fonts@b31870aff700ab7a1d74fa0c6887d95beb9e0037 ofl/manrope/OFL.txt
-        assertEquals("58172e0c0fac2cda8a37b348164bb55e44b0e69051e557e92b1d3f6910141f7b", hex)
+        // rsms/inter v4.1 release zip, LICENSE.txt
+        assertEquals("262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a", hex)
     }
 }

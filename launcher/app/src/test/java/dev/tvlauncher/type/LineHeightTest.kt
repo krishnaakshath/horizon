@@ -5,7 +5,7 @@ import org.junit.Test
 
 class LineHeightTest {
     @Test fun derivation() {
-        assertEquals(1.0f, LineHeight.multiplierFor(1.366f, 1.366f), 1e-6f)
+        assertEquals(1.0f, LineHeight.multiplierFor(1.21f, 1.21f), 1e-6f)
         assertEquals(0.5f, LineHeight.multiplierFor(2f, 1f), 1e-6f)
     }
 
@@ -18,7 +18,7 @@ class LineHeightTest {
             TextStyles.ClockLarge to 1.0f, TextStyles.ClockSmall to 1.0f,
         )
         targets.forEach { (s, t) ->
-            val eff = s.lineHeightMult * LineHeight.MANROPE_NATURAL_EM
+            val eff = s.lineHeightMult * LineHeight.INTER_NATURAL_EM
             assertEquals(s.name, t, eff, 0.02f)
         }
     }
