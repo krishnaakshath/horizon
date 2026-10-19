@@ -7,7 +7,10 @@ import dev.tvlauncher.device.DeviceProfile
 /**
  * One entry of the Settings sidebar. Other modules implement this and call
  * [SettingsRegistry.register]; a section whose [id] matches a built-in placeholder
- * ("sounds", "insights", "helper", "browser") takes that placeholder's slot.
+ * ("sounds", "insights", "helper", "browser", "devices") takes that placeholder's slot.
+ *
+ * [group], [availability] and [description] are optional: a section written before groups
+ * existed still compiles and is listed under [SettingsGroup.APPS] (or its well-known group).
  */
 interface SettingsSection {
     /** Stable id; also the key used for focus restoration and placeholder replacement. */
@@ -15,6 +18,15 @@ interface SettingsSection {
     val title: String
     /** A 24dp vector drawable, tinted by the sidebar. */
     val iconRes: Int
+
+    /** Sidebar group. Override to place the section; the default is [SettingsGroup.APPS] for new ids. */
+    val group: SettingsGroup get() = SettingsGroup.defaultFor(id)
+
+    /** When the section is listed in the sidebar (e.g. only while its companion app is installed). */
+    val availability: SectionAvailability get() = SectionAvailability.Always
+
+    /** One line under the page title (ellipsized); empty for none. */
+    val description: String get() = ""
 
     /** Builds the content-pane page. Called on the main thread; heavy work goes through [SettingsNav.background]. */
     fun buildPage(context: Context, nav: SettingsNav): View
@@ -58,4 +70,10 @@ interface SettingsNav {
 
     /** Call after a page filled itself asynchronously so pending focus can be restored. */
     fun contentReady()
+
+    /** Whether the "Advanced" block [key] was left open on this screen (closed by default). */
+    fun isAdvancedOpen(key: String): Boolean = false
+
+    /** Remembers the "Advanced" block state for rebuilds of the same page while Settings is open. */
+    fun setAdvancedOpen(key: String, open: Boolean) {}
 }
