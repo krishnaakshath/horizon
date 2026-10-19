@@ -1,147 +1,144 @@
 package dev.tvlauncher.browser.ui
 
 import android.content.Context
-import android.graphics.Rect
+import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
-import android.view.MotionEvent
 import android.widget.FrameLayout
 import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
-import dev.tvlauncher.browser.Bookmarks
 import dev.tvlauncher.browser.R
+import dev.tvlauncher.browser.data.Bookmark
+import dev.tvlauncher.browser.data.Visit
+import dev.tvlauncher.browser.net.FaviconLoader
+import dev.tvlauncher.browser.net.IconColors
+import dev.tvlauncher.browser.net.UrlPolicy
 import dev.tvlauncher.browser.ui.Theme.style
-import java.util.Calendar
 
-/** Native start page: greeting, a big search pill and 8 quick-link tiles (4 x 2). */
+/**
+ * Native start page: brand + glass hero search, "Favorites" (first 12 bookmarks, 4 x 3, real
+ * site icons) and "Recently visited". Long-press a favorite to edit it.
+ */
 class StartPage(
     context: Context,
-    onSearch: () -> Unit,
-    onOpen: (String) -> Unit
-) : FrameLayout(context) {
-    val tiles: List<Tile>
-    val searchPill: LinearLayout
+    private val loader: FaviconLoader,
+    private val topInsetDp: Int,
+    private val onSearch: () -> Unit,
+    private val onOpen: (String) -> Unit,
+    private val onTileMenu: (Bookmark, Int) -> Unit
+) : ScrollView(context) {
+    private val grid = GridLayout(context).apply { columnCount = 4; clipChildren = false; clipToPadding = false }
+    private val recentRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false }
+    private val recentEmpty = TextView(context).apply { style(13f, Theme.regular, Theme.TEXT_3); text = "Pages you visit will show up here." }
+    private val engineChip = TextView(context)
+    val hero: Card
+    val tiles = ArrayList<Card>()
 
     init {
+        isFillViewport = true
+        isVerticalScrollBarEnabled = false
+        clipChildren = false
+        background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xFF121726.toInt(), Theme.BASE))
         val col = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            clipChildren = false
-            clipToPadding = false
+            clipChildren = false; clipToPadding = false
+            setPadding(context.dp(Theme.MARGIN_H), context.dp(topInsetDp + 10), context.dp(Theme.MARGIN_H), context.dp(24))
         }
-        val title = TextView(context).apply {
-            style(32f, Theme.light)
-            text = greeting()
-        }
-        val sub = TextView(context).apply {
-            style(15f, Theme.regular, Theme.TEXT_2)
-            text = "Search the web or pick a quick link"
-        }
-        col.addView(title, LinearLayout.LayoutParams(-2, -2))
-        col.addView(sub, LinearLayout.LayoutParams(-2, -2).apply { topMargin = context.dp(10) })
-
-        searchPill = HoverRow(context).apply {
+        // Brand + hero search row.
+        val top = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; clipChildren = false }
+        top.addView(ImageView(context).apply { setImageResource(R.drawable.brand_mark) }, LinearLayout.LayoutParams(context.dp(40), context.dp(40)))
+        top.addView(ImageView(context).apply { setImageResource(R.drawable.brand_wordmark); scaleType = ImageView.ScaleType.FIT_START },
+            LinearLayout.LayoutParams(context.dp(108), context.dp(20)).apply { marginStart = context.dp(12) })
+        hero = Card(context, Theme.RADIUS_PILL, rest = 0x1AFFFFFF, on = 0x2EFFFFFF, lift = 1.02f, restStroke = 0x33FFFFFF).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(context.dp(20), 0, context.dp(20), 0)
-            isFocusable = true
-            isClickable = true
+            setPadding(context.dp(20), 0, context.dp(10), 0)
             setOnClickListener { onSearch() }
             addView(ImageView(context).apply {
-                setImageResource(R.drawable.ic_search)
-                imageTintList = android.content.res.ColorStateList.valueOf(Theme.TEXT_2)
-            }, LinearLayout.LayoutParams(context.dp(20), context.dp(20)).apply { marginEnd = context.dp(14) })
-            addView(TextView(context).apply {
-                style(16f, Theme.regular, Theme.TEXT_3)
-                text = "Search with DuckDuckGo or type an address"
-            })
+                setImageResource(R.drawable.ic_search); imageTintList = ColorStateList.valueOf(Theme.TEXT)
+            }, LinearLayout.LayoutParams(context.dp(22), context.dp(22)).apply { marginEnd = context.dp(14) })
+            addView(TextView(context).apply { style(17f, Theme.regular, Theme.TEXT_2); text = "Search or type a web address" },
+                LinearLayout.LayoutParams(0, -2, 1f))
+            engineChip.style(12f, Theme.medium, Theme.TEXT_2)
+            engineChip.background = Theme.rounded(context, 0x14FFFFFF, Theme.RADIUS_PILL)
+            engineChip.setPadding(context.dp(12), context.dp(7), context.dp(12), context.dp(7))
+            addView(engineChip)
         }
-        col.addView(searchPill, LinearLayout.LayoutParams(context.dp(560), context.dp(52)).apply {
-            topMargin = context.dp(24)
-        })
+        top.addView(android.widget.Space(context), LinearLayout.LayoutParams(0, 1, 1f))
+        top.addView(hero, LinearLayout.LayoutParams(context.dp(560), context.dp(56)))
+        col.addView(top, LinearLayout.LayoutParams(-1, -2))
 
-        val grid = GridLayout(context).apply {
-            columnCount = 4
-            clipChildren = false
-            clipToPadding = false
-        }
-        tiles = Bookmarks.all.map { b -> Tile(context, b) { onOpen(b.url) } }
-        val gap = context.dp(16)
-        tiles.forEachIndexed { i, t ->
+        col.addView(label("Favorites"), LinearLayout.LayoutParams(-2, -2).apply { topMargin = context.dp(22); bottomMargin = context.dp(10) })
+        col.addView(grid, LinearLayout.LayoutParams(-2, -2))
+        col.addView(label("Recently visited"), LinearLayout.LayoutParams(-2, -2).apply { topMargin = context.dp(20); bottomMargin = context.dp(10) })
+        val recentBox = FrameLayout(context).apply { clipChildren = false }
+        recentBox.addView(recentRow)
+        recentBox.addView(recentEmpty)
+        col.addView(recentBox, LinearLayout.LayoutParams(-1, -2))
+        addView(col, LayoutParams(-1, -2))
+    }
+
+    private fun label(t: String) = TextView(context).apply {
+        style(13f, Theme.medium, Theme.TEXT_2); text = t.uppercase(); letterSpacing = 0.1f
+    }
+
+    fun setEngine(label: String) { engineChip.text = label }
+
+    fun bind(favorites: List<Bookmark>, recent: List<Visit>) {
+        grid.removeAllViews(); tiles.clear()
+        val gap = context.dp(14)
+        favorites.take(12).forEachIndexed { i, b ->
+            val t = tile(b, i)
+            tiles.add(t)
             grid.addView(t, GridLayout.LayoutParams().apply {
-                width = context.dp(196); height = context.dp(76)
+                width = context.dp(206); height = context.dp(62)
                 if (i % 4 != 0) leftMargin = gap
-                if (i >= 4) topMargin = gap
+                if (i >= 4) topMargin = context.dp(12)
             })
         }
-        col.addView(grid, LinearLayout.LayoutParams(-2, -2).apply { topMargin = context.dp(32) })
-        addView(col, LayoutParams(-2, -2, Gravity.CENTER).apply { bottomMargin = context.dp(16) })
-        clipChildren = false
-    }
-
-    private fun greeting(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
-        in 5..11 -> "Good morning"
-        in 12..16 -> "Good afternoon"
-        else -> "Good evening"
-    }
-
-    /** Pill row that lights up on focus or cursor hover. */
-    private class HoverRow(context: Context) : LinearLayout(context) {
-        private val bg = GradientDrawable().apply { cornerRadius = context.dp(Theme.RADIUS_PILL).toFloat() }
-        init { background = bg; refresh() }
-        private fun refresh() {
-            val on = isFocused || isHovered
-            bg.setColor(if (on) Theme.SURFACE_2 else Theme.SURFACE)
-            bg.setStroke(context.dp(if (on) 2 else 1), if (on) Theme.TEXT else Theme.STROKE)
-        }
-        override fun onFocusChanged(g: Boolean, d: Int, r: Rect?) { super.onFocusChanged(g, d, r); refresh() }
-        override fun onHoverChanged(h: Boolean) { super.onHoverChanged(h); refresh() }
-        override fun onInterceptHoverEvent(event: MotionEvent) = true
-    }
-
-    /** Quick-link card: colored letter badge, title and host. */
-    class Tile(context: Context, b: Bookmarks.Bookmark, onClick: () -> Unit) : LinearLayout(context) {
-        private val bg = GradientDrawable().apply { cornerRadius = context.dp(Theme.RADIUS_TILE).toFloat() }
-
-        init {
-            orientation = HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(context.dp(14), 0, context.dp(12), 0)
-            background = bg
-            isFocusable = true
-            isClickable = true
-            contentDescription = b.title
-            setOnClickListener { onClick() }
-            val badge = TextView(context).apply {
-                style(20f, Theme.medium, Theme.TEXT)
-                text = b.letter.toString()
-                gravity = Gravity.CENTER
-                background = Theme.rounded(context, b.color, 13)
+        recentRow.removeAllViews()
+        recent.take(5).forEachIndexed { i, v ->
+            val chip = Card(context, 16, lift = 1.04f).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                setPadding(context.dp(10), 0, context.dp(12), 0)
+                setOnClickListener { onOpen(v.url) }
+                val icon = SiteIcon(context, 26).also { it.bind(v.url, loader) }
+                addView(icon, LinearLayout.LayoutParams(context.dp(26), context.dp(26)))
+                addView(TextView(context).apply {
+                    style(13f, Theme.medium); text = v.title.ifBlank { UrlPolicy.hostOf(v.url) }; isSingleLine = true
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = context.dp(10) })
             }
-            addView(badge, LayoutParams(context.dp(44), context.dp(44)))
-            val texts = LinearLayout(context).apply { orientation = VERTICAL }
-            texts.addView(TextView(context).apply { style(16f, Theme.medium); text = b.title; isSingleLine = true })
-            texts.addView(TextView(context).apply {
-                style(12f, Theme.regular, Theme.TEXT_2); text = b.host; isSingleLine = true
-                ellipsize = android.text.TextUtils.TruncateAt.END
-            }, LayoutParams(-2, -2).apply { topMargin = context.dp(5) })
-            addView(texts, LayoutParams(0, -2, 1f).apply { marginStart = context.dp(14) })
-            refresh()
+            recentRow.addView(chip, LinearLayout.LayoutParams(context.dp(164), context.dp(48)).apply { if (i > 0) marginStart = context.dp(14) })
         }
+        recentEmpty.visibility = if (recent.isEmpty()) VISIBLE else GONE
+    }
 
-        private fun refresh() {
-            val on = isFocused || isHovered
-            bg.setColor(if (on) Theme.SURFACE_2 else Theme.SURFACE)
-            bg.setStroke(context.dp(if (on) 2 else 1), if (on) Theme.TEXT else Theme.STROKE)
-            val s = if (on) 1.05f else 1f
-            animate().scaleX(s).scaleY(s).setDuration(Theme.FOCUS_MS).start()
-            elevation = if (on) context.dpf(8f) else 0f
+    private fun tile(b: Bookmark, index: Int): Card {
+        val card = Card(context)
+        card.orientation = LinearLayout.HORIZONTAL
+        card.gravity = Gravity.CENTER_VERTICAL
+        card.setPadding(context.dp(10), 0, context.dp(10), 0)
+        card.contentDescription = b.title
+        card.setOnClickListener { onOpen(b.url) }
+        card.setOnLongClickListener { onTileMenu(b, index); true }
+        val icon = SiteIcon(context, 42)
+        card.addView(icon, LinearLayout.LayoutParams(context.dp(42), context.dp(42)))
+        val texts = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        texts.addView(TextView(context).apply {
+            style(15f, Theme.medium); text = b.title; isSingleLine = true; ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        texts.addView(TextView(context).apply {
+            style(11.5f, Theme.regular, Theme.TEXT_2); text = UrlPolicy.hostOf(b.url); isSingleLine = true
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = context.dp(4) })
+        card.addView(texts, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = context.dp(12) })
+        icon.bind(b.url, loader) { c ->
+            card.colors = intArrayOf(IconColors.blend(Theme.SURFACE, c, 0.30f), Theme.SURFACE)
         }
-
-        override fun onFocusChanged(g: Boolean, d: Int, r: Rect?) { super.onFocusChanged(g, d, r); refresh() }
-        override fun onHoverChanged(h: Boolean) { super.onHoverChanged(h); refresh() }
-        override fun onInterceptHoverEvent(event: MotionEvent) = true
+        return card
     }
 }
