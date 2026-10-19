@@ -47,9 +47,10 @@ object SetupStatus {
 
     const val REQ_PERMISSION = 7301
 
-    /** Opens the setup checklist (Settings > System > Setup uses this too). */
-    fun open(context: Context): Boolean = try {
-        context.startActivity(Intent(context, SetupActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    /** Opens setup where it was left; [restart] starts again from the first page. */
+    fun open(context: Context, restart: Boolean = false): Boolean = try {
+        context.startActivity(Intent(context, SetupActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            .putExtra(SetupActivity.EXTRA_RESTART, restart))
         true
     } catch (e: Throwable) {
         false

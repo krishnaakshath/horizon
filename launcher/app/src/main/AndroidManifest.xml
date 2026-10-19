@@ -98,6 +98,18 @@
             <action android:name="android.settings.LOCATION_SOURCE_SETTINGS" />
         </intent>
         <intent>
+            <action android:name="android.settings.SYNC_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.ADD_ACCOUNT_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.LOCALE_SETTINGS" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.INPUT_METHOD_SETTINGS" />
+        </intent>
+        <intent>
             <action android:name="android.settings.APPLICATION_DETAILS_SETTINGS" />
             <data android:scheme="package" />
         </intent>

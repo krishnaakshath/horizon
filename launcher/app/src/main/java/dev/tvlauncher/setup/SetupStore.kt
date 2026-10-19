@@ -40,7 +40,27 @@ class SetupStore(context: Context) {
     fun asked(permission: String): Boolean = try { sp.getBoolean("asked:$permission", false) } catch (e: Exception) { false }
     fun markAsked(permission: String) = edit { putBoolean("asked:$permission", true) }
 
+    private fun pages(key: String): Set<OobePage> = try {
+        sp.getStringSet(key, emptySet()).orEmpty().mapNotNull { n -> OobePage.values().firstOrNull { it.name == n } }.toSet()
+    } catch (e: Exception) {
+        emptySet()
+    }
+
+    fun oobe(): OobeMemory = OobeMemory(
+        done = pages(OOBE_DONE), skipped = pages(OOBE_SKIPPED),
+        current = try { sp.getString(OOBE_CURRENT, null)?.let { n -> OobePage.values().firstOrNull { it.name == n } } } catch (e: Exception) { null }
+    )
+
+    fun saveOobe(m: OobeMemory) = edit {
+        putStringSet(OOBE_DONE, m.done.map { it.name }.toSet())
+        putStringSet(OOBE_SKIPPED, m.skipped.map { it.name }.toSet())
+        putString(OOBE_CURRENT, m.current?.name)
+    }
+
     private companion object {
+        const val OOBE_DONE = "oobe_done"
+        const val OOBE_SKIPPED = "oobe_skipped"
+        const val OOBE_CURRENT = "oobe_current"
         const val NAME = "setup"
         const val SKIPPED = "skipped"
         const val AUTO_TRIED = "auto_tried"

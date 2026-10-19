@@ -20,15 +20,24 @@ object SetupSection : SettingsSection, SpecifiedPage {
     override val iconRes = R.drawable.ic_sc_settings
     override val group = SettingsGroup.SYSTEM
     override val description = SetupCopy.SECTION_DESCRIPTION
-    override val spec = PageSpec(ID, listOf("setup.run", "setup.status"))
+    override val spec = PageSpec(ID, listOf("setup.run", "setup.resume", "setup.status"))
 
-    fun register(registry: SettingsRegistry = SettingsRegistry.shared) = registry.register(this)
+    fun register(registry: SettingsRegistry = SettingsRegistry.shared) {
+        registry.register(this)
+        registry.register(ConfigBackupSection) // same id as the built-in page: takes its slot
+    }
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val page = SettingsPage(context, nav.style, spec)
+        val m = SetupStore(context).oobe()
+        if (m.current != null && m.current != OobePage.DONE) {
+            page.row("setup.resume", "Continue setup", RowKind.Action {
+                if (!SetupStatus.open(context)) nav.notify("Setup could not be opened")
+            }, subtitle = OobeCopy.title(m.current), iconRes = R.drawable.ic_sc_settings)
+        }
         page.row("setup.run", SetupCopy.SECTION_RUN, RowKind.Action {
-            if (!SetupStatus.open(context)) nav.notify("Setup could not be opened")
-        }, iconRes = R.drawable.ic_sc_settings)
+            if (!SetupStatus.open(context, restart = true)) nav.notify("Setup could not be opened")
+        }, subtitle = "Language, network, apps, look and permissions", iconRes = R.drawable.ic_sc_settings)
         val status = page.row("setup.status", "Checklist", RowKind.Info(""))
         nav.background({
             SetupStatus.autoConfigure(context.applicationContext)

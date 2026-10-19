@@ -5,9 +5,12 @@ Optional companion app for the TV launcher (`dev.tvlauncher.helper`). It provide
 - Double-Back to leave the foreground app (the first Back passes through untouched; a second Back within the window, default 500 ms, sends you Home).
 - One user-chosen shortcut key that opens the launcher Spotlight (`dev.tvlauncher.action.SPOTLIGHT`).
 
-Both features are off by default. The app has no INTERNET permission and its accessibility service does not read screen content (`canRetrieveWindowContent=false`); it only learns the foreground package name from window-change events and sees key presses.
+Double-Back is on by default (it only works while the service is enabled); the shortcut key is chosen in the app. The app has no INTERNET permission and its accessibility service does not read screen content (`canRetrieveWindowContent=false`); it only learns the foreground package name from window-change events and sees key presses.
 
-## Enable over ADB
+## Enable
+
+Recommended: `tvtool provision` (see docs/PROVISIONING.md) enables the service and grants the Helper
+WRITE_SECURE_SETTINGS, after which the Helper can switch itself on. Manual commands:
 
 ```
 adb install -r helper-debug.apk
