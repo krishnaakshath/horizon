@@ -76,6 +76,7 @@ class WeatherStore(
             val r = app.contentResolver
             r.notifyChange(Uri.parse(WeatherContract.URI_CURRENT), null)
             r.notifyChange(Uri.parse(WeatherContract.URI_DAILY), null)
+            r.notifyChange(Uri.parse(WeatherContract.URI_SUN), null)
         }
     }
 }

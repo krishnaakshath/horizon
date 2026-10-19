@@ -144,4 +144,58 @@ class OpenMeteoParserTest {
         assertTrue(GeocodingParser.parse("""{"results":$deep""").isEmpty())
         assertEquals(WeatherState(null, "C", null), StateCodec.decode("""{"place":$deep"""))
     }
+
+    private val mumbai = """
+    {"utc_offset_seconds":19800,"timezone":"Asia/Kolkata",
+     "current":{"time":"2026-10-20T12:00","temperature_2m":31.0,"weather_code":1},
+     "daily":{"time":["2026-10-20","2026-10-21"],"weather_code":[1,2],
+       "temperature_2m_max":[33.0,32.5],"temperature_2m_min":[24.0,24.1],
+       "sunrise":["2026-10-20T06:31","2026-10-21T06:32"],
+       "sunset":["2026-10-20T18:05","2026-10-21T18:04"]}}
+    """.trimIndent()
+
+    @Test fun parsesSunriseAndSunset() {
+        val s = OpenMeteoParser.parseForecast(mumbai, 0L)!!
+        // 06:31 IST == 01:01Z on 2026-10-20 (1792454400000 is 00:00Z).
+        assertEquals(1792454400000L + 3_660_000L, s.daily[0].sunriseMs)
+        assertEquals(1792454400000L + (12 * 60 + 35) * 60_000L, s.daily[0].sunsetMs)
+        assertEquals(s.daily[0].sunriseMs!! + 86_400_000L + 60_000L, s.daily[1].sunriseMs)
+    }
+
+    @Test fun responsesWithoutSunStillParse() {
+        val s = OpenMeteoParser.parseForecast(full, 0L)!!
+        assertEquals(5, s.daily.size)
+        s.daily.forEach { assertNull(it.sunriseMs); assertNull(it.sunsetMs) }
+    }
+
+    @Test fun polarDaysKeepTheForecastButNoSun() {
+        val j = """{"utc_offset_seconds":3600,"timezone":"Europe/Oslo",
+          "current":{"time":"2026-12-21T12:00","temperature_2m":-8.0,"weather_code":71},
+          "daily":{"time":["2026-12-21","2026-12-22","2026-12-23"],"weather_code":[71,71,3],
+            "temperature_2m_max":[-6.0,-5.0,-4.0],"temperature_2m_min":[-12.0,-11.0,-10.0],
+            "sunrise":[null,"2026-12-22T00:00","2026-12-23T00:00"],
+            "sunset":[null,"2026-12-22T00:00","2026-12-24T00:00"]}}"""
+        val s = OpenMeteoParser.parseForecast(j, 0L)!!
+        assertEquals(3, s.daily.size)
+        s.daily.forEach { assertNull(it.sunriseMs); assertNull(it.sunsetMs) }
+        assertEquals(-6.0, s.highC!!, 0.0)
+    }
+
+    @Test fun badSunValuesDoNotDropTheDay() {
+        val j = """{"utc_offset_seconds":0,"current":{"temperature_2m":5.0,"weather_code":1},
+          "daily":{"time":["2026-10-20"],"weather_code":[1],"temperature_2m_max":[6.0],"temperature_2m_min":[1.0],
+            "sunrise":["garbage"],"sunset":[42]}}"""
+        val d = OpenMeteoParser.parseForecast(j, 0L)!!.daily.single()
+        assertNull(d.sunriseMs)
+        assertNull(d.sunsetMs)
+    }
+
+    @Test fun shortSunArraysAreTolerated() {
+        val j = """{"utc_offset_seconds":0,"timezone":"GMT","current":{"temperature_2m":5.0,"weather_code":1},
+          "daily":{"time":["2026-10-20","2026-10-21"],"weather_code":[1,1],"temperature_2m_max":[6.0,6.0],
+            "temperature_2m_min":[1.0,1.0],"sunrise":["2026-10-20T07:00"],"sunset":["2026-10-20T17:30"]}}"""
+        val s = OpenMeteoParser.parseForecast(j, 0L)!!
+        assertEquals(1792454400000L + 7 * 3_600_000L, s.daily[0].sunriseMs)
+        assertNull(s.daily[1].sunriseMs)
+    }
 }

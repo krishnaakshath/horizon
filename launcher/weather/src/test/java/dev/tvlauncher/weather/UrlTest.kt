@@ -8,6 +8,7 @@ class UrlTest {
         val u = OpenMeteoClient.forecastUrl(-33.8688, 151.2093)
         assertTrue(u.startsWith("https://api.open-meteo.com/v1/forecast?latitude=-33.8688&longitude=151.2093&current="))
         assertTrue(u.endsWith("&timezone=auto&forecast_days=5&wind_speed_unit=kmh"))
+        assertTrue(u.contains("&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset&"))
     }
 
     @Test fun searchEncoding() {

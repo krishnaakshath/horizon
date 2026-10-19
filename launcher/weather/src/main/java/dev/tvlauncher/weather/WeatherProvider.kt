@@ -12,6 +12,7 @@ class WeatherProvider : ContentProvider() {
     private val matcher = UriMatcher(UriMatcher.NO_MATCH).apply {
         addURI(WeatherContract.AUTHORITY, WeatherContract.PATH_CURRENT, CURRENT)
         addURI(WeatherContract.AUTHORITY, WeatherContract.PATH_DAILY, DAILY)
+        addURI(WeatherContract.AUTHORITY, WeatherContract.PATH_SUN, SUN)
     }
 
     override fun onCreate(): Boolean = true
@@ -19,6 +20,7 @@ class WeatherProvider : ContentProvider() {
     override fun getType(uri: Uri): String? = when (matcher.match(uri)) {
         CURRENT -> "vnd.android.cursor.item/vnd.dev.tvlauncher.weather.current"
         DAILY -> "vnd.android.cursor.dir/vnd.dev.tvlauncher.weather.daily"
+        SUN -> "vnd.android.cursor.dir/vnd.dev.tvlauncher.weather.sun"
         else -> null
     }
 
@@ -28,37 +30,20 @@ class WeatherProvider : ContentProvider() {
     ): Cursor? {
         val which = matcher.match(uri)
         return try {
-            val ctx = context ?: return MatrixCursor(WeatherContract.CURRENT_COLUMNS)
+            val ctx = context ?: return MatrixCursor(columnsFor(which))
             val state = WeatherStore(ctx).load()
-            val snap = state.snapshot
-            val cursor = when (which) {
-                CURRENT -> MatrixCursor(WeatherContract.CURRENT_COLUMNS).also { c ->
-                    if (snap != null && state.place != null) {
-                        c.addRow(arrayOf<Any?>(
-                            state.place.name, snap.tempC, snap.feelsC, snap.code,
-                            WmoCodes.text(snap.code), if (snap.isDay) 1 else 0, snap.highC, snap.lowC,
-                            snap.humidity, snap.windKmh, snap.updatedMs, state.unit,
-                        ))
-                    } else if (state.place != null) {
-                        // City chosen, first update pending: location only, no values. Consumers
-                        // treat it as "not yet available"; zero rows means "no city chosen".
-                        c.addRow(arrayOf<Any?>(
-                            state.place.name, null, null, null, null, null, null, null,
-                            null, null, 0L, state.unit,
-                        ))
-                    }
-                }
-                DAILY -> MatrixCursor(WeatherContract.DAILY_COLUMNS).also { c ->
-                    snap?.daily?.sortedBy { it.dayMs }?.take(5)?.forEach {
-                        c.addRow(arrayOf<Any?>(it.dayMs, it.code, WmoCodes.text(it.code), it.highC, it.lowC))
-                    }
-                }
-                else -> MatrixCursor(WeatherContract.CURRENT_COLUMNS)
+            val cursor = MatrixCursor(columnsFor(which))
+            val rows = when (which) {
+                CURRENT -> ProviderRows.current(state)
+                DAILY -> ProviderRows.daily(state)
+                SUN -> ProviderRows.sun(state)
+                else -> emptyList()
             }
+            rows.forEach { cursor.addRow(it) }
             cursor.setNotificationUri(ctx.contentResolver, uri)
             cursor
         } catch (e: Exception) {
-            MatrixCursor(if (which == DAILY) WeatherContract.DAILY_COLUMNS else WeatherContract.CURRENT_COLUMNS)
+            MatrixCursor(columnsFor(which))
         }
     }
 
@@ -68,8 +53,15 @@ class WeatherProvider : ContentProvider() {
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int =
         throw UnsupportedOperationException("read-only")
 
+    private fun columnsFor(which: Int): Array<String> = when (which) {
+        DAILY -> WeatherContract.DAILY_COLUMNS
+        SUN -> WeatherContract.SUN_COLUMNS
+        else -> WeatherContract.CURRENT_COLUMNS
+    }
+
     private companion object {
         const val CURRENT = 1
         const val DAILY = 2
+        const val SUN = 3
     }
 }

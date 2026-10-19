@@ -23,16 +23,17 @@ object OpenMeteoParser {
         val wind = JsonUtil.wind(cur.opt("wind_speed_10m"))
         val isDay = (JsonUtil.num(cur, "is_day") ?: 1.0) != 0.0
         val offsetSec = (JsonUtil.num(root, "utc_offset_seconds") ?: 0.0).toLong()
+        val zone = SunParser.zoneOf(root.opt("timezone") as? String)
         val d = root.optJSONObject("daily")
         val times = d?.optJSONArray("time")
-        val daily = parseDaily(d, times, offsetSec)
+        val daily = parseDaily(d, times, offsetSec, zone)
         // Today's date: from current.time ("YYYY-MM-DDTHH:MM"), else the first daily date.
         val today = (cur.opt("time") as? String)?.take(10)?.takeIf { validDate(it) }
             ?: (times?.opt(0) as? String)
         val todayEntry = if (today == null || times == null) null else {
             // Only the entry whose own date is today counts; never shift to a neighbouring day.
             val idx = (0 until times.length()).firstOrNull { times.opt(it) == today }
-            idx?.let { entryAt(d, times, it, offsetSec) }
+            idx?.let { entryAt(d, times, it, offsetSec, zone) }
         }
         return WeatherSnapshot(
             tempC = temp, feelsC = feels, code = code, isDay = isDay, humidity = humidity,
@@ -41,23 +42,24 @@ object OpenMeteoParser {
         )
     }
 
-    private fun parseDaily(d: JSONObject?, times: JSONArray?, offsetSec: Long): List<DailyForecast> {
+    private fun parseDaily(d: JSONObject?, times: JSONArray?, offsetSec: Long, zone: java.util.TimeZone?): List<DailyForecast> {
         if (d == null || times == null) return emptyList()
         val out = ArrayList<DailyForecast>()
         for (i in 0 until times.length()) {
             if (out.size >= MAX_DAYS) break
-            entryAt(d, times, i, offsetSec)?.let { out += it }
+            entryAt(d, times, i, offsetSec, zone)?.let { out += it }
         }
         return out
     }
 
-    private fun entryAt(d: JSONObject?, times: JSONArray, i: Int, offsetSec: Long): DailyForecast? {
+    private fun entryAt(d: JSONObject?, times: JSONArray, i: Int, offsetSec: Long, zone: java.util.TimeZone?): DailyForecast? {
         if (d == null) return null
         val dayMs = dayStartMs(times.opt(i) as? String, offsetSec) ?: return null
         val code = JsonUtil.finite(d.optJSONArray("weather_code")?.opt(i))?.toInt() ?: return null
         val hi = JsonUtil.temp(d.optJSONArray("temperature_2m_max")?.opt(i)) ?: return null
         val lo = JsonUtil.temp(d.optJSONArray("temperature_2m_min")?.opt(i)) ?: return null
-        return DailyForecast(dayMs, code, hi, lo)
+        val sun = SunParser.pair(dayMs, d.optJSONArray("sunrise")?.opt(i), d.optJSONArray("sunset")?.opt(i), zone, offsetSec)
+        return DailyForecast(dayMs, code, hi, lo, sun?.first, sun?.second)
     }
 
     private fun validDate(s: String): Boolean = dayStartMs(s, 0) != null
@@ -73,8 +75,13 @@ object OpenMeteoParser {
         val y = m.groupValues[1].toInt()
         val mo = m.groupValues[2].toInt()
         val d = m.groupValues[3].toInt()
+        return civilUtcMs(y, mo, d)?.let { it - offsetSec * 1000L }
+    }
+
+    /** 00:00 UTC of that civil date, or null for an impossible date. */
+    internal fun civilUtcMs(y: Int, mo: Int, d: Int): Long? {
         if (mo !in 1..12 || d < 1 || d > daysInMonth(y, mo)) return null
-        return daysFromCivil(y, mo, d) * 86_400_000L - offsetSec * 1000L
+        return daysFromCivil(y, mo, d) * 86_400_000L
     }
 
     private fun daysInMonth(y: Int, m: Int): Int = when (m) {
