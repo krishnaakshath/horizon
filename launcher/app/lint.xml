@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!--
+        ExpiredTargetSdkVersion is disabled on purpose: targetSdk 30 is intentional.
+        The launcher is side-loaded on Android TV sets (it is not distributed through Google Play, so the
+        Play target-API policy does not apply), and targeting 30 keeps legacy platform APIs working the
+        way the TV features need them:
+          - WifiManager.addNetwork / enableNetwork and friends (restricted for newer targets),
+          - WifiManager.startScan and scan results under ACCESS_FINE_LOCATION,
+          - Bluetooth discovery and createBond with the install-time BLUETOOTH / BLUETOOTH_ADMIN
+            permissions (targets 31+ need the runtime BLUETOOTH_SCAN / BLUETOOTH_CONNECT grants, which
+            a remote-only TV flow cannot request cleanly),
+          - package visibility through the <queries> block only.
+        Raising targetSdk requires redesigning those flows first.
+    -->
+    <issue id="ExpiredTargetSdkVersion" severity="ignore" />
+</lint>

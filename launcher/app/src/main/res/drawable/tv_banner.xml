@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 320 x 180 dp TV home-screen banner (android:banner): near-black base, a soft accent wash and
+     the launcher mark (a silver rounded square with a play glyph) beside a three-tile shelf. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:pathData="M0,0h320v180h-320z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0" android:startY="0"
+                android:endX="320" android:endY="180"
+                android:startColor="#FF1B2B4D"
+                android:centerColor="#FF111624"
+                android:endColor="#FF0B0D12" />
+        </aapt:attr>
+    </path>
+    <!-- Mark -->
+    <path android:pathData="M78,58h40a14,14 0,0 1,14 14v36a14,14 0,0 1,-14 14h-40a14,14 0,0 1,-14 -14v-36a14,14 0,0 1,14 -14z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="64" android:startY="58"
+                android:endX="132" android:endY="122"
+                android:startColor="#FFFFFFFF"
+                android:endColor="#FFAEB8CC" />
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#FF0B0D12"
+        android:pathData="M91,76L111,90L91,104Z" />
+    <!-- Shelf: three tiles, the first one in the accent -->
+    <path
+        android:fillColor="#FF4C8DFF"
+        android:pathData="M154,70h38a8,8 0,0 1,8 8v24a8,8 0,0 1,-8 8h-38a8,8 0,0 1,-8 -8v-24a8,8 0,0 1,8 -8z" />
+    <path
+        android:fillColor="#40FFFFFF"
+        android:pathData="M214,70h38a8,8 0,0 1,8 8v24a8,8 0,0 1,-8 8h-38a8,8 0,0 1,-8 -8v-24a8,8 0,0 1,8 -8z" />
+    <path
+        android:fillColor="#1FFFFFFF"
+        android:pathData="M274,70h38a8,8 0,0 1,8 8v24a8,8 0,0 1,-8 8h-38a8,8 0,0 1,-8 -8v-24a8,8 0,0 1,8 -8z" />
+</vector>

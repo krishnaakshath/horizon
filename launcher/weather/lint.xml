@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!--
+        ExpiredTargetSdkVersion is disabled on purpose: targetSdk 30 is intentional and matches the
+        launcher (:app). The companion apps are side-loaded on Android TV sets, not published on Google
+        Play, and all modules stay on target 30 so legacy APIs (e.g. WifiManager.addNetwork in the
+        launcher, legacy storage/visibility rules here) behave the same across the suite.
+    -->
+    <issue id="ExpiredTargetSdkVersion" severity="ignore" />
+</lint>

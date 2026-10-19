@@ -81,10 +81,12 @@
     <application
         android:name=".LauncherApp"
         android:allowBackup="false"
+        android:banner="@drawable/tv_banner"
         android:label="TV Launcher"
         android:theme="@style/HomeTheme">
         <activity
             android:name=".HomeActivity"
+            android:banner="@drawable/tv_banner"
             android:exported="true"
             android:launchMode="singleTask"
             android:stateNotNeeded="true"

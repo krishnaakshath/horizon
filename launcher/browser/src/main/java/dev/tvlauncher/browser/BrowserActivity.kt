@@ -162,6 +162,8 @@ class BrowserActivity : Activity() {
     private var toolbarShown = true
     private var customView: View? = null
     private var customCallback: WebChromeClient.CustomViewCallback? = null
+    /** The current WebView's chrome client; WebView.getWebChromeClient() is API 26+ (minSdk 24). */
+    private var chrome: Chrome? = null
     private var touchDownTime = 0L
     private var touching = false
     private var longFired = false
@@ -532,6 +534,7 @@ class BrowserActivity : Activity() {
         content.removeView(w)
         w.stopLoading()
         w.webChromeClient = null
+        chrome = null
         w.destroy()
     }
 
@@ -569,7 +572,7 @@ class BrowserActivity : Activity() {
         w.setDownloadListener { _, _, _, _, _ -> hint.show("Downloads are not supported") }
         w.setFindListener { active, total, _ -> findBar.setCount(active, total) }
         w.webViewClient = Client()
-        w.webChromeClient = Chrome()
+        w.webChromeClient = Chrome().also { chrome = it }
     }
 
     private inner class Client : WebViewClient() {
@@ -736,7 +739,7 @@ class BrowserActivity : Activity() {
 
     private fun exitFullscreen() {
         val cb = customCallback
-        (web?.webChromeClient as? Chrome)?.onHideCustomView()
+        if (web != null) chrome?.onHideCustomView()
         cb?.onCustomViewHidden()
     }
 
