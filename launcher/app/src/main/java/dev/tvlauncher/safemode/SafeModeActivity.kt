@@ -9,6 +9,8 @@ import android.graphics.drawable.StateListDrawable
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
@@ -18,6 +20,8 @@ import android.widget.TextView
 import android.widget.Toast
 import dev.tvlauncher.HomeActivity
 import dev.tvlauncher.apps.AppEntry
+import dev.tvlauncher.input.GamepadInput
+import dev.tvlauncher.input.PadCommand
 
 /**
  * Deliberately tiny fallback launcher shown after repeated home-screen crashes (see [CrashGuard]).
@@ -33,6 +37,28 @@ import dev.tvlauncher.apps.AppEntry
 class SafeModeActivity : Activity() {
     private var rows: List<SafeModeList.Row> = emptyList()
     private var list: ListView? = null
+
+    /**
+     * Controllers: A/B/D-pad/sticks work as on the remote; Spotlight, Settings and Home buttons do
+     * nothing here (they would only lead back into the crashing home screen). Any failure falls back
+     * to plain key handling.
+     */
+    private val pad = GamepadInput(this, object : GamepadInput.Host {
+        override fun onPadCommand(command: PadCommand, repeat: Int): Boolean =
+            command == PadCommand.SEARCH || command == PadCommand.START || command == PadCommand.SELECT || command == PadCommand.HOME
+    })
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean = try {
+        pad.dispatch(event) { super.dispatchKeyEvent(it) }
+    } catch (t: Throwable) {
+        super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean = try {
+        pad.motion(ev) || super.dispatchGenericMotionEvent(ev)
+    } catch (t: Throwable) {
+        super.dispatchGenericMotionEvent(ev)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

@@ -48,6 +48,11 @@ class LauncherApp : Application() {
             // No Volume & output page this run; TV & system keeps its volume rows.
         }
         try {
+            dev.tvlauncher.controllers.ControllersSection.register() // Settings > System > Controllers
+        } catch (e: Throwable) {
+            // No Controllers page this run; controllers still work with the default mapping.
+        }
+        try {
             WaveTwoSections.registerAll()
         } catch (e: Throwable) {
             // Same: the wave-2 pages stay placeholders or absent.

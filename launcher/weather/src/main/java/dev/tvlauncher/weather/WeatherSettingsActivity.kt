@@ -15,6 +15,7 @@ import android.text.TextWatcher
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
@@ -26,6 +27,13 @@ import android.widget.TextView
 import java.util.concurrent.Executors
 
 class WeatherSettingsActivity : Activity() {
+    /** Game controllers: A = OK, B = BACK, sticks move focus, Y / Start open the launcher's Spotlight. */
+    private val pad = dev.tvlauncher.input.GamepadInput(this)
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean = pad.dispatch(event) { super.dispatchKeyEvent(it) }
+
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean = pad.motion(ev) || super.dispatchGenericMotionEvent(ev)
+
     private val ui = Handler(Looper.getMainLooper())
     private val refreshIo = Executors.newSingleThreadExecutor()
     private val searchIo = Executors.newSingleThreadExecutor()

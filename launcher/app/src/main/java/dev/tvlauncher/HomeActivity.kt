@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -20,6 +21,8 @@ import dev.tvlauncher.home.HomeModules
 import dev.tvlauncher.home.HomeSounds
 import dev.tvlauncher.home.ModeTracker
 import dev.tvlauncher.home.RecentMode
+import dev.tvlauncher.input.GamepadInput
+import dev.tvlauncher.input.PadCommand
 import dev.tvlauncher.launch.AndroidLaunchBackend
 import dev.tvlauncher.launch.AppLauncher
 import dev.tvlauncher.safemode.SafeMode
@@ -84,6 +87,17 @@ class HomeActivity : Activity() {
     private val spotlightPrefs by lazy { SpotlightPrefs(applicationContext) }
     private var spotlightConfig = SpotlightConfig.DEFAULT
     private val spotlightKeys = TriggerDetector(now = { android.os.SystemClock.uptimeMillis() })
+
+    /** Game controllers: Y/Start toggle Spotlight, Select opens Settings, Guide resets the shelf. */
+    private val pad = GamepadInput(this, object : GamepadInput.Host {
+        override fun onPadCommand(command: PadCommand, repeat: Int): Boolean = when {
+            redirected -> false
+            command == PadCommand.SEARCH || command == PadCommand.START -> { toggleSpotlight(); true }
+            command == PadCommand.SELECT -> { if (SystemActions.launcherSettings(this@HomeActivity)) sounds.action(true); true }
+            command == PadCommand.HOME -> { goHome(); true }
+            else -> false
+        }
+    })
 
     /** True when onCreate returned early (redirected to safe mode): nothing is built, so lifecycle callbacks must not touch it. */
     private val redirected get() = !::modes.isInitialized
@@ -295,14 +309,38 @@ class HomeActivity : Activity() {
         return true
     }
 
+    /** Volume keys first (our volume bar), then the controller mapping; remote keys reach [handleKey] unchanged. */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (redirected) return super.dispatchKeyEvent(event)
+        if (volume.dispatch(event)) return true // our volume bar; false = the TV handles the key
+        return pad.dispatch(event, ::handleKey)
+    }
+
+    /** Controller sticks; a real push counts as activity (onUserInteraction), drift does not. */
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean =
+        (!redirected && pad.motion(ev)) || super.dispatchGenericMotionEvent(ev)
+
+    /** The controller's Y / Start: the same toggle as MENU / SEARCH (not over the tile menu). */
+    private fun toggleSpotlight() {
+        if (tileMenu.isVisible) return
+        if (spotlight.isOpen) { spotlight.close(); sounds.panel(opened = false) } else openSpotlight()
+    }
+
+    /** The controller's Guide button, like a HOME press: back to a clean shelf. */
+    private fun goHome() {
+        spotlight.close(animate = false)
+        modules.closeAll()
+        tileMenu.dismiss()
+        focusTile(0)
+    }
+
     /**
      * The Spotlight keys (Settings > Spotlight: Menu and Search by default, an extra key, a
      * double-press key) toggle it from anywhere on the home screen (including its search
      * field), not over the tile menu.
      */
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    private fun handleKey(event: KeyEvent): Boolean {
         if (redirected) return super.dispatchKeyEvent(event)
-        if (volume.dispatch(event)) return true // our volume bar; false = the TV handles the key
         modules.onUserActivity() // any key, repeats included, resets the ambient idle timer
         sounds.onKey(event)
         val down = event.action == KeyEvent.ACTION_DOWN

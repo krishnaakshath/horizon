@@ -11,6 +11,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- The launcher's controller settings (A/B swap, stick sensitivity), read-only. -->
+    <queries>
+        <provider android:authorities="dev.tvlauncher.gamepad" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:banner="@drawable/banner_browser"
@@ -29,7 +34,7 @@
             android:value="true" />
         <activity
             android:name=".BrowserActivity"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout|uiMode"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|smallestScreenSize|screenLayout|uiMode"
             android:exported="true"
             android:label="Browser"
             android:launchMode="singleTask"

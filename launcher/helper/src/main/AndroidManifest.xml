@@ -34,6 +34,8 @@
 
     <!-- Package visibility (API 30+): the Spotlight intent and the state broadcast go to the launcher. -->
     <queries>
+        <!-- The launcher's "Guide button opens Home" choice, read-only. -->
+        <provider android:authorities="dev.tvlauncher.gamepad" />
         <intent>
             <action android:name="android.settings.ACCESSIBILITY_SETTINGS" />
         </intent>

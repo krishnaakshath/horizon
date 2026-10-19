@@ -1,5 +1,6 @@
 package dev.tvlauncher.appsettings
 
+import dev.tvlauncher.controllers.ControllersSection
 import dev.tvlauncher.dns.PrivateDnsSection
 import dev.tvlauncher.home.WaveTwoSections
 import dev.tvlauncher.setup.SetupSection
@@ -19,6 +20,7 @@ class LauncherRegistrationTest {
         ModuleSections.registerAll(r)
         Speed.registerSections(r)
         VolumeSection.register(r)
+        ControllersSection.register(r)
         WaveTwoSections.registerAll(r)
         SetupSection.register(r)
         r.register(SpotlightSection)
@@ -40,6 +42,15 @@ class LauncherRegistrationTest {
         val byId = all().sections().associateBy { it.id }
         assertEquals(SettingsGroup.SYSTEM, byId.getValue(SpeedSection.ID).group)
         assertEquals(SettingsGroup.CONNECTIONS, byId.getValue(PrivateDnsSection.ID).group)
+    }
+
+    @Test fun controllers_isRegisteredOnceInSystem_afterSpeed() {
+        val sections = all().sections()
+        assertEquals(1, sections.count { it.id == ControllersSection.ID })
+        val system = sections.filter { it.group == SettingsGroup.SYSTEM }.map { it.id }
+        assertTrue(system.toString(), ControllersSection.ID in system)
+        assertTrue(system.toString(), system.indexOf(SpeedSection.ID) < system.indexOf(ControllersSection.ID))
+        assertTrue(ControllersSection.spec.primaryRows.size <= 7)
     }
 
     @Test fun everySpecifiedPage_isWithinThePrimaryRowBudget() {

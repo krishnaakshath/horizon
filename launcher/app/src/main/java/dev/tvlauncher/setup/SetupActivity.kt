@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -24,6 +25,8 @@ import dev.tvlauncher.ambient.WeatherCompanion
 import dev.tvlauncher.appsettings.AddOns
 import dev.tvlauncher.device.DeviceProfileReader
 import dev.tvlauncher.device.EffectsMode
+import dev.tvlauncher.input.GamepadInput
+import dev.tvlauncher.input.PadCommand
 import dev.tvlauncher.discover.PopularApps
 import dev.tvlauncher.insights.UsageAccess
 import dev.tvlauncher.room.RoomChoice
@@ -476,7 +479,20 @@ class SetupActivity : Activity() {
     private fun lp(top: Int) = LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(top) }
     private fun wrap(top: Int) = LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(top) }
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    /**
+     * Game controllers work through setup like the remote (A = OK, B = BACK, sticks move focus).
+     * Spotlight and Settings buttons do nothing here, so a stray press cannot leave the checklist.
+     */
+    private val pad = GamepadInput(this, object : GamepadInput.Host {
+        override fun onPadCommand(command: PadCommand, repeat: Int): Boolean =
+            command == PadCommand.SEARCH || command == PadCommand.START || command == PadCommand.SELECT
+    })
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean = pad.dispatch(event, ::handleKey)
+
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean = pad.motion(ev) || super.dispatchGenericMotionEvent(ev)
+
+    private fun handleKey(event: KeyEvent): Boolean {
         // MENU skips the current page from anywhere (a remote shortcut; Skip is also on screen).
         if (event.keyCode == KeyEvent.KEYCODE_MENU && event.action == KeyEvent.ACTION_UP) { onSkip(); return true }
         return super.dispatchKeyEvent(event)

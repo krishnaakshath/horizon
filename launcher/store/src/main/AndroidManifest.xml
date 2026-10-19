@@ -17,6 +17,8 @@
 
     <!-- Package visibility (targetSdk 30): see launchable apps to detect updates, compare signers and open them. -->
     <queries>
+        <!-- The launcher's controller settings (A/B swap, stick sensitivity), read-only. -->
+        <provider android:authorities="dev.tvlauncher.gamepad" />
         <intent>
             <action android:name="android.settings.MANAGE_UNKNOWN_APP_SOURCES" />
             <data android:scheme="package" />

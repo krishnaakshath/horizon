@@ -19,6 +19,9 @@ android {
             isMinifyEnabled = false
         }
     }
+    // Game controller support shared with the launcher (dev.tvlauncher.input: pure rules + one
+    // Activity helper; no resources), compiled into this app as well.
+    sourceSets["main"].kotlin.directories.add("../app/src/main/java/dev/tvlauncher/input")
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

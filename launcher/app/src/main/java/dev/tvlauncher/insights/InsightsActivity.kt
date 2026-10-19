@@ -8,6 +8,8 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -18,6 +20,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import dev.tvlauncher.input.GamepadInput
 import dev.tvlauncher.ui.BrandColors
 import dev.tvlauncher.ui.Theme
 import dev.tvlauncher.ui.Theme.style
@@ -27,6 +30,12 @@ import java.util.Locale
 
 /** "Your viewing today": local, rule-based summary of foreground time. Nothing leaves the device. */
 class InsightsActivity : Activity() {
+    private val pad = GamepadInput(this)
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean = pad.dispatch(event) { super.dispatchKeyEvent(it) }
+
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean = pad.motion(ev) || super.dispatchGenericMotionEvent(ev)
+
     private lateinit var content: LinearLayout
     private var worker: Thread? = null
     @Volatile private var destroyed = false
