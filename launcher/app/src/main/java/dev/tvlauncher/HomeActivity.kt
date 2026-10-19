@@ -12,10 +12,11 @@ import dev.tvlauncher.apps.AppEntry
 import dev.tvlauncher.apps.AppFilter
 import dev.tvlauncher.apps.AppRepository
 import dev.tvlauncher.device.DeviceProfileReader
-import dev.tvlauncher.home.EffectiveProfile
 import dev.tvlauncher.home.HomeAppearance
 import dev.tvlauncher.home.HomeLook
 import dev.tvlauncher.home.HomeSounds
+import dev.tvlauncher.home.ModeTracker
+import dev.tvlauncher.home.RecentMode
 import dev.tvlauncher.launch.AndroidLaunchBackend
 import dev.tvlauncher.launch.AppLauncher
 import dev.tvlauncher.settings.Prefs
@@ -44,7 +45,6 @@ class HomeActivity : Activity() {
     private lateinit var repo: AppRepository
     private lateinit var prefs: Prefs
     private lateinit var look: HomeLook
-    private lateinit var profile: EffectiveProfile
     private lateinit var launcher: AppLauncher
     private lateinit var tileMenu: TileMenu
     private lateinit var adapter: ShelfAdapter
@@ -58,6 +58,7 @@ class HomeActivity : Activity() {
     private lateinit var shelfBox: Shelf
     private lateinit var launchOverlay: LaunchOverlay
     private lateinit var sounds: HomeSounds
+    private lateinit var modes: ModeTracker
     private val loader = Executors.newSingleThreadExecutor()
     private val generation = AtomicInteger()
     private var firstLoad = true
@@ -74,13 +75,13 @@ class HomeActivity : Activity() {
         repo = AppRepository(applicationContext)
         prefs = Prefs(applicationContext)
         look = HomeLook(this, DeviceProfileReader.read(this))
-        profile = look.profile
         sounds = HomeSounds(this)
         buildUi()
+        modes = ModeTracker(this) { heroBox.hero.setModeChip(RecentMode.chipText(it)) }
         val wantsSpotlight = intent?.action == SpotlightKeys.ACTION
         if (wantsSpotlight) setIntent(Intent(intent).setAction(null)) // a recreation must not re-open it
         if (look.showSplash && !wantsSpotlight && !HomeLook.isRebuild(intent)) {
-            splash = SplashOverlay(this, profile.full).also {
+            splash = SplashOverlay(this, look.profile.full).also {
                 (content.parent as FrameLayout).addView(it, FrameLayout.LayoutParams(-1, -1))
                 it.prepare(content.revealTargets())
                 it.start()
@@ -93,7 +94,7 @@ class HomeActivity : Activity() {
     }
 
     private fun buildUi() {
-        val full = profile.full
+        val full = look.profile.full
         val root = FrameLayout(this)
         backdrop = BackdropView(this, look.backdropMs)
         root.addView(backdrop, FrameLayout.LayoutParams(-1, -1))
@@ -105,10 +106,10 @@ class HomeActivity : Activity() {
             onDown = ::onTopBarDown
         )
         heroBox = HeroBox(this, packageManager)
-        launcher = AppLauncher(profile.device, AndroidLaunchBackend(this))
+        launcher = AppLauncher(look.profile.device, AndroidLaunchBackend(this))
         tileMenu = TileMenu(this, prefs) { reload() }.also(sounds::bind)
         adapter = ShelfAdapter(
-            packageManager, profile,
+            packageManager, look.profile,
             onFocused = { pos, app, tile -> onAppFocused(app); strip.onTileFocused(pos, tile, app) },
             onClick = ::launch,
             onLongPress = { app -> tileMenu.show(app, visiblePackages()); sounds.menuOpen() },
@@ -208,7 +209,7 @@ class HomeActivity : Activity() {
         val wasFirst = firstLoad
         firstLoad = false
         if (wasFirst) {
-            sounds.readyIn(if (splash != null) SplashReveal.totalMs(profile.full) else 0L)
+            sounds.readyIn(if (splash != null) SplashReveal.totalMs(look.profile.full) else 0L)
             splash?.let { s -> shelf.post { s.reveal(content.revealTargets()) } }
             splash = null
             if (pendingSpotlight) shelf.post { pendingSpotlight = false; openSpotlight() }
@@ -265,6 +266,7 @@ class HomeActivity : Activity() {
     override fun onResume() {
         super.onResume()
         sounds.reload()
+        modes.onResume()
     }
 
     /** Also picks up Settings > Appearance edits when coming back from Settings. */
@@ -295,6 +297,7 @@ class HomeActivity : Activity() {
         repo.unregister()
         loader.shutdownNow()
         sounds.release()
+        modes.release()
         super.onDestroy()
     }
 }
