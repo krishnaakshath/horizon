@@ -15,6 +15,10 @@ import dev.tvlauncher.room.RoomChoiceCycler
 import dev.tvlauncher.room.RoomPrefs
 import dev.tvlauncher.room.RoomSettings
 import dev.tvlauncher.room.RoomSettingsRows
+import dev.tvlauncher.room.EstimatedDaylight
+import dev.tvlauncher.room.SunChain
+import dev.tvlauncher.room.SunPlan
+import dev.tvlauncher.room.WeatherDaylightSource
 
 /**
  * Pure model of Settings > Room lighting, on top of [RoomSettingsRows]: the page's [SPEC] (four
@@ -25,7 +29,7 @@ object RoomPage {
     const val STEP_MIN = 15
     private const val NOT_SET = "Not set"
 
-    val PRIMARY = listOf("room.choice", "room.location", "room.transitionSeconds", "room.boostTextInBright")
+    val PRIMARY = listOf("room.choice", "room.sun", "room.location", "room.transitionSeconds", "room.boostTextInBright")
     val ADVANCED = listOf("room.dayStart", "room.eveningStart", "room.nightStart")
     val SPEC = PageSpec(ID, PRIMARY, ADVANCED)
 
@@ -61,6 +65,10 @@ object RoomPage {
         val v = RoomSettingsRows.valueOf(s, "location")
         return RoomSettingsRows.CITIES.none { it.value == v }
     }
+
+    /** Where AUTO's sun times come from now: Weather, else the backup location's estimate, else fixed times. */
+    fun sunPlan(sun: WeatherDaylightSource, s: RoomSettings): SunPlan =
+        SunChain.resolve(sun.status(), EstimatedDaylight.forSettings(s)?.sunriseSunsetMinutes())
 
     fun transitionOptions(): List<RoomSettingsRows.Option> = RoomSettingsRows.row("transitionSeconds")!!.options
 
@@ -98,9 +106,17 @@ object RoomSection : SettingsSection, SpecifiedPage {
         page.row("room.choice", rows.row("choice")!!.label, RowKind.Choice(RoomPage.choiceLabels(), RoomPage.choiceIndex(s)) { i ->
             save(prefs.load().copy(choice = RoomPage.choices()[i]))
         }, subtitle = "Auto uses a light sensor if the TV has one, else the time of day", iconRes = R.drawable.ic_room_auto)
-        page.row("room.location", "Sunrise and sunset for", RowKind.Choice(RoomPage.locationLabels(s), RoomPage.locationIndex(s)) { i ->
-            save(RoomPage.applyLocation(prefs.load(), i))
-        }, subtitle = "Optional: Auto follows the real sun there. Nothing leaves the TV")
+        // Sun times: read from the shared cache (never blocks); rebuilt when Weather's answer changes.
+        val sun = WeatherDaylightSource.get(context)
+        fun sunTexts(n: RoomSettings) = RoomPage.sunPlan(sun, n).let { rows.sunValue(it) to rows.sunSubtitle(it, n) }
+        val shown = sunTexts(s)
+        page.row("room.sun", rows.row("sun")!!.label, RowKind.Info(shown.first), subtitle = shown.second)
+        val onSun: () -> Unit = { if (sunTexts(prefs.load()) != shown) nav.refresh() }
+        sun.cache.addListener(onSun)
+        page.doOnDetach { sun.cache.removeListener(onSun) }
+        page.row("room.location", rows.row("location")!!.label, RowKind.Choice(RoomPage.locationLabels(s), RoomPage.locationIndex(s)) { i ->
+            save(RoomPage.applyLocation(prefs.load(), i), rebuild = true)
+        }, subtitle = rows.row("location")!!.subtitle)
         val transitions = RoomPage.transitionOptions()
         page.row("room.transitionSeconds", rows.row("transitionSeconds")!!.label,
             RowKind.Choice(transitions.map { it.label }, RoomPage.transitionIndex(s)) { i ->

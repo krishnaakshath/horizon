@@ -6,11 +6,11 @@ import java.util.Locale
  * Declarative rows for the Settings page's "Room lighting" section. The Settings UI renders each
  * [Row] with its existing row widgets (CHOICE = picker, TOGGLE = switch, LOCATION = picker of the
  * preset cities in [Row.options] plus "Not set" and an optional free "lat, lon" entry, TIME = time
- * picker in 15-min steps) and writes back through [apply].
+ * picker in 15-min steps, INFO = read-only status, see [sunValue]) and writes back through [apply].
  * Values travel as strings so the UI needs no knowledge of [RoomSettings].
  */
 object RoomSettingsRows {
-    enum class Type { CHOICE, TOGGLE, LOCATION, TIME }
+    enum class Type { CHOICE, TOGGLE, LOCATION, TIME, INFO }
 
     data class Option(val value: String, val label: String)
 
@@ -50,8 +50,10 @@ object RoomSettingsRows {
         Row("choice", Type.CHOICE, "Room lighting",
             "Adapts brightness, contrast and glass to your room. Auto uses a light sensor if the TV has one, else the time of day.",
             RoomChoice.AUTO.name, choiceOptions, "ic_room_auto"),
-        Row("location", Type.LOCATION, "Location for sunrise and sunset",
-            "Optional: latitude and longitude let Auto follow the real sunrise and sunset. Nothing leaves the TV.",
+        Row("sun", Type.INFO, "Sunrise and sunset",
+            "Auto follows the real sunrise and sunset of your city in Weather.", null),
+        Row("location", Type.LOCATION, "Backup location",
+            "Only when Weather has no sunrise and sunset: Auto estimates them for this place. Nothing leaves the TV.",
             null, CITIES),
         Row("transitionSeconds", Type.CHOICE, "Smooth transition",
             "How gently the screen changes between room modes.", "1.2", transitionOptions),
@@ -123,6 +125,39 @@ object RoomSettingsRows {
         "nightStart" -> hhmm(s.nightStart)
         "boostTextInBright" -> if (s.boostTextInBright) "On" else "Off"
         else -> ""
+    }
+
+    /** Value of the "Sunrise and sunset" row; never blank. */
+    fun sunValue(plan: SunPlan): String = when (plan.source) {
+        SunSource.WEATHER -> "From Weather"
+        SunSource.ESTIMATE -> "Estimated"
+        SunSource.FIXED -> "Fixed times"
+    }
+
+    /** Subtitle of the "Sunrise and sunset" row: today's times and where they come from; never blank. */
+    fun sunSubtitle(plan: SunPlan, s: RoomSettings): String {
+        val t = plan.times
+        return when (plan.source) {
+            SunSource.WEATHER ->
+                "${plan.weather.city ?: "Your city"}: sunrise ${hhmm(t!!.sunriseMin)}, sunset ${hhmm(t.sunsetMin)}"
+            SunSource.ESTIMATE ->
+                "Sunrise ${hhmm(t!!.sunriseMin)}, sunset ${hhmm(t.sunsetMin)} for ${locationSummary(s)}. ${weatherHint(plan.weather)}"
+            SunSource.FIXED -> {
+                val f = RoomLightModel.sane(s.schedule)
+                "${weatherHint(plan.weather)}. Until then: day from ${hhmm(f.dayStart)}, evening from ${hhmm(f.eveningStart)}"
+            }
+        }
+    }
+
+    /** Why Weather's times are not used (no trailing period). */
+    fun weatherHint(w: WeatherSunStatus): String = when (w.state) {
+        WeatherSunState.LOADING -> "Checking Weather"
+        WeatherSunState.NOT_INSTALLED -> "Get the Weather app for your city's real sunrise and sunset"
+        WeatherSunState.UPDATE_NEEDED -> "Update the Weather app for your city's real sunrise and sunset"
+        WeatherSunState.NO_CITY -> "Choose your city in Weather for its real sunrise and sunset"
+        WeatherSunState.NO_TIMES, WeatherSunState.OK ->
+            if (w.city != null) "Weather has no usable sunrise and sunset for ${w.city} today"
+            else "Weather has no usable sunrise and sunset today"
     }
 
     fun hhmm(m: Int): String = String.format(Locale.ROOT, "%02d:%02d", m / 60, m % 60)

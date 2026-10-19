@@ -106,7 +106,7 @@ class RoomSettingsTest {
         assertTrue(keys.containsAll(listOf("choice", "location", "transitionSeconds", "eveningStart", "nightStart", "dayStart", "boostTextInBright")))
         assertEquals("Room lighting", RoomSettingsRows.row("choice")!!.label)
         assertEquals(listOf("Auto", "Dark room", "Evening", "Normal", "Bright room"), RoomSettingsRows.row("choice")!!.options.map { it.label })
-        assertEquals("Location for sunrise and sunset", RoomSettingsRows.row("location")!!.label)
+        assertEquals("Backup location", RoomSettingsRows.row("location")!!.label)
         assertEquals(listOf("New Delhi", "Mumbai", "Kolkata", "Chennai", "Bengaluru", "Hyderabad", "London", "New York", "Dubai", "Singapore"),
             RoomSettingsRows.row("location")!!.options.map { it.label })
         assertEquals("Smooth transition", RoomSettingsRows.row("transitionSeconds")!!.label)
@@ -178,5 +178,40 @@ class RoomSettingsTest {
         }
         assertTrue(RoomPreview.describe(RoomMode.BRIGHT).contains("4 dp"))
         assertEquals("Dark room", RoomPreview.title(RoomMode.CINEMA))
+    }
+
+    @Test fun sunRowTextsNeverBlankAndNameTheSource() {
+        val s = RoomSettings()
+        val ok = WeatherSunStatus(WeatherSunState.OK, "Mumbai", SunTimes(391, 1085))
+        val fromWeather = SunChain.resolve(ok, null)
+        assertEquals("From Weather", RoomSettingsRows.sunValue(fromWeather))
+        assertEquals("Mumbai: sunrise 06:31, sunset 18:05", RoomSettingsRows.sunSubtitle(fromWeather, s))
+
+        val delhi = s.copy(latitudeDeg = 28.61, longitudeDeg = 77.21)
+        val est = SunChain.resolve(WeatherSunStatus(WeatherSunState.NO_CITY, null, null), 400 to 1090)
+        assertEquals("Estimated", RoomSettingsRows.sunValue(est))
+        assertEquals("Sunrise 06:40, sunset 18:10 for New Delhi. Choose your city in Weather for its real sunrise and sunset",
+            RoomSettingsRows.sunSubtitle(est, delhi))
+
+        val fixed = SunChain.resolve(WeatherSunStatus(WeatherSunState.NOT_INSTALLED, null, null), null)
+        assertEquals("Fixed times", RoomSettingsRows.sunValue(fixed))
+        assertEquals("Get the Weather app for your city's real sunrise and sunset. Until then: day from 07:30, evening from 18:30",
+            RoomSettingsRows.sunSubtitle(fixed, s))
+
+        for (state in WeatherSunState.values()) for (city in listOf(null, "Oslo")) {
+            val plan = SunChain.resolve(WeatherSunStatus(state, city, null), null)
+            val text = RoomSettingsRows.sunValue(plan) + RoomSettingsRows.sunSubtitle(plan, s)
+            assertFalse(text, text.isBlank() || text.contains("null"))
+            assertFalse(text, Regex("(?i)\\badb\\b|developer|debug").containsMatchIn(text))
+        }
+        assertEquals("Weather has no usable sunrise and sunset for Oslo today",
+            RoomSettingsRows.weatherHint(WeatherSunStatus(WeatherSunState.NO_TIMES, "Oslo", null)))
+    }
+
+    @Test fun roomRowsHaveNoDeveloperWording() {
+        for (r in RoomSettingsRows.rows) {
+            val text = r.label + " " + r.subtitle + " " + r.options.joinToString { it.label }
+            assertFalse(text, Regex("(?i)\\badb\\b|developer|debug|shell").containsMatchIn(text))
+        }
     }
 }

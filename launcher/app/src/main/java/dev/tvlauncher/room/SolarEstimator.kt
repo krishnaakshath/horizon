@@ -40,6 +40,24 @@ class EstimatedDaylight(
 ) : DaylightSource {
     override fun sunriseSunsetMinutes(): Pair<Int, Int>? =
         SolarEstimator.sunriseSunsetClock(dayOfYear(), latitudeDeg, longitudeDeg, utcOffsetMinutes(), dstMinutes())
+
+    companion object {
+        /** The estimate for [s]'s location on this device's clock and zone, or null when no location is set. */
+        fun forSettings(s: RoomSettings): EstimatedDaylight? {
+            val lat = s.latitudeDeg ?: return null
+            return EstimatedDaylight(
+                latitudeDeg = lat,
+                longitudeDeg = s.longitudeDeg,
+                // Zone offset (incl. DST) at this instant, from the device TimeZone.
+                utcOffsetMinutes = { java.util.TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 },
+                dayOfYear = { java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR) },
+                dstMinutes = {
+                    val tz = java.util.TimeZone.getDefault()
+                    (tz.getOffset(System.currentTimeMillis()) - tz.rawOffset) / 60_000
+                }
+            )
+        }
+    }
 }
 
 /**

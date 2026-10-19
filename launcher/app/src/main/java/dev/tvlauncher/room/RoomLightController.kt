@@ -6,7 +6,6 @@ import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
 import java.util.Calendar
-import java.util.TimeZone
 
 /**
  * Android shell around [RoomEngine] for the home screen. Call [start] from onStart and [stop] from
@@ -33,7 +32,9 @@ class RoomLightController(
     private val app = context.applicationContext
     private val prefs = RoomPrefs(app)
     private val main = Handler(Looper.getMainLooper())
-    private val weather = WeatherDaylightSource(app)
+    private val weather = WeatherDaylightSource.get(app).also { it.prime() }
+    /** New sun times from Weather (or Weather went away): re-evaluate at once. */
+    private val onSunChanged: () -> Unit = { engine.tick() }
     private val engine = RoomEngine(
         clock = { SystemClock.elapsedRealtime() },
         minuteOfDay = {
@@ -64,10 +65,12 @@ class RoomLightController(
         if (engine.started) return
         val s = prefs.load()
         engine.start(s, updateSensor(s))
+        weather.cache.addListener(onSunChanged)
         scheduleTick()
     }
 
     fun stop() {
+        weather.cache.removeListener(onSunChanged)
         main.removeCallbacks(tick)
         sensor.stop()
         engine.stop()
@@ -104,20 +107,10 @@ class RoomLightController(
         }
     }
 
+    /** Fallback chain: Weather's real times -> estimate for the Room location -> (null) fixed table. */
     private fun daylight(s: RoomSettings): DaylightSource {
-        val lat = s.latitudeDeg ?: return weather
-        val estimate = EstimatedDaylight(
-            latitudeDeg = lat,
-            longitudeDeg = s.longitudeDeg,
-            // Zone offset (incl. DST) at this instant, from the device TimeZone.
-            utcOffsetMinutes = { TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000 },
-            dayOfYear = { Calendar.getInstance().get(Calendar.DAY_OF_YEAR) },
-            dstMinutes = {
-                val tz = TimeZone.getDefault()
-                (tz.getOffset(System.currentTimeMillis()) - tz.rawOffset) / 60_000
-            }
-        )
-        return DaylightSources.firstOf(weather, estimate)
+        val estimate = EstimatedDaylight.forSettings(s) ?: return weather.saneOnly()
+        return DaylightSources.firstOf(weather.saneOnly(), estimate.saneOnly())
     }
 
     private fun scheduleTick() {
