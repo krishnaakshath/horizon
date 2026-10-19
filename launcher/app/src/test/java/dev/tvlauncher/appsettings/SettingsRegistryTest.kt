@@ -1,0 +1,54 @@
+package dev.tvlauncher.appsettings
+
+import android.content.Context
+import android.view.View
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
+import org.junit.Test
+
+class SettingsRegistryTest {
+    private class Fake(override val id: String, override val title: String = id) : SettingsSection {
+        override val iconRes: Int = 0
+        override fun buildPage(context: Context, nav: SettingsNav): View = throw UnsupportedOperationException()
+    }
+
+    private val builtInOrder = listOf(
+        "appearance", "home_layout", "network", "sounds", "insights", "helper", "browser", "about"
+    )
+
+    @Test
+    fun registry_orderIsStable() {
+        val a = SettingsRegistry.newDefault().sections().map { it.id }
+        val b = SettingsRegistry.newDefault().sections().map { it.id }
+        assertEquals(builtInOrder, a)
+        assertEquals(a, b)
+    }
+
+    @Test
+    fun registry_register_addsAfterBuiltIns() {
+        val r = SettingsRegistry.newDefault()
+        r.register(Fake("weather"))
+        r.register(Fake("presence"))
+        assertEquals(builtInOrder + listOf("weather", "presence"), r.sections().map { it.id })
+    }
+
+    @Test
+    fun registry_register_replacesPlaceholderInPlace() {
+        val r = SettingsRegistry.newDefault()
+        val sounds = Fake("sounds", "Sounds")
+        r.register(sounds)
+        val list = r.sections()
+        assertEquals(builtInOrder, list.map { it.id })
+        assertSame(sounds, list[3])
+    }
+
+    @Test
+    fun registry_register_sameIdTwice_keepsOneEntry() {
+        val r = SettingsRegistry.newDefault()
+        r.register(Fake("weather"))
+        val second = Fake("weather", "Weather 2")
+        r.register(second)
+        assertEquals(builtInOrder + "weather", r.sections().map { it.id })
+        assertSame(second, r.sections().last())
+    }
+}
