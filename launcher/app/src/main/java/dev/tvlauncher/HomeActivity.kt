@@ -77,6 +77,9 @@ class HomeActivity : Activity() {
     /** Spotlight was requested before the first app load; opened once it completes. */
     private var pendingSpotlight = false
 
+    /** True when onCreate returned early (redirected to safe mode): nothing is built, so lifecycle callbacks must not touch it. */
+    private val redirected get() = !::modes.isInitialized
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (SafeMode.redirectIfTripped(this)) return // repeated crashes: the tiny safe-mode launcher
@@ -275,6 +278,7 @@ class HomeActivity : Activity() {
 
     /** MENU / SEARCH toggle Spotlight from anywhere on the home screen (including its search field). */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (redirected) return super.dispatchKeyEvent(event)
         modules.onUserActivity() // any key, repeats included, resets the ambient idle timer
         sounds.onKey(event)
         if (!SpotlightKeys.isToggleKey(event.keyCode)) return super.dispatchKeyEvent(event)
@@ -286,6 +290,7 @@ class HomeActivity : Activity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
+        if (redirected) return
         if (intent?.action == SpotlightKeys.ACTION) {
             openSpotlight()
         } else {
@@ -297,10 +302,11 @@ class HomeActivity : Activity() {
 
     override fun onUserInteraction() {
         super.onUserInteraction()
-        modules.onUserActivity()
+        if (!redirected) modules.onUserActivity()
     }
 
     override fun onPause() {
+        if (redirected) return super.onPause()
         modules.pause()
         launchOverlay.hide()
         super.onPause()
@@ -308,7 +314,7 @@ class HomeActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (isChangingConfigurations || isFinishing) return // e.g. the appearance rebuild in onStart
+        if (redirected || isChangingConfigurations || isFinishing) return // e.g. the appearance rebuild in onStart
         sounds.reload()
         modes.onResume()
         modules.resume()
@@ -317,6 +323,7 @@ class HomeActivity : Activity() {
     /** Also picks up Settings > Appearance edits when coming back from Settings. */
     override fun onStart() {
         super.onStart()
+        if (redirected) return
         if (look.reload() == HomeAppearance.Change.REBUILD) return HomeLook.rebuild(this)
         topBar.applyAppearance(look.settings)
         // Settings > Home screen may have turned the "Get more apps" tile on or off.
@@ -328,6 +335,7 @@ class HomeActivity : Activity() {
     }
 
     override fun onStop() {
+        if (redirected) return super.onStop()
         if (!isChangingConfigurations && !isFinishing) {
             launchOverlay.hide()
             spotlight.close(animate = false)
@@ -344,6 +352,7 @@ class HomeActivity : Activity() {
     /** BACK closes a panel or Spotlight, or leaves the quick-strip for its tile. The launcher never finishes. */
     @Deprecated("Home screen never exits on Back")
     override fun onBackPressed() {
+        if (redirected) return super.onBackPressed()
         val closed = when {
             modules.onBack() -> true
             spotlight.isOpen -> { spotlight.close(); true }
@@ -353,7 +362,7 @@ class HomeActivity : Activity() {
     }
 
     override fun onDestroy() {
-        if (!::modes.isInitialized) return super.onDestroy() // redirected to safe mode
+        if (redirected) return super.onDestroy()
         tileMenu.dismiss()
         modules.destroy()
         repo.unregister()
