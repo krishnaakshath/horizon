@@ -3,7 +3,8 @@ package dev.tvlauncher.settings
 import android.content.Context
 
 class Prefs(context: Context) {
-    private val sharedPreferences = context.getSharedPreferences("launcher_settings", Context.MODE_PRIVATE)
+    // applicationContext: the Application routes this file to the active profile (profiles.ProfileStores).
+    private val sharedPreferences = context.applicationContext.getSharedPreferences("launcher_settings", Context.MODE_PRIVATE)
 
     fun load(): LauncherSettings {
         val json = sharedPreferences.getString("settings_json", null)

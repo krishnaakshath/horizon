@@ -14,9 +14,21 @@ import dev.tvlauncher.ui.Theme
  * Process start: installs the crash guard first, then registers the module Settings pages.
  * Nothing here may stop the process from starting, so every step swallows any Throwable.
  */
-class LauncherApp : Application() {
+class LauncherApp : Application(), dev.tvlauncher.profiles.ProfileStores.RawPrefs {
+    /** Per-person files (favorites, look, wallpaper, ...) open the active profile's copy (profiles.ProfileStores). */
+    override fun getSharedPreferences(name: String?, mode: Int): android.content.SharedPreferences =
+        super.getSharedPreferences(name?.let { dev.tvlauncher.profiles.ProfileStores.route(it) }, mode)
+
+    override fun rawSharedPreferences(name: String): android.content.SharedPreferences =
+        super.getSharedPreferences(name, MODE_PRIVATE)
+
     override fun onCreate() {
         super.onCreate()
+        try {
+            dev.tvlauncher.profiles.ProfileManager.install(this) // before anything reads a per-person file
+        } catch (e: Throwable) {
+            // Home's files (the original ones) this run.
+        }
         try {
             SafeMode.install(this)
         } catch (e: Throwable) {
@@ -86,6 +98,12 @@ class LauncherApp : Application() {
             dev.tvlauncher.system.SystemSections.registerAll()
         } catch (e: Throwable) {
             // Devices stays a hidden slot; the other pages are missing this run.
+        }
+        try {
+            dev.tvlauncher.profiles.ProfilesSection.register() // Settings > System > Profiles
+            dev.tvlauncher.routines.RoutinesSection.register() // Settings > System > Routines
+        } catch (e: Throwable) {
+            // No Profiles / Routines pages this run; Home keeps the active profile.
         }
     }
 }

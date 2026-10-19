@@ -74,6 +74,10 @@ class HomeActivity : Activity() {
     private lateinit var modes: ModeTracker
     private lateinit var root: FrameLayout
     private lateinit var modules: HomeModules
+    /** Profiles: the top-bar avatar chip, the switcher panel and the live switch (profiles.ProfileHome). */
+    private lateinit var profiles: dev.tvlauncher.profiles.ProfileHome
+    /** Routines and Bedtime mode applied while Home is in front (room lighting repaints at once). */
+    private val routineListener = dev.tvlauncher.routines.RoutineSignals.Listener { if (!redirected) modules.room.refresh() }
     /** Settings > Home layout: the style, its list layout and its D-pad rules. */
     private lateinit var layout: HomeLayoutController
     /** Recent apps strip (double Home, Spotlight action, controller Y when chosen). */
@@ -130,6 +134,7 @@ class HomeActivity : Activity() {
         look = HomeLook(this, DeviceProfileReader.read(this))
         sounds = HomeSounds(this)
         buildUi()
+        profiles.onCreated() // after a profile switch: fade in and "Hi, <name>"
         modes = ModeTracker(this) { heroBox.hero.setModeChip(RecentMode.chipText(it)) }
         val wantsSpotlight = intent?.action == SpotlightKeys.ACTION
         if (wantsSpotlight) setIntent(Intent(intent).setAction(null)) // a recreation must not re-open it
@@ -160,7 +165,8 @@ class HomeActivity : Activity() {
             onInputs = { if (!modules.panels.openInputs(topBar.inputsButton)) sounds.action(SystemActions.inputs(this)) },
             onSettings = { if (SystemActions.launcherSettings(this)) sounds.action(true) else openSpotlight() },
             onSettingsLongPress = { tileMenu.showDockMenu(visiblePackages(), installed); sounds.menuOpen() },
-            onDown = ::onTopBarDown
+            onDown = ::onTopBarDown,
+            onProfile = { if (!spotlight.isOpen && !modules.isShowing && profiles.open()) sounds.panel(opened = true) }
         )
         heroBox = HeroBox(this, packageManager)
         launcher = AppLauncher(look.profile.device, AndroidLaunchBackend(this))
@@ -207,6 +213,10 @@ class HomeActivity : Activity() {
             heroBox, installedPackages = { installed.mapTo(HashSet()) { it.packageName } },
             onDiscoverClosed = { focusPosition(adapter.footerPosition) || focusTile(adapter.lastFocused) }
         )
+        profiles = dev.tvlauncher.profiles.ProfileHome(this, root, lite = !full, chip = topBar.profileChip) { open ->
+            modules.ambient.setPaused(dev.tvlauncher.home.HomeAmbient.PAUSE_PANEL, open)
+        }
+        dev.tvlauncher.routines.RoutineSignals.add(routineListener)
         root.viewTreeObserver.addOnGlobalFocusChangeListener { _, now -> strip.onGlobalFocus(now); sounds.onFocusChanged() }
         watch = try { buildWatch() } catch (e: RuntimeException) { null }
         setContentView(root)
@@ -341,7 +351,7 @@ class HomeActivity : Activity() {
             pendingSpotlight = true
             return
         }
-        if (spotlight.isOpen || splash != null || isDestroyed || modules.isShowing || switcher.isOpen) return // not under the splash or a panel
+        if (spotlight.isOpen || splash != null || isDestroyed || modules.isShowing || switcher.isOpen || profiles.isShowing) return // not under the splash or a panel
         val f = currentFocus
         restoreFocus = f?.takeIf { it.parent !== shelf && !strip.hasFocus() }
         restoreIndex = adapter.lastFocused
@@ -400,6 +410,7 @@ class HomeActivity : Activity() {
             splash?.let { s -> shelf.post { s.reveal(content.revealTargets()) } }
             splash = null
             if (pendingSpotlight) shelf.post { pendingSpotlight = false; openSpotlight() }
+            else shelf.post { if (!isDestroyed && !spotlight.isOpen && !modules.isShowing) profiles.maybeAskOnStart() }
         }
         if (apps.isEmpty()) {
             if ((hadFocus || wasFirst) && !spotlight.isOpen) topBar.inputsButton.requestFocus()
@@ -467,6 +478,7 @@ class HomeActivity : Activity() {
     private fun goHome() {
         spotlight.close(animate = false)
         modules.closeAll()
+        profiles.closeAll()
         tileMenu.dismiss()
         focusTile(0)
     }
@@ -508,6 +520,7 @@ class HomeActivity : Activity() {
             }
             spotlight.close(animate = false) // HOME press: back to a clean shelf
             modules.closeAll()
+            profiles.closeAll()
             focusTile(0)
         }
     }
@@ -537,6 +550,8 @@ class HomeActivity : Activity() {
     override fun onStart() {
         super.onStart()
         if (redirected) return
+        if (profiles.start()) return // switched elsewhere (Settings, a routine): rebuilt for that profile
+        dev.tvlauncher.routines.Bedtime.onHomeStart(this) // ends an expired Bedtime mode
         if (look.reload() == HomeAppearance.Change.REBUILD) return HomeLook.rebuild(this)
         spotlightConfig = try { spotlightPrefs.load() } catch (e: RuntimeException) { SpotlightConfig.DEFAULT }
         spotlightKeys.reset()
@@ -565,6 +580,7 @@ class HomeActivity : Activity() {
             if (!spotlight.keepOpenOnStop) spotlight.close(animate = false)
         }
         root.removeCallbacks(focusTick)
+        profiles.stop()
         topBar.stopStatus() // always paired with startStatus (TopBar tracks it)
         modules.stop() // panels closed; controllers, device monitor and idle timer stopped
         watch?.stop()
@@ -583,6 +599,7 @@ class HomeActivity : Activity() {
         if (redirected) return super.onBackPressed()
         val closed = when {
             switcher.isOpen -> { switcher.close(); true }
+            profiles.onBack() -> true
             modules.onBack() -> true
             spotlight.isOpen -> { spotlight.close(); true }
             else -> strip.hasFocus() && strip.returnToTile()
@@ -595,6 +612,8 @@ class HomeActivity : Activity() {
         tileMenu.dismiss()
         watch?.destroy()
         switcher.release()
+        profiles.release()
+        dev.tvlauncher.routines.RoutineSignals.remove(routineListener)
         modules.destroy()
         repo.unregister()
         loader.shutdownNow()

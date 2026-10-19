@@ -26,6 +26,8 @@ class LauncherRegistrationTest {
         r.register(SpotlightSection)
         dev.tvlauncher.watch.WatchSection.register(r)
         SystemSections.registerAll(r)
+        dev.tvlauncher.profiles.ProfilesSection.register(r)
+        dev.tvlauncher.routines.RoutinesSection.register(r)
         return r
     }
 

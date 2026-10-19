@@ -113,7 +113,10 @@ class SpotlightPageTest {
         assertEquals(QuickActions.Route.RESTART, QuickActions.route(Item.RESTART, true))
         for (i in listOf(Item.ACCESSIBILITY, Item.POWER, Item.SLEEP_TIMER, Item.GET_APPS)) assertEquals(QuickActions.Route.SYSTEM, QuickActions.route(i, true))
         assertFalse(QuickActions.closesSpotlight(Item.ROOM))
-        assertTrue(Item.values().filter { it != Item.ROOM }.all { QuickActions.closesSpotlight(it) })
+        // Room lighting, the sleep timer and Bedtime mode change in place (OK again = next choice).
+        val inPlace = setOf(Item.ROOM, Item.SLEEP_TIMER, Item.BEDTIME)
+        assertTrue(inPlace.none { QuickActions.closesSpotlight(it) })
+        assertTrue(Item.values().filter { it !in inPlace }.all { QuickActions.closesSpotlight(it) })
         assertEquals(Item.values().size, Item.values().map { QuickActions.iconRes(it) }.size)
     }
 

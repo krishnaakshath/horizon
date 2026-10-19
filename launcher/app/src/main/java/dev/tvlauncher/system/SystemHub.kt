@@ -393,8 +393,10 @@ object SystemHubSection : SettingsSection, SpecifiedPage {
         val dir = File(app.applicationInfo.dataDir, "shared_prefs")
         safe(Unit) {
             dir.listFiles()?.map { it.name.removeSuffix(".xml") }?.filter { it != "crash_guard" }?.forEach {
-                app.getSharedPreferences(it, Context.MODE_PRIVATE).edit().clear().commit()
+                // Unrouted: every profile's own copy is cleared too, then Home is the only profile.
+                dev.tvlauncher.profiles.ProfileStores.raw(app, it).edit().clear().commit()
             }
+            dev.tvlauncher.profiles.ProfileManager.reloadFromDisk(app)
         }
         safe(Unit) {
             app.startActivity(Intent(app, HomeActivity::class.java)

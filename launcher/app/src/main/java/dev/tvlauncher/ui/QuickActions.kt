@@ -37,7 +37,9 @@ object QuickActions {
         /** The Recent apps strip on the home screen. */
         RECENTS("Recent apps"),
         /** Turns Focus mode on for the chosen time, or off. */
-        FOCUS("Focus mode")
+        FOCUS("Focus mode"),
+        /** Toggles Bedtime mode in place (routines.Bedtime). */
+        BEDTIME("Bedtime mode")
     }
 
     enum class Route { WIFI_PANEL, BLUETOOTH_PANEL, DEVICES_PANEL, INPUTS_PANEL, AMBIENT, ROOM_CYCLE, DISCOVER, RESTART, SYSTEM }
@@ -74,8 +76,8 @@ object QuickActions {
         else -> null
     }
 
-    /** Room lighting cycles in place (OK again picks the next choice), so it never closes Spotlight. */
-    fun closesSpotlight(item: Item): Boolean = item != Item.ROOM
+    /** Room lighting and the sleep timer cycle in place (OK again picks the next choice); Bedtime toggles in place. */
+    fun closesSpotlight(item: Item): Boolean = item != Item.ROOM && item != Item.SLEEP_TIMER && item != Item.BEDTIME
 
     /**
      * What this TV can offer right now. The sleep timer is the launcher's own (TV & system >
@@ -117,5 +119,6 @@ object QuickActions {
         Item.DISCOVER -> R.drawable.ic_disc_bag
         Item.RECENTS -> R.drawable.ic_qa_recents
         Item.FOCUS -> R.drawable.ic_qa_focus
+        Item.BEDTIME -> R.drawable.ic_bedtime
     }
 }

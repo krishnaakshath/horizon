@@ -36,6 +36,7 @@ class DeviceToastHost(context: Context, private val mode: EffectsMode) : FrameLa
 
     /** Main thread. Returns true for a new card, false when it was ignored or coalesced. */
     fun show(event: DeviceEvent): Boolean {
+        if (dev.tvlauncher.routines.Bedtime.quiet(context)) return false // Bedtime mode: no device cards
         val prior = queue.eventFor(event.device.id)
         val offer = queue.offer(event)
         when (offer) {
