@@ -1,7 +1,44 @@
 package dev.tvlauncher.ui
 
-/** Pure status-bar rules: Wi-Fi level buckets and which icon represents the network. */
+import dev.tvlauncher.network.NetIcons
+import dev.tvlauncher.network.WifiConnection
+
+/**
+ * Pure status-bar rules. The top-bar pills use [Status] and the [networkPillIcon] /
+ * [bluetoothPillIcon] mappings, which go through [NetIcons] exactly like the Wi-Fi and Bluetooth
+ * panel headers do. The older 0..3 [wifiLevel] / [NetIcon] model is kept only for the Settings
+ * network summary text; it never feeds the pills.
+ */
 object StatusModel {
+    /** Live state read by StatusIcons. [bt] is null when the TV has no Bluetooth adapter. */
+    data class Status(val kind: WifiConnection.Kind, val rssi: Int?, val wifiEnabled: Boolean, val bt: NetIcons.BtState?)
+
+    /** Same rule as WifiController: Ethernet wins over Wi-Fi; anything else is NONE. */
+    fun connectionKind(hasNetwork: Boolean, ethernet: Boolean, wifi: Boolean): WifiConnection.Kind = when {
+        !hasNetwork -> WifiConnection.Kind.NONE
+        ethernet -> WifiConnection.Kind.ETHERNET
+        wifi -> WifiConnection.Kind.WIFI
+        else -> WifiConnection.Kind.NONE
+    }
+
+    fun btState(present: Boolean, enabled: Boolean, connected: Boolean): NetIcons.BtState? = when {
+        !present -> null
+        !enabled -> NetIcons.BtState.OFF
+        connected -> NetIcons.BtState.CONNECTED
+        else -> NetIcons.BtState.ON
+    }
+
+    fun networkPillIcon(s: Status): Int = NetIcons.forConnection(s.kind, s.rssi)
+
+    /** Null hides the Bluetooth pill (no adapter). */
+    fun bluetoothPillIcon(s: Status): Int? = s.bt?.let { NetIcons.forBluetooth(it) }
+
+    fun networkLabel(s: Status): String = when (s.kind) {
+        WifiConnection.Kind.ETHERNET -> "Ethernet"
+        WifiConnection.Kind.WIFI -> "Wi-Fi"
+        WifiConnection.Kind.NONE -> if (s.wifiEnabled) "Not connected" else "Offline"
+    }
+
     enum class NetKind { WIFI, WIFI_DISCONNECTED, ETHERNET, OTHER, NONE }
     enum class NetIcon { WIFI_0, WIFI_1, WIFI_2, WIFI_3, WIFI_OFF, ETHERNET, OFFLINE }
 

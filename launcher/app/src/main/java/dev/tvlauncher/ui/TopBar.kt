@@ -12,16 +12,23 @@ import android.widget.LinearLayout
 import android.widget.TextClock
 import android.widget.TextView
 import dev.tvlauncher.R
+import dev.tvlauncher.network.NetIcons
+import dev.tvlauncher.network.SelectableStatusPill
 import dev.tvlauncher.settings.AppearanceFormat
 import dev.tvlauncher.settings.AppearanceSettings
 import dev.tvlauncher.ui.Theme.style
 
 /**
- * Clock + date on the left; Bluetooth, network and the Inputs and Settings pills on the right.
- * DPAD_DOWN on either pill is reported via [onDown] (see [TopBarNav]).
+ * Clock + date on the left; on the right a row of selectable pills: Bluetooth (only when the TV
+ * has an adapter), network (Ethernet, or Wi-Fi level 0..4), Inputs and Settings. OK on the status
+ * pills calls [onBluetooth] / [onNetwork] with the pill, so the host can return focus to it.
+ * D-pad rules come from [TopBarNav]: DOWN is reported via [onDown], LEFT/RIGHT stay in the row and
+ * UP from below returns to the pill focused last. [startStatus] in onStart, [stopStatus] in onStop.
  */
 class TopBar(
     context: Context,
+    onNetwork: (View) -> Unit,
+    onBluetooth: (View) -> Unit,
     onInputs: () -> Unit,
     onSettings: () -> Unit,
     onSettingsLongPress: () -> Unit,
@@ -37,19 +44,26 @@ class TopBar(
         format24Hour = "EEE, d MMM"
         style(Theme.SP_DATE, Theme.regular, Theme.TEXT_2)
     }
-    private val bluetooth = icon(R.drawable.ic_bluetooth)
-    private val network = icon(R.drawable.ic_wifi_3)
+    val bluetoothPill = SelectableStatusPill(context, NetIcons.forBluetooth(NetIcons.BtState.ON)) {}
+        .apply { setOnClickListener { onBluetooth(this) } }
+    val networkPill = SelectableStatusPill(context, NetIcons.forWifiLevel(0, false)) {}
+        .apply { setOnClickListener { onNetwork(this) } }
     val inputsButton = PillButton(context, R.drawable.ic_input, "Inputs", onInputs)
     val settingsButton = PillButton(context, R.drawable.ic_settings, "Settings", onSettings).apply {
         setOnLongClickListener { onSettingsLongPress(); true }
     }
+    private val pills: List<View> = listOf(bluetoothPill, networkPill, inputsButton, settingsButton)
+    private var lastPill: View? = null
     private var statusVisible = true
-    private val status = StatusIcons(context) { net, bt ->
-        network.setImageResource(StatusIcons.drawable(net))
-        network.contentDescription = net.name
-        bluetooth.setImageResource(StatusIcons.drawable(bt))
-        bluetooth.contentDescription = bt.name
-        bluetooth.visibility = if (!statusVisible || bt == StatusModel.BtIcon.HIDDEN) View.GONE else View.VISIBLE
+    private var hasBluetooth = false
+    private val status = StatusIcons(context) { s ->
+        networkPill.setIcon(StatusModel.networkPillIcon(s))
+        networkPill.contentDescription = StatusModel.networkLabel(s)
+        val bt = StatusModel.bluetoothPillIcon(s)
+        hasBluetooth = bt != null
+        if (bt != null) bluetoothPill.setIcon(bt)
+        bluetoothPill.contentDescription = "Bluetooth " + (s.bt?.name?.lowercase() ?: "")
+        updateStatusVisibility()
     }
     private val dot = View(context).apply {
         background = GradientDrawable().apply { setColor(Theme.TEXT_2); shape = GradientDrawable.OVAL }
@@ -64,27 +78,43 @@ class TopBar(
             marginStart = context.dp(Theme.S3); marginEnd = context.dp(Theme.S3)
         })
         addView(date, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-        addView(bluetooth, iconParams())
-        addView(network, iconParams())
-        for (pill in listOf(inputsButton, settingsButton)) {
+        for (pill in pills) {
             addView(pill, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
                 marginStart = context.dp(Theme.S3)
             })
-            pill.setOnKeyListener { _, code, ev ->
-                code == KeyEvent.KEYCODE_DPAD_DOWN && ev.action == KeyEvent.ACTION_DOWN && onDown()
-            }
+            pill.setOnKeyListener { v, code, ev -> ev.action == KeyEvent.ACTION_DOWN && onPillKey(v, code, onDown) }
+            pill.setOnFocusChangeListener { v, has -> if (has) lastPill = v }
         }
-        bluetooth.visibility = View.GONE
+        bluetoothPill.visibility = View.GONE // until the first status read finds an adapter
     }
 
-    private fun icon(res: Int) = ImageView(context).apply {
-        setImageResource(res)
-        imageTintList = ColorStateList.valueOf(Theme.TEXT)
-        alpha = 0.92f
+    private fun visiblePills() = pills.filter { it.visibility == View.VISIBLE }
+
+    private fun onPillKey(v: View, code: Int, onDown: () -> Boolean): Boolean = when (code) {
+        KeyEvent.KEYCODE_DPAD_DOWN -> onDown()
+        KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+            val shown = visiblePills()
+            TopBarNav.onHorizontal(shown.indexOf(v), shown.size, code == KeyEvent.KEYCODE_DPAD_RIGHT) ==
+                TopBarNav.Horizontal.CONSUME
+        }
+        else -> false
     }
 
-    private fun iconParams() = LayoutParams(context.dp(22), context.dp(22)).apply {
-        marginStart = context.dp(Theme.S4)
+    /** UP from the shelf (or anything below) lands on the pill focused last. */
+    override fun addFocusables(views: ArrayList<View>, direction: Int, focusableMode: Int) {
+        if (direction == View.FOCUS_UP && !hasFocus()) {
+            val target = TopBarNav.upTarget(lastPill, visiblePills())
+            if (target != null) { views.add(target); return }
+        }
+        super.addFocusables(views, direction, focusableMode)
+    }
+
+    private fun updateStatusVisibility() {
+        val btShown = statusVisible && hasBluetooth
+        if (!btShown && bluetoothPill.hasFocus()) (if (statusVisible) networkPill else inputsButton).requestFocus()
+        if (!statusVisible && networkPill.hasFocus()) inputsButton.requestFocus()
+        bluetoothPill.visibility = if (btShown) View.VISIBLE else View.GONE
+        networkPill.visibility = if (statusVisible) View.VISIBLE else View.GONE
     }
 
     /** Settings > Appearance: clock format, date and status icons. */
@@ -96,8 +126,7 @@ class TopBar(
         date.visibility = if (a.showDate) View.VISIBLE else View.INVISIBLE // keeps the weight-1 spacer
         dot.visibility = if (a.showDate) View.VISIBLE else View.GONE
         statusVisible = a.showStatusIcons
-        network.visibility = if (a.showStatusIcons) View.VISIBLE else View.GONE
-        if (!a.showStatusIcons) bluetooth.visibility = View.GONE
+        updateStatusVisibility()
     }
 
     private var statusRunning = false

@@ -32,6 +32,9 @@ class NetworkPanel(
     /** True from [show] until the close animation has finished. */
     val isShowing: Boolean get() = shell.isVisible
 
+    /** True while open and accepting input (false once the close animation has started). */
+    val isOpen: Boolean get() = shell.isOpen
+
     fun show(host: ViewGroup) {
         if (shell.isOpen) return
         if (!controller.isStarted) { controller.start(); startedHere = true }
@@ -85,11 +88,7 @@ class NetworkPanel(
         val c = s.connection
         val h = shell.header
         h.removeAllViews()
-        val iconRes = when (c.kind) {
-            WifiConnection.Kind.ETHERNET -> NetIcons.ETHERNET
-            WifiConnection.Kind.WIFI -> c.rssi?.let { NetIcons.forWifiRssi(it, true) } ?: NetIcons.forWifiLevel(0, true)
-            WifiConnection.Kind.NONE -> NetIcons.forWifiLevel(0, false)
-        }
+        val iconRes = NetIcons.forConnection(c.kind, c.rssi) // the top-bar pill uses the same function
         val title = when (c.kind) {
             WifiConnection.Kind.ETHERNET -> "Ethernet connected"
             WifiConnection.Kind.WIFI -> if (c.ssid != null) "Connected to ${c.ssid}" else "Connected to Wi-Fi"

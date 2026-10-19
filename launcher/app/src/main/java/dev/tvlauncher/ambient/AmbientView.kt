@@ -19,9 +19,9 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import dev.tvlauncher.device.DeviceProfile
 import dev.tvlauncher.device.EffectsMode
+import dev.tvlauncher.network.NetIcons
 import dev.tvlauncher.ui.StatusIcons
-import dev.tvlauncher.ui.StatusModel.BtIcon
-import dev.tvlauncher.ui.StatusModel.NetIcon
+import dev.tvlauncher.ui.StatusModel
 import dev.tvlauncher.ui.Theme
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -240,7 +240,7 @@ class AmbientView(
         main.post(weatherTick)
         main.postDelayed(idleDim, AmbientDimming.IDLE_DIM_AFTER_MS + 50)
         WeatherCompanion.requestRefresh(context)
-        status = StatusIcons(context) { net, bt -> renderNetwork(net, bt) }.also { it.start() }
+        status = StatusIcons(context) { renderNetwork(it) }.also { it.start() }
         syncFeedListener()
         content.alpha = 0f
         content.animate().alpha(1f).setDuration(if (lite) 250L else 600L).start()
@@ -357,20 +357,17 @@ class AmbientView(
 
     // --- network / notifications -----------------------------------------------------------------
 
-    private fun renderNetwork(net: NetIcon, bt: BtIcon) {
-        netIcon.setImageResource(StatusIcons.drawable(net))
-        netLabel.text = when (net) {
-            NetIcon.ETHERNET -> "Ethernet"
-            NetIcon.WIFI_OFF -> "Not connected"
-            NetIcon.OFFLINE -> "Offline"
-            else -> "Wi-Fi"
-        }
-        if (bt == BtIcon.HIDDEN) {
+    /** Same icon functions as the home top-bar pills and the network panels. */
+    private fun renderNetwork(s: StatusModel.Status) {
+        netIcon.setImageResource(StatusModel.networkPillIcon(s))
+        netLabel.text = StatusModel.networkLabel(s)
+        val bt = s.bt
+        if (bt == null || bt == NetIcons.BtState.OFF) {
             btIcon.visibility = GONE
         } else {
             btIcon.visibility = VISIBLE
-            btIcon.setImageResource(StatusIcons.drawable(bt))
-            btIcon.alpha = if (bt == BtIcon.CONNECTED) 1f else 0.55f
+            btIcon.setImageResource(NetIcons.forBluetooth(bt))
+            btIcon.alpha = if (bt == NetIcons.BtState.CONNECTED) 1f else 0.55f
         }
     }
 
