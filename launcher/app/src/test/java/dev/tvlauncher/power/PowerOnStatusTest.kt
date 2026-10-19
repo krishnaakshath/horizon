@@ -9,7 +9,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PowerOnStatusTest {
-    @Test fun helperWinsThenOverlayThenAndroid12() {
+    @Test fun overlayWinsThenHelperThenAndroid12() {
+        assertEquals(Readiness.OVERLAY, PowerOnStatus.readiness(helperReady = true, overlayAllowed = true, sdk = 30))
         assertEquals(Readiness.HELPER, PowerOnStatus.readiness(helperReady = true, overlayAllowed = false, sdk = 30))
         assertEquals(Readiness.OVERLAY, PowerOnStatus.readiness(helperReady = false, overlayAllowed = true, sdk = 30))
         assertEquals(Readiness.ANDROID, PowerOnStatus.readiness(helperReady = false, overlayAllowed = false, sdk = 31))

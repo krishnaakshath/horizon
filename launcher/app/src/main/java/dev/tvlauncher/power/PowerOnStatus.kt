@@ -5,8 +5,10 @@ object PowerOnStatus {
     enum class Readiness { HELPER, OVERLAY, ANDROID, NEEDS_PERMISSION }
 
     fun readiness(helperReady: Boolean, overlayAllowed: Boolean, sdk: Int): Readiness = when {
-        helperReady -> Readiness.HELPER
+        // Overlay first: verified on TCL, whose TGuard kills the helper and Android 11 then
+        // leaves the accessibility service unbound ("crashed") until it is re-enabled.
         overlayAllowed -> Readiness.OVERLAY
+        helperReady -> Readiness.HELPER
         sdk >= 31 -> Readiness.ANDROID // Android 12+ let the default home app start itself
         else -> Readiness.NEEDS_PERMISSION
     }

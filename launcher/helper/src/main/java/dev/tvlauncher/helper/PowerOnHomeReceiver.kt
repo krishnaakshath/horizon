@@ -12,7 +12,9 @@ class PowerOnHomeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION) return
         try {
-            HelperService.current?.homeAfterPowerOn()
+            val service = HelperService.current
+            val done = service?.homeAfterPowerOn()
+            android.util.Log.i("PowerOn", if (service == null) "helper: accessibility service not bound" else "helper: HOME sent=$done")
         } catch (e: Throwable) {
         }
     }

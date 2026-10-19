@@ -50,7 +50,6 @@ object PowerOn {
     const val WAKE_DELAY_MS = 1_500L
     const val BOOT_DELAY_MS = 6_000L
 
-    enum class Route { HELPER, DIRECT }
 
     private val main by lazy { Handler(Looper.getMainLooper()) }
 
@@ -103,26 +102,40 @@ object PowerOn {
             }
             return
         }
-        val route = if (helperReady(app)) Route.HELPER else Route.DIRECT
-        val ok = when (route) {
-            Route.HELPER -> askHelper(app) || startHome(app)
-            Route.DIRECT -> startHome(app)
+        val steps = PowerOnLadder.steps(
+            overlayAllowed = overlayAllowed(app), helperReady = helperReady(app), sdk = Build.VERSION.SDK_INT
+        )
+        runLadder(app, prefs, steps, 0)
+    }
+
+    /**
+     * Tries [steps] in order; each one is checked [PowerOnLadder.VERIFY_MS] later by whether our
+     * HomeActivity resumed (a refused background start and an ignored HOME action both fail
+     * silently). The ladder is finite and runs once per wake, inside the policy's loop guard.
+     */
+    private fun runLadder(app: Context, prefs: PowerOnPrefs, steps: List<PowerOnLadder.Step>, i: Int) {
+        if (homeResumed > 0) {
+            val by = steps.getOrNull(i - 1)
+            Log.i(TAG, "home in front via ${by ?: "system"}")
+            prefs.lastOutcome = "Opened home (${PowerOnLadder.label(by)}) at ${clock()}"
+            return
         }
-        Log.i(TAG, "go home via $route ok=$ok")
-        prefs.lastOutcome = if (ok) "Opened home (${if (route == Route.HELPER) "helper" else "direct"}) at ${clock()}"
-            else "Could not open home at ${clock()}"
-        if (ok && route == Route.DIRECT) {
-            // Android 11 refuses a background start silently (no home-app exemption before 12;
-            // "Display over other apps" lifts it): the only trace is home not coming forward.
-            main.postDelayed({
-                try {
-                    if (homeResumed == 0) {
-                        Log.w(TAG, "home did not come forward after a direct start (overlay allowed=${overlayAllowed(app)})")
-                        prefs.lastOutcome = "Home could not open at ${clock()}"
-                    }
-                } catch (e: Throwable) { }
-            }, 2_500L)
+        val step = steps.getOrNull(i)
+        if (step == null) {
+            Log.w(TAG, "home did not come forward; tried $steps (overlay=${overlayAllowed(app)}, helper=${helperReady(app)})")
+            prefs.lastOutcome = "Home could not open at ${clock()}"
+            return
         }
+        val sent = try {
+            when (step) {
+                PowerOnLadder.Step.DIRECT -> startHome(app)
+                PowerOnLadder.Step.HELPER -> askHelper(app)
+            }
+        } catch (e: Throwable) { false }
+        Log.i(TAG, "try $step sent=$sent")
+        main.postDelayed({
+            try { runLadder(app, prefs, steps, i + 1) } catch (e: Throwable) { }
+        }, if (sent) PowerOnLadder.VERIFY_MS else 0L)
     }
 
     /** "Display over other apps" granted: Android 10/11 then let the launcher start home from the background. */
@@ -186,9 +199,8 @@ object PowerOn {
     private fun askHelper(context: Context): Boolean = try {
         context.sendBroadcast(
             Intent(ACTION_HELPER_HOME).setClassName(HELPER_PACKAGE, HELPER_RECEIVER)
-                .addFlags(Intent.FLAG_RECEIVER_FOREGROUND),
-            PERMISSION_POWER_HOME
-        )
+                .addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+        ) // no receiverPermission: the helper's receiver declares the signature permission senders need
         true
     } catch (e: Throwable) {
         false
