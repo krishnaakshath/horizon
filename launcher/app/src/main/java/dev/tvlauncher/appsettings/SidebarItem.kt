@@ -37,10 +37,10 @@ internal class SidebarItem(context: Context, private var style: SettingsStyle, v
         gravity = Gravity.CENTER_VERTICAL
         isFocusable = true
         isClickable = true
-        minimumHeight = context.dp(52)
-        setPadding(context.dp(10), context.dp(10), context.dp(16), context.dp(10))
+        minimumHeight = context.dp(46)
+        setPadding(context.dp(10), context.dp(8), context.dp(16), context.dp(8))
         addView(bar, LayoutParams(context.dp(4), context.dp(20)).apply { marginEnd = context.dp(12) })
-        addView(icon, LayoutParams(context.dp(24), context.dp(24)).apply { marginEnd = context.dp(14) })
+        addView(icon, LayoutParams(context.dp(22), context.dp(22)).apply { marginEnd = context.dp(14) })
         addView(label, LayoutParams(0, -2, 1f))
         applyStyle(style)
     }
@@ -82,6 +82,70 @@ internal class SidebarItem(context: Context, private var style: SettingsStyle, v
     override fun hasOverlappingRendering() = false
 
     private companion object {
-        const val SP = 18f
+        const val SP = 17f
+    }
+}
+
+/**
+ * A sidebar group header in small caps: OK expands or collapses the group. A chevron shows the
+ * state (down when closed, up when open). Focused: the same white pill as the entries.
+ */
+internal class SidebarHeader(
+    context: Context,
+    private var style: SettingsStyle,
+    val group: SettingsGroup,
+    expanded: Boolean
+) : LinearLayout(context) {
+    private val label = TextView(context).apply {
+        text = group.title.uppercase()
+        letterSpacing = 0.1f
+        isSingleLine = true
+        ellipsize = TextUtils.TruncateAt.END
+        style(SP, Theme.medium, Theme.TEXT_2)
+    }
+    private val chevron = ImageView(context).apply {
+        setImageResource(dev.tvlauncher.R.drawable.ic_set_chevron)
+        rotation = if (expanded) -90f else 90f
+    }
+
+    init {
+        tag = "sidebar.group.${group.name}"
+        orientation = HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        isFocusable = true
+        isClickable = true
+        minimumHeight = context.dp(36)
+        setPadding(context.dp(14), context.dp(6), context.dp(14), context.dp(6))
+        addView(label, LayoutParams(0, -2, 1f))
+        addView(chevron, LayoutParams(context.dp(16), context.dp(16)))
+        background = StateListDrawable().apply {
+            setEnterFadeDuration(style.focusMs.toInt())
+            setExitFadeDuration(style.focusMs.toInt())
+            addState(intArrayOf(android.R.attr.state_focused), Glass.rect(context, Theme.TEXT, 12))
+            addState(intArrayOf(), Glass.rect(context, 0, 12))
+        }
+        applyColors()
+    }
+
+    private fun applyColors() {
+        val c = if (isFocused) Theme.TEXT_DARK else Theme.TEXT_2
+        label.setTextColor(c)
+        chevron.imageTintList = ColorStateList.valueOf(c)
+        chevron.alpha = if (isFocused) 1f else 0.6f
+    }
+
+    override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
+        super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
+        applyColors()
+        val s = if (gainFocus) 1.03f else 1f
+        animate().cancel()
+        if (style.focusMs > 0) animate().scaleX(s).scaleY(s).setDuration(style.focusMs).start()
+        else { scaleX = s; scaleY = s }
+    }
+
+    override fun hasOverlappingRendering() = false
+
+    private companion object {
+        const val SP = 13f
     }
 }

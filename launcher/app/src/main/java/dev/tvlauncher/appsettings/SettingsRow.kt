@@ -17,6 +17,9 @@ import dev.tvlauncher.ui.Theme
 import dev.tvlauncher.ui.Theme.style
 import dev.tvlauncher.ui.dp
 
+/** Tone of a status pill in a row's value column. */
+enum class Chip { POSITIVE, NEUTRAL }
+
 /** What a [SettingsRow] does on OK / LEFT / RIGHT. */
 sealed class RowKind {
     /** OK flips. */
@@ -25,17 +28,26 @@ sealed class RowKind {
     /** OK cycles (wrapping); LEFT/RIGHT step and stop at the ends so focus can still leave. */
     class Choice(val options: List<String>, val index: Int, val onChange: (Int) -> Unit) : RowKind()
 
-    /** LEFT/RIGHT step within [min]..[max]; OK steps up and wraps. */
+    /** LEFT/RIGHT step within [min]..[max]; OK steps up and wraps. [bar] adds a small level bar. */
     class Stepper(
         val value: Int,
         val min: Int,
         val max: Int,
         val label: (Int) -> String,
+        val bar: Boolean = false,
         val onChange: (Int) -> Unit
     ) : RowKind()
 
-    /** OK runs [onClick]; [value] is shown on the right, followed by a chevron when [chevron]. */
-    class Action(val value: String? = null, val chevron: Boolean = true, val onClick: () -> Unit) : RowKind()
+    /**
+     * OK runs [onClick]; [value] is shown on the right, followed by a chevron when [chevron].
+     * With [chip] the value is drawn as a status pill (e.g. "Installed ✓").
+     */
+    class Action(
+        val value: String? = null,
+        val chevron: Boolean = true,
+        val chip: Chip? = null,
+        val onClick: () -> Unit
+    ) : RowKind()
 
     /** Read-only line; still focusable so long pages scroll with the D-pad. */
     class Info(val value: String = "") : RowKind()
@@ -74,6 +86,7 @@ class SettingsRow(
         style(SP_VALUE, Theme.regular, Theme.TEXT_2)
     }
     private val iconView = ImageView(context)
+    private val levelBar = LevelBar(context)
     private val arrowLeft = chevron(R.drawable.ic_set_chevron_left)
     private val arrowRight = chevron(R.drawable.ic_set_chevron)
     private var toggle: ToggleSwitch? = null
@@ -88,8 +101,8 @@ class SettingsRow(
         gravity = Gravity.CENTER_VERTICAL
         isFocusable = true
         isClickable = true
-        minimumHeight = context.dp(MIN_HEIGHT_DP)
-        setPadding(context.dp(18), context.dp(12), context.dp(18), context.dp(12))
+        minimumHeight = context.dp(SettingsLayout.ROW_MIN_DP)
+        setPadding(context.dp(16), context.dp(10), context.dp(16), context.dp(10))
         background = StateListDrawable().apply {
             setEnterFadeDuration(style.focusMs.toInt())
             setExitFadeDuration(style.focusMs.toInt())
@@ -105,7 +118,7 @@ class SettingsRow(
             iconView.setImageResource(iconRes)
             iconView.imageTintList = ColorStateList.valueOf(Theme.TEXT)
             chip.addView(iconView, FrameLayout.LayoutParams(context.dp(22), context.dp(22), Gravity.CENTER))
-            addView(chip, LayoutParams(context.dp(40), context.dp(40)).apply { marginEnd = context.dp(16) })
+            addView(chip, LayoutParams(context.dp(38), context.dp(38)).apply { marginEnd = context.dp(16) })
         }
 
         val column = LinearLayout(context).apply { orientation = VERTICAL }
@@ -122,6 +135,9 @@ class SettingsRow(
                 addView(t, LayoutParams(-2, -2).apply { marginStart = context.dp(16) })
             }
             is RowKind.Choice, is RowKind.Stepper -> {
+                if (kind is RowKind.Stepper && kind.bar) {
+                    addView(levelBar, LayoutParams(context.dp(BAR_DP), context.dp(6)).apply { marginEnd = context.dp(12) })
+                }
                 addView(arrowLeft, arrowParams())
                 addView(valueView, LayoutParams(-2, -2).apply { marginStart = context.dp(6); marginEnd = context.dp(6) })
                 addView(arrowRight, arrowParams())
@@ -131,6 +147,12 @@ class SettingsRow(
             is RowKind.Action -> {
                 addView(valueView, valueParams())
                 valueView.text = kind.value.orEmpty()
+                kind.chip?.let { tone ->
+                    valueView.background = Glass.pill(context, ChipColors.fill(tone, style.accent))
+                    valueView.setTextColor(ChipColors.text(tone, rowFocused = false))
+                    valueView.setPadding(context.dp(12), context.dp(4), context.dp(12), context.dp(4))
+                    valueView.textSize = SP_CHIP
+                }
                 if (kind.chevron) addView(arrowRight, arrowParams().apply { marginStart = context.dp(8) })
                 arrowRight.alpha = 0.55f
             }
@@ -164,10 +186,25 @@ class SettingsRow(
         titleView.text = text
     }
 
+    /** For expandable rows ("Advanced"): the chevron points down when closed, up when open. */
+    fun setExpanded(open: Boolean) {
+        arrowRight.rotation = if (open) -90f else 90f
+    }
+
+    /** The value column never takes more than [SettingsLayout.VALUE_MAX_FRACTION] of the row. */
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val w = MeasureSpec.getSize(widthMeasureSpec)
+        if (w > 0) valueView.maxWidth = (w * SettingsLayout.VALUE_MAX_FRACTION).toInt()
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
+
     private fun renderValue() {
         when (kind) {
             is RowKind.Choice -> valueView.text = kind.options.getOrElse(index) { "" }
-            is RowKind.Stepper -> valueView.text = kind.label(step)
+            is RowKind.Stepper -> {
+                valueView.text = kind.label(step)
+                levelBar.level = if (kind.max > kind.min) (step - kind.min).toFloat() / (kind.max - kind.min) else 0f
+            }
             else -> Unit
         }
         updateArrows()
@@ -242,7 +279,8 @@ class SettingsRow(
 
     override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
-        valueView.setTextColor(if (gainFocus) Theme.TEXT else Theme.TEXT_2)
+        val chip = (kind as? RowKind.Action)?.chip
+        valueView.setTextColor(if (chip != null) ChipColors.text(chip, gainFocus) else if (gainFocus) Theme.TEXT else Theme.TEXT_2)
         subtitleView.setTextColor(if (gainFocus) SUB_FOCUSED else Theme.TEXT_2)
         if (kind is RowKind.Action) arrowRight.alpha = if (gainFocus) 1f else 0.55f
         updateArrows()
@@ -257,8 +295,29 @@ class SettingsRow(
 
     override fun hasOverlappingRendering() = false
 
+    /** A thin rounded level bar (track + accent fill) for steppers such as Volume. */
+    private inner class LevelBar(context: Context) : View(context) {
+        var level = 0f
+            set(v) { field = v.coerceIn(0f, 1f); invalidate() }
+        private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        private val r = android.graphics.RectF()
+
+        override fun onDraw(canvas: android.graphics.Canvas) {
+            val h = height.toFloat()
+            r.set(0f, 0f, width.toFloat(), h)
+            paint.color = Theme.TOGGLE_OFF
+            canvas.drawRoundRect(r, h / 2, h / 2, paint)
+            r.right = width * level
+            if (r.right > 0f) {
+                paint.color = style.accentOnDark
+                canvas.drawRoundRect(r, h / 2, h / 2, paint)
+            }
+        }
+    }
+
     private companion object {
-        const val MIN_HEIGHT_DP = 68
+        const val BAR_DP = 96
+        const val SP_CHIP = 14f
         const val SP_TITLE = 19f
         const val SP_SUB = 14f
         const val SP_VALUE = 17f

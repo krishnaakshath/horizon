@@ -3,15 +3,10 @@ package dev.tvlauncher.appsettings
 import android.content.Context
 import android.content.Intent
 import android.view.View
-import android.widget.FrameLayout
 import dev.tvlauncher.R
+import dev.tvlauncher.ambient.WeatherCompanion
 import dev.tvlauncher.insights.UsageAccess
-import dev.tvlauncher.sound.SoundPlayer
-import dev.tvlauncher.sound.SoundPrefs
-import dev.tvlauncher.ui.QuickActions
-import dev.tvlauncher.ui.SoundSettingsPanel
 import dev.tvlauncher.ui.SystemActions
-import java.util.concurrent.atomic.AtomicReference
 
 /**
  * The real Settings pages of the wave-1 modules. [registerAll] runs once from
@@ -40,100 +35,143 @@ object ModuleSections {
     fun installedValue(installed: Boolean): String = if (installed) "Installed" else "Not installed"
 }
 
-/**
- * Hosts [SoundSettingsPanel] in a bounded-height container. The page owns its preview player
- * (created on build, released on detach); the panel saves to SoundPrefs and the home screen
- * re-reads them in onResume (HomeSounds.reload).
- */
-object SoundsSection : SettingsSection {
+/** Hosts [SoundsPage]: SettingsRow-based, with choosers and an Advanced block. */
+object SoundsSection : SettingsSection, SpecifiedPage {
     override val id = ModulePlaceholderSection.SOUNDS
     override val title = "Sounds"
     override val iconRes = R.drawable.ic_set_sounds
+    override val group = SettingsGroup.SOUND
+    override val description = "Navigation and launch sounds on the home screen."
+    override val spec = SoundsPage.SPEC
 
-    override fun buildPage(context: Context, nav: SettingsNav): View {
-        val prefs = SoundPrefs(context)
-        val latest = AtomicReference(prefs.load())
-        val player = SoundPlayer(context.applicationContext, settings = { latest.get() })
-        val panel = SoundSettingsPanel(
-            context, prefs, player,
-            player.customDir()?.path ?: "Android/data/${context.packageName}/files/sounds",
-            onChanged = { s -> latest.set(s); player.prewarm() }, // the panel saved [s] already
-            embedded = true
-        )
-        player.prewarm()
-        return object : FrameLayout(context) {
-            override fun onDetachedFromWindow() {
-                player.release()
-                super.onDetachedFromWindow()
-            }
-        }.apply { addView(panel, FrameLayout.LayoutParams(-1, -1)) }
-    }
+    override fun buildPage(context: Context, nav: SettingsNav): View = SoundsPage.build(context, nav)
 }
 
-object InsightsSection : SettingsSection {
+object InsightsSection : SettingsSection, SpecifiedPage {
     override val id = ModulePlaceholderSection.INSIGHTS
     override val title = "Insights"
     override val iconRes = R.drawable.ic_set_insights
+    override val group = SettingsGroup.APPS
+    override val description = "What you watch most. Everything stays on this TV."
+    override val spec = PageSpec(id, listOf("insights.open", "insights.access"), listOf("insights.adb"))
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
-        val page = SettingsPage(context, nav.style)
-        page.lead("What you watch most and how long the TV is on. Everything stays on this TV.")
+        val page = SettingsPage(context, nav.style, spec)
         page.row("insights.open", "Open Insights", RowKind.Action {
             if (!SystemActions.insights(context)) nav.notify("Insights could not be opened")
         }, subtitle = "Today, this week and your top apps", iconRes = R.drawable.ic_set_insights)
         val granted = UsageAccess.hasAccess(context)
-        val (value, note) = ModuleSections.usageAccessStatus(granted)
-        page.row("insights.access", "Usage access", RowKind.Info(value),
-            subtitle = "Lets the launcher read which app is on screen", iconRes = R.drawable.ic_set_eye)
-        if (!granted) {
-            page.row("insights.grant", "Open usage access settings", RowKind.Action {
-                if (!UsageAccess.openSettings(context)) nav.notify("This TV has no usage access page; use the adb line below")
-            })
+        val (value, _) = ModuleSections.usageAccessStatus(granted)
+        page.row("insights.access", "Usage access", if (granted) RowKind.Info(value) else RowKind.Action(value) {
+            if (!UsageAccess.openSettings(context)) nav.notify("This TV has no usage access page; see Advanced")
+        }, subtitle = "Lets the launcher see which app is on screen", iconRes = R.drawable.ic_set_eye)
+        page.advanced(nav, "insights.advanced", "Grant usage access from a computer") { adv ->
+            adv.row("insights.adb", "Grant from a computer", RowKind.Action {
+                nav.push("Grant from a computer") { c, n ->
+                    TextPage(c, n.style).apply {
+                        setText(ModuleSections.usageAccessStatus(false).second.orEmpty() +
+                            "\n\nThen come back here; the status updates by itself.")
+                    }
+                }
+            }, subtitle = "One adb line, for TVs without a usage access page", iconRes = R.drawable.ic_sc_developer)
         }
-        note?.let { page.note(it) }
         return page
     }
 }
 
-object BrowserSection : SettingsSection {
-    override val id = ModulePlaceholderSection.BROWSER
-    override val title = "Browser"
-    override val iconRes = R.drawable.ic_set_browser
+/** How an optional companion app is shown and opened. */
+internal class ModuleUi(val addOn: AddOn, val iconRes: Int, val openNote: String?, val open: (Context) -> Boolean)
 
-    override fun buildPage(context: Context, nav: SettingsNav): View {
-        val page = SettingsPage(context, nav.style)
-        page.lead("A simple web browser built for the remote.")
-        val installed = ModuleProbe.isAppInstalled(context, QuickActions.BROWSER_PACKAGE)
-        if (installed) {
-            page.row("browser.open", "Open Browser", RowKind.Action {
-                if (!SystemActions.launchPackage(context, QuickActions.BROWSER_PACKAGE)) nav.notify("The browser could not be opened")
-            }, subtitle = "Also in Spotlight's quick actions", iconRes = R.drawable.ic_set_browser)
-        } else {
-            page.row("browser.status", "Browser", RowKind.Info(ModuleSections.installedValue(false)),
-                subtitle = "Install ${QuickActions.BROWSER_PACKAGE} to use it", iconRes = R.drawable.ic_set_browser)
+internal object ModuleUis {
+    val all: List<ModuleUi> = AddOns.all.map { a ->
+        when (a.id) {
+            "browser" -> ModuleUi(a, R.drawable.ic_set_browser, "Also in Spotlight's quick actions") { c ->
+                SystemActions.launchPackage(c, a.packageName)
+            }
+            "getapps" -> ModuleUi(a, R.drawable.ic_set_store, null) { c -> SystemActions.launchPackage(c, a.packageName) }
+            "weather" -> ModuleUi(a, R.drawable.ic_set_weather, "Location and units") { c ->
+                WeatherCompanion.settingsIntent(c)?.let { SystemActions.start(c, it) } ?: SystemActions.launchPackage(c, a.packageName)
+            }
+            else -> ModuleUi(a, R.drawable.ic_set_helper, "Turn it on under Settings › Accessibility") { c ->
+                SystemActions.start(c, Intent().setClassName(ModuleSections.HELPER_PACKAGE, ModuleSections.HELPER_ACTIVITY))
+            }
         }
+    }
+
+    fun byId(id: String): ModuleUi = all.first { it.addOn.id == id }
+}
+
+/** A companion app's page: its status and ONE action, "Open" or "How to install". */
+internal object ModulePage {
+    fun spec(sectionId: String, prefix: String) = PageSpec(sectionId, listOf("$prefix.status", "$prefix.action"))
+
+    fun build(context: Context, nav: SettingsNav, m: ModuleUi, prefix: String = m.addOn.id): SettingsPage {
+        val page = SettingsPage(context, nav.style, spec(m.addOn.sectionId ?: m.addOn.id, prefix))
+        val a = m.addOn
+        val installed = ModuleProbe.isAppInstalled(context, a.packageName)
+        val act = {
+            if (installed) {
+                if (!m.open(context)) nav.notify("${a.title} could not be opened")
+            } else {
+                nav.push("How to install") { c, n -> TextPage(c, n.style).apply { setText(AddOns.howToInstall(a)) } }
+            }
+        }
+        page.row("$prefix.status", a.title,
+            RowKind.Action(AddOns.chip(installed), chevron = false, chip = if (installed) Chip.POSITIVE else Chip.NEUTRAL) { act() },
+            subtitle = a.adds, iconRes = m.iconRes)
+        page.row("$prefix.action", AddOns.primaryAction(installed), RowKind.Action { act() },
+            subtitle = if (installed) m.openNote else a.packageName,
+            iconRes = if (installed) R.drawable.ic_set_chevron else R.drawable.ic_set_import)
         return page
     }
+}
+
+/** Base for the sidebar pages of companion apps: listed only while the app is installed. */
+abstract class CompanionSection(private val addOnId: String) : SettingsSection, SpecifiedPage {
+    private val ui get() = ModuleUis.byId(addOnId)
+    override val title: String get() = ui.addOn.title
+    override val iconRes: Int get() = ui.iconRes
+    override val group get() = SettingsGroup.APPS
+    override val availability: SectionAvailability get() = SectionAvailability.AppInstalled(ui.addOn.packageName)
+    override val description: String get() = ui.addOn.adds + "."
+    override val spec: PageSpec get() = ModulePage.spec(id, addOnId)
+
+    override fun buildPage(context: Context, nav: SettingsNav): View = ModulePage.build(context, nav, ui)
+}
+
+object BrowserSection : CompanionSection("browser") {
+    override val id = ModulePlaceholderSection.BROWSER
 }
 
 /** Link to the separate Launcher Helper app (double-Back to Home, Spotlight shortcut). */
-object HelperSection : SettingsSection {
+object HelperSection : CompanionSection("helper") {
     override val id = ModulePlaceholderSection.HELPER
-    override val title = "Helper"
-    override val iconRes = R.drawable.ic_set_helper
+}
+
+object GetAppsSection : CompanionSection("getapps") {
+    const val ID = "getapps"
+    override val id = ID
+}
+
+/** Every optional companion app with its status; the only place uninstalled ones appear. */
+object AddOnsSection : SettingsSection, SpecifiedPage {
+    const val ID = "addons"
+    override val id = ID
+    override val title = "Add-ons"
+    override val iconRes = R.drawable.ic_set_addons
+    override val group = SettingsGroup.APPS
+    override val description = "Optional companion apps and what each one adds."
+    override val spec get() = PageSpec(ID, AddOns.all.map { "addons.${it.id}" })
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
-        val page = SettingsPage(context, nav.style)
-        page.lead("The optional companion for remote shortcuts such as double-Back to Home.")
-        if (ModuleProbe.isAppInstalled(context, ModuleSections.HELPER_PACKAGE)) {
-            page.row("helper.open", "Launcher Helper", RowKind.Action {
-                val i = Intent().setClassName(ModuleSections.HELPER_PACKAGE, ModuleSections.HELPER_ACTIVITY)
-                if (!SystemActions.start(context, i)) nav.notify("Launcher Helper could not be opened")
-            }, subtitle = "Opens the helper's own settings", iconRes = R.drawable.ic_set_helper)
-            page.note("The helper works only after it is turned on under Settings > Accessibility on the TV.")
-        } else {
-            page.row("helper.status", "Launcher Helper", RowKind.Info(ModuleSections.installedValue(false)),
-                subtitle = "Install the helper APK (${ModuleSections.HELPER_PACKAGE}) to use it", iconRes = R.drawable.ic_set_helper)
+        val page = SettingsPage(context, nav.style, spec)
+        for (m in ModuleUis.all) {
+            val a = m.addOn
+            val installed = ModuleProbe.isAppInstalled(context, a.packageName)
+            page.row("addons.${a.id}", a.title,
+                RowKind.Action(AddOns.chip(installed), chevron = true, chip = if (installed) Chip.POSITIVE else Chip.NEUTRAL) {
+                    nav.push(a.title) { c, n -> ModulePage.build(c, n, m, prefix = "addons.${a.id}.page") }
+                }, subtitle = a.adds, iconRes = m.iconRes)
         }
         return page
     }

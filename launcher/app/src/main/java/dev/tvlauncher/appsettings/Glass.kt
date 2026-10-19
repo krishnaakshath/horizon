@@ -14,6 +14,8 @@ internal object Glass {
     const val SHEEN = Theme.GLASS_SHEEN
     const val HAIRLINE = Theme.STROKE
     const val SCRIM = Theme.GLASS_SCRIM
+    /** Thin scroll indicator thumb: TEXT at about 35%. */
+    const val THUMB = (0x59 shl 24) or (Theme.TEXT and 0x00FFFFFF)
 
     const val RADIUS_PANEL = 28
     const val RADIUS_ROW = 16
