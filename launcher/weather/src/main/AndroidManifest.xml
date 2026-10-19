@@ -8,6 +8,11 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- The launcher's controller settings (A/B swap, stick sensitivity), read-only. -->
+    <queries>
+        <provider android:authorities="dev.tvlauncher.gamepad" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:banner="@drawable/banner_weather"

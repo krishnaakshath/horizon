@@ -22,6 +22,8 @@
         tools:ignore="ProtectedPermissions" />
 
     <queries>
+        <!-- The launcher's "Guide button opens Home" choice, read-only. -->
+        <provider android:authorities="dev.tvlauncher.gamepad" />
         <intent>
             <action android:name="android.settings.ACCESSIBILITY_SETTINGS" />
         </intent>

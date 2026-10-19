@@ -49,6 +49,9 @@ import dev.tvlauncher.browser.cursor.CursorStateMapper
 import dev.tvlauncher.browser.cursor.HitInfo
 import dev.tvlauncher.browser.cursor.Magnet
 import dev.tvlauncher.browser.cursor.SnapMath
+import dev.tvlauncher.browser.cursor.StickCursor
+import dev.tvlauncher.input.GamepadInput
+import dev.tvlauncher.input.PadCommand
 import dev.tvlauncher.browser.data.Bookmark
 import dev.tvlauncher.browser.data.BookmarkStore
 import dev.tvlauncher.browser.data.DefaultFavorites
@@ -1098,9 +1101,97 @@ class BrowserActivity : Activity() {
         }
     }
 
+    // ================================================================ game controllers
+
+    /**
+     * Controllers: A = OK (click at the pointer), B = BACK (hold: pointer / focus mode), X = the
+     * pointer's long-press (link options), Y = type an address, Start = menu, Select = pointer /
+     * focus mode, L1/R1 = back / forward, L2/R2 = page up / down, left stick = analog pointer,
+     * right stick = scroll. Overlays (menus, panels) get the plain D-pad behaviour.
+     */
+    private val pad = GamepadInput(this, object : GamepadInput.Host {
+        override fun onPadCommand(command: PadCommand, repeat: Int): Boolean = padCommand(command)
+        override fun onPadStick(right: Boolean, x: Float, y: Float): Boolean = !right && padStick(x, y)
+    })
+    private var stickX = 0f
+    private var stickY = 0f
+    private var stickLast = 0L
+    private val stickFrame = Runnable { stickStep() }
+
+    private fun padCommand(c: PadCommand): Boolean = when (c) {
+        PadCommand.SEARCH -> { closeOverlays(); urlBar.focusAndType(); true }
+        PadCommand.START -> { if (anyOverlay()) closeOverlays() else openMenu(); true }
+        PadCommand.SELECT -> { closeOverlays(); toggleMode(); true }
+        PadCommand.OPTIONS -> {
+            val c0 = cursor
+            if (cursorMode && !anyOverlay() && c0 != null) { longPressAt(c0.x, c0.y); true } else false
+        }
+        PadCommand.PAGE_PREV -> if (anyOverlay()) false else { if (!showingStart) navBack(); true }
+        PadCommand.PAGE_NEXT -> if (anyOverlay()) false else { web?.takeIf { !showingStart && it.canGoForward() }?.goForward(); true }
+        PadCommand.SCROLL_UP, PadCommand.SCROLL_DOWN -> if (anyOverlay()) false else {
+            val dy = if (c == PadCommand.SCROLL_DOWN) pageStep() else -pageStep()
+            showToolbar(dy < 0)
+            scrollPage(dy)
+            true
+        }
+        else -> false
+    }
+
+    /** Left stick in pointer mode: analog movement (a frame loop runs while it is pushed). */
+    private fun padStick(x: Float, y: Float): Boolean {
+        if (!cursorMode || anyOverlay() || cursor == null || urlBar.edit.isFocused) { stopStick(); return false }
+        val was = StickCursor.active(stickX, stickY)
+        stickX = x; stickY = y
+        if (StickCursor.active(x, y) && !was) {
+            stickLast = SystemClock.uptimeMillis()
+            snapAnim?.cancel()
+            main.removeCallbacks(stickFrame)
+            main.post(stickFrame)
+        }
+        return true
+    }
+
+    private fun stopStick() {
+        stickX = 0f; stickY = 0f
+        main.removeCallbacks(stickFrame)
+    }
+
+    private fun stickStep() {
+        val c = cursor ?: return stopStick()
+        if (!StickCursor.active(stickX, stickY) || !cursorMode || anyOverlay()) return
+        val now = SystemClock.uptimeMillis()
+        val m = StickCursor.step(stickX, stickY, (now - stickLast).coerceIn(0L, 50L), resources.displayMetrics.density, cursorSettings.speed)
+        stickLast = now
+        if (!m.isZero) {
+            val edge = StickCursor.edgeScroll(c.y, m.dy, (root.height - 1).toFloat())
+            c.nudge(m.dx, m.dy)
+            cursorView.wake()
+            cursorView.moveTo(c.x, c.y, animate = false)
+            hover(c.x, c.y)
+            if (c.y < dp(TOOLBAR_DP) * 0.5f) showToolbar(true)
+            if (edge != 0f) stickEdge(edge.toInt())
+            scheduleHitTest()
+        }
+        main.postDelayed(stickFrame, 16L)
+    }
+
+    /** Pushing past the top or bottom with the stick scrolls the page smoothly (no paging animation). */
+    private fun stickEdge(dy: Int) {
+        if (dy == 0) return
+        if (dy < 0 && !toolbarShown) showToolbar(true)
+        if (dy > 0) showToolbar(false)
+        if (showingStart) { startPage.scrollBy(0, dy); return }
+        val w = web ?: return
+        if (w.visibility == View.VISIBLE && w.canScrollVertically(if (dy > 0) 1 else -1)) w.scrollBy(0, dy)
+    }
+
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean = pad.motion(ev) || super.dispatchGenericMotionEvent(ev)
+
     // ================================================================ keys
 
-    override fun dispatchKeyEvent(ev: KeyEvent): Boolean {
+    override fun dispatchKeyEvent(ev: KeyEvent): Boolean = pad.dispatch(ev, ::handleKey)
+
+    private fun handleKey(ev: KeyEvent): Boolean {
         if ((ev.flags and KeyEvent.FLAG_SOFT_KEYBOARD) != 0) return super.dispatchKeyEvent(ev)
         val code = ev.keyCode
         val down = ev.action == KeyEvent.ACTION_DOWN
@@ -1400,6 +1491,7 @@ class BrowserActivity : Activity() {
     }
 
     override fun onPause() {
+        stopStick()
         if (touching) touch(MotionEvent.ACTION_CANCEL)
         main.removeCallbacks(longRunnable)
         super.onPause()

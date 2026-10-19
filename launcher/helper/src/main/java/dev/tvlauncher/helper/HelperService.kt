@@ -2,6 +2,10 @@ package dev.tvlauncher.helper
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.database.ContentObserver
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
@@ -10,6 +14,9 @@ class HelperService : AccessibilityService() {
     private var machine: KeyStateMachine? = null
     private var foreground: String? = null
     @Volatile private var lastUserKeyAt = -1L
+    /** The launcher's "Guide button opens Home" (Settings > System > Controllers); on by default. */
+    @Volatile private var guideHome = true
+    private var padObserver: ContentObserver? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -21,6 +28,37 @@ class HelperService : AccessibilityService() {
             goHome = { performGlobalAction(GLOBAL_ACTION_HOME) },
             openSpotlight = { openSpotlight() },
         )
+        watchPadSettings()
+    }
+
+    private fun watchPadSettings() {
+        readPadSettings()
+        if (padObserver != null) return
+        val o = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) = readPadSettings()
+        }
+        try {
+            contentResolver.registerContentObserver(PAD_SETTINGS, false, o)
+            padObserver = o
+        } catch (e: Exception) {
+            // Launcher missing: the Guide button keeps its default.
+        }
+    }
+
+    private fun readPadSettings() {
+        Thread {
+            val text = try {
+                contentResolver.query(PAD_SETTINGS, null, null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+            } catch (e: Exception) {
+                null
+            }
+            guideHome = PadKeys.guideHomeFrom(text)
+        }.apply { isDaemon = true }.start()
+    }
+
+    private fun unwatchPadSettings() {
+        padObserver?.let { try { contentResolver.unregisterContentObserver(it) } catch (e: Exception) { } }
+        padObserver = null
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -33,11 +71,13 @@ class HelperService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     override fun onUnbind(intent: Intent?): Boolean {
+        unwatchPadSettings()
         if (current === this) current = null
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
+        unwatchPadSettings()
         if (current === this) current = null
         super.onDestroy()
     }
@@ -50,6 +90,15 @@ class HelperService : AccessibilityService() {
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
         return try {
+            // Game controllers: Guide goes HOME (if allowed); a pad's BACK / volume keys are the
+            // app's (no double-BACK); a pad press still counts as someone using the TV.
+            if (PadKeys.isPad(event.source) && event.action == KeyEvent.ACTION_DOWN) lastUserKeyAt = SystemClock.uptimeMillis()
+            when (PadKeys.decide(event.keyCode, event.source, event.action == KeyEvent.ACTION_DOWN, event.repeatCount, guideHome)) {
+                PadKeys.Verdict.NOT_PAD -> Unit
+                PadKeys.Verdict.PASS -> return false
+                PadKeys.Verdict.CONSUME -> return true
+                PadKeys.Verdict.HOME -> { performGlobalAction(GLOBAL_ACTION_HOME); return true }
+            }
             if (event.action == KeyEvent.ACTION_DOWN && PowerOnGate.countsAsNavigation(event.keyCode)) {
                 lastUserKeyAt = SystemClock.uptimeMillis()
             }
@@ -74,6 +123,9 @@ class HelperService : AccessibilityService() {
     }
 
     companion object {
+        /** The launcher's controller settings (read-only provider). */
+        private val PAD_SETTINGS: Uri = Uri.parse("content://dev.tvlauncher.gamepad/settings")
+
         /** The connected service, for [PowerOnHomeReceiver]; null while the service is off. */
         @Volatile
         var current: HelperService? = null

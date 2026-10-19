@@ -10,6 +10,7 @@ import android.provider.Settings
 import android.view.FocusFinder
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.text.TextUtils
@@ -22,6 +23,9 @@ import dev.tvlauncher.device.DeviceProfileReader
 import dev.tvlauncher.device.EffectsMode
 import dev.tvlauncher.audit.AuditTags
 import dev.tvlauncher.audit.auditTag
+import dev.tvlauncher.input.FocusJump
+import dev.tvlauncher.input.GamepadInput
+import dev.tvlauncher.input.PadCommand
 import dev.tvlauncher.room.RoomTheme
 import dev.tvlauncher.settings.AppearancePrefs
 import dev.tvlauncher.ui.BackdropView
@@ -74,6 +78,16 @@ class AppSettingsActivity : Activity(), SettingsNav {
     private val lastKey = HashMap<String, String>()
     private val advancedOpen = HashSet<String>()
     private val main = Handler(Looper.getMainLooper())
+
+    /** Game controllers: L1/R1 step through the sidebar's pages, Select closes Settings. */
+    private val pad = GamepadInput(this, object : GamepadInput.Host {
+        override fun onPadCommand(command: PadCommand, repeat: Int): Boolean = when (command) {
+            PadCommand.PAGE_PREV -> { padSection(forward = false); true }
+            PadCommand.PAGE_NEXT -> { padSection(forward = true); true }
+            PadCommand.SELECT -> { finish(); true }
+            else -> false
+        }
+    })
     private val worker: ExecutorService = Executors.newSingleThreadExecutor()
     private val selectRunnable = Runnable { pendingSelect?.let { select(it) } }
     private val hideToast = Runnable { fade(toast, 0f) }
@@ -577,7 +591,18 @@ class AppSettingsActivity : Activity(), SettingsNav {
         if (pendingFocus != null) parkFocus()
     }
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    /** L1/R1: the previous / next page in sidebar order (across groups), focused in the sidebar. */
+    private fun padSection(forward: Boolean) {
+        val id = FocusJump.adjacent(sidebarState.groups.flatMap { it.second }, selected, forward) ?: return
+        select(id)
+        focusSidebarEntry(sidebarState.indexOfPage(id))
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean = pad.dispatch(event, ::handleKey)
+
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean = pad.motion(ev) || super.dispatchGenericMotionEvent(ev)
+
+    private fun handleKey(event: KeyEvent): Boolean {
         if (super.dispatchKeyEvent(event)) return true
         if (event.action != KeyEvent.ACTION_DOWN) return false
         val f = currentFocus ?: return false

@@ -43,6 +43,8 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <!-- Settings > System > Controllers: the optional light buzz on a game controller's own motor. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
@@ -170,6 +172,7 @@
         <activity
             android:name=".HomeActivity"
             android:banner="@drawable/tv_banner"
+            android:configChanges="keyboard|keyboardHidden|navigation"
             android:exported="true"
             android:launchMode="singleTask"
             android:stateNotNeeded="true"
@@ -270,6 +273,13 @@
                 <action android:name="tcl.sys.intent.action.STR_RESUME_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- Controller settings (A/B swap, stick sensitivity, Guide button) for the companion apps
+             and the Helper. Read-only; nothing private in it. -->
+        <provider
+            android:name=".controllers.GamepadSettingsProvider"
+            android:authorities="dev.tvlauncher.gamepad"
+            android:exported="true" />
 
         <!-- Opt-in notification chips; bound only by the system after the user grants access. -->
         <service

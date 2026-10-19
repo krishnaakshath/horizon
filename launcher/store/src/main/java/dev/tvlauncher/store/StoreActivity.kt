@@ -13,6 +13,8 @@ import android.os.SystemClock
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -82,6 +84,12 @@ import java.util.concurrent.atomic.AtomicBoolean
  * system PackageInstaller session (Android shows its own prompt too). Nothing is ever installed silently.
  */
 class StoreActivity : Activity(), Installer.Listener {
+    /** Game controllers: A = OK, B = BACK, sticks move focus, Y / Start open the launcher's Spotlight. */
+    private val pad = dev.tvlauncher.input.GamepadInput(this)
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean = pad.dispatch(event) { super.dispatchKeyEvent(it) }
+
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean = pad.motion(ev) || super.dispatchGenericMotionEvent(ev)
 
     private sealed class Screen {
         object Home : Screen()

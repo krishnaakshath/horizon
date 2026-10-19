@@ -14,6 +14,7 @@ import android.view.View
 import android.view.WindowManager
 import dev.tvlauncher.device.DeviceProfileReader
 import dev.tvlauncher.device.EffectsMode
+import dev.tvlauncher.input.GamepadInput
 
 /**
  * Full-screen ambient. Keeps the screen on, hides system UI, plays nothing. Any key (including
@@ -60,6 +61,14 @@ class AmbientActivity : Activity() {
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (ev.actionMasked == MotionEvent.ACTION_DOWN) exit()
+        return true
+    }
+
+    /** Controller buttons already exit as keys; a stick, hat or trigger push exits too (drift does not). */
+    private val pad = GamepadInput(this)
+
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean {
+        if (pad.isDeliberate(ev)) exit()
         return true
     }
 

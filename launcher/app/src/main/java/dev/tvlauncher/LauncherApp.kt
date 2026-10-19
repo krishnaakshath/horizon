@@ -40,6 +40,10 @@ class LauncherApp : Application() {
         } catch (e: Throwable) {
         }
         try {
+            dev.tvlauncher.controllers.ControllersSection.register() // Settings > System > Controllers
+        } catch (e: Throwable) {
+        }
+        try {
             WaveTwoSections.registerAll()
         } catch (e: Throwable) {
             // Same: the wave-2 pages stay placeholders or absent.
