@@ -30,4 +30,12 @@ class AppearanceFormatTest {
     fun dateText_shortWeekdayDayMonth() {
         assertEquals("Mon, 19 Oct", AppearanceFormat.dateText(at(10, 0), Locale.US, utc))
     }
+
+    @Test
+    fun is24h_autoFollowsSystem_otherwiseUserChoice() {
+        assertEquals(true, AppearanceFormat.is24h(ClockFormat.AUTO, system24h = true))
+        assertEquals(false, AppearanceFormat.is24h(ClockFormat.AUTO, system24h = false))
+        assertEquals(true, AppearanceFormat.is24h(ClockFormat.H24, system24h = false))
+        assertEquals(false, AppearanceFormat.is24h(ClockFormat.H12, system24h = true))
+    }
 }

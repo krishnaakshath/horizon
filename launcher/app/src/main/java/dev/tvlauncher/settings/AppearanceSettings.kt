@@ -8,6 +8,9 @@ enum class AnimationLevel { AUTO, FULL, LITE, OFF }
 
 enum class TileSize { SMALL, MEDIUM, LARGE }
 
+/** AUTO follows the TV's own 12/24-hour setting. */
+enum class ClockFormat { AUTO, H24, H12 }
+
 /**
  * How the launcher looks. Pure Kotlin + org.json so it is JVM-testable. [fromJson] never
  * throws: corrupt input yields defaults and every field falls back on its own when its value is
@@ -17,7 +20,7 @@ data class AppearanceSettings(
     val accentMode: AccentMode = AccentMode.AUTO_BRAND,
     val fixedAccent: Int = DEFAULT_ACCENT,
     val animationLevel: AnimationLevel = AnimationLevel.AUTO,
-    val clock24h: Boolean = true,
+    val clockFormat: ClockFormat = ClockFormat.AUTO,
     val showDate: Boolean = true,
     val showStatusIcons: Boolean = true,
     val rowTileSize: TileSize = TileSize.MEDIUM
@@ -27,7 +30,7 @@ data class AppearanceSettings(
         put("accentMode", accentMode.name)
         put("fixedAccent", fixedAccent.toLong() and 0xFFFFFFFFL)
         put("animationLevel", animationLevel.name)
-        put("clock24h", clock24h)
+        put("clockFormat", clockFormat.name)
         put("showDate", showDate)
         put("showStatusIcons", showStatusIcons)
         put("rowTileSize", rowTileSize.name)
@@ -62,7 +65,7 @@ data class AppearanceSettings(
                     accentMode = enumOr(json, "accentMode", d.accentMode),
                     fixedAccent = colorOr(json, "fixedAccent", d.fixedAccent),
                     animationLevel = enumOr(json, "animationLevel", d.animationLevel),
-                    clock24h = boolOr(json, "clock24h", d.clock24h),
+                    clockFormat = clockFormatOf(json),
                     showDate = boolOr(json, "showDate", d.showDate),
                     showStatusIcons = boolOr(json, "showStatusIcons", d.showStatusIcons),
                     rowTileSize = enumOr(json, "rowTileSize", d.rowTileSize)
@@ -75,6 +78,16 @@ data class AppearanceSettings(
         private inline fun <reified E : Enum<E>> enumOr(json: JSONObject, key: String, fallback: E): E {
             val raw = json.opt(key) as? String ?: return fallback
             return enumValues<E>().firstOrNull { it.name == raw } ?: fallback
+        }
+
+        /** "clockFormat" wins; else the legacy "clock24h" boolean (true = H24, false = H12); else AUTO. */
+        private fun clockFormatOf(json: JSONObject): ClockFormat {
+            if (json.has("clockFormat")) return enumOr(json, "clockFormat", ClockFormat.AUTO)
+            return when (json.opt("clock24h") as? Boolean) {
+                true -> ClockFormat.H24
+                false -> ClockFormat.H12
+                null -> ClockFormat.AUTO
+            }
         }
 
         private fun boolOr(json: JSONObject, key: String, fallback: Boolean): Boolean =

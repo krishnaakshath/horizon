@@ -89,7 +89,8 @@ class TopBar(
 
     /** Settings > Appearance: clock format, date and status icons. */
     fun applyAppearance(a: AppearanceSettings) {
-        val pattern = if (a.clock24h) AppearanceFormat.PATTERN_24H else AppearanceFormat.PATTERN_12H
+        val is24h = AppearanceFormat.is24h(a.clockFormat, android.text.format.DateFormat.is24HourFormat(context))
+        val pattern = if (is24h) AppearanceFormat.PATTERN_24H else AppearanceFormat.PATTERN_12H
         clock.format12Hour = pattern
         clock.format24Hour = pattern // the user's choice wins over the system 12/24-hour setting
         date.visibility = if (a.showDate) View.VISIBLE else View.INVISIBLE // keeps the weight-1 spacer

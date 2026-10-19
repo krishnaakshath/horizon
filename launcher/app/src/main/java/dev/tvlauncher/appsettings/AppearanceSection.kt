@@ -8,6 +8,7 @@ import dev.tvlauncher.settings.AnimationLevel
 import dev.tvlauncher.settings.AppearanceFormat
 import dev.tvlauncher.settings.AppearancePrefs
 import dev.tvlauncher.settings.AppearanceSettings
+import dev.tvlauncher.settings.ClockFormat
 import dev.tvlauncher.settings.TileSize
 import java.util.Locale
 
@@ -57,12 +58,13 @@ object AppearanceSection : SettingsSection {
         page.group("Top bar")
         lateinit var clockRow: SettingsRow
         clockRow = page.row(
-            "appearance.clock24h", "24-hour clock",
-            RowKind.Toggle(a.clock24h) { on ->
-                prefs.update { it.copy(clock24h = on) }
-                clockRow.setSubtitle(clockExample(on))
+            "appearance.clockFormat", "Clock",
+            RowKind.Choice(listOf("Auto", "24-hour", "12-hour"), a.clockFormat.ordinal) { i ->
+                val f = ClockFormat.values()[i]
+                prefs.update { it.copy(clockFormat = f) }
+                clockRow.setSubtitle(clockExample(context, f))
             },
-            subtitle = clockExample(a.clock24h),
+            subtitle = clockExample(context, a.clockFormat),
             iconRes = R.drawable.ic_set_clock
         )
         page.row(
@@ -90,6 +92,9 @@ object AppearanceSection : SettingsSection {
         return page
     }
 
-    private fun clockExample(is24h: Boolean): String =
-        "Now: " + AppearanceFormat.clockText(System.currentTimeMillis(), is24h, Locale.getDefault())
+    private fun clockExample(context: Context, f: ClockFormat): String {
+        val is24h = AppearanceFormat.is24h(f, android.text.format.DateFormat.is24HourFormat(context))
+        val now = AppearanceFormat.clockText(System.currentTimeMillis(), is24h, Locale.getDefault())
+        return if (f == ClockFormat.AUTO) "Now: $now (follows the TV's setting)" else "Now: $now"
+    }
 }

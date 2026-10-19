@@ -5,6 +5,7 @@ import dev.tvlauncher.device.EffectsMode
 import dev.tvlauncher.settings.AccentMode
 import dev.tvlauncher.settings.AnimationLevel
 import dev.tvlauncher.settings.AppearanceSettings
+import dev.tvlauncher.settings.ClockFormat
 import dev.tvlauncher.settings.TileSize
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -78,7 +79,7 @@ class HomeAppearanceTest {
     fun change_none_live_rebuild() {
         val a = AppearanceSettings()
         assertEquals(HomeAppearance.Change.NONE, HomeAppearance.change(a, EffectsMode.LITE, a, EffectsMode.LITE))
-        for (b in listOf(a.copy(clock24h = false), a.copy(showDate = false), a.copy(showStatusIcons = false),
+        for (b in listOf(a.copy(clockFormat = ClockFormat.H12), a.copy(showDate = false), a.copy(showStatusIcons = false),
             a.copy(accentMode = AccentMode.FIXED), a.copy(fixedAccent = 0xFF000001.toInt()))) {
             assertEquals(b.toString(), HomeAppearance.Change.LIVE, HomeAppearance.change(a, EffectsMode.LITE, b, EffectsMode.LITE))
         }
