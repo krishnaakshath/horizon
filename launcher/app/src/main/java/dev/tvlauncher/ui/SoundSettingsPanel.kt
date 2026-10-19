@@ -1,7 +1,6 @@
 package dev.tvlauncher.ui
 
 import android.content.Context
-import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.KeyEvent
@@ -30,6 +29,19 @@ class SoundSettingsPanel(
 
     private var s = prefs.load()
     private val refreshers = ArrayList<() -> Unit>()
+    private val previewRunnables = ArrayList<Runnable>()
+    private var firstRow: View? = null
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        post { firstRow?.requestFocus() }
+    }
+
+    override fun onDetachedFromWindow() {
+        previewRunnables.forEach { removeCallbacks(it) }
+        previewRunnables.clear()
+        super.onDetachedFromWindow()
+    }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
@@ -43,12 +55,14 @@ class SoundSettingsPanel(
         row("Sound effects", { if (s.enabled) "On" else "Off" }, onOk = {
             update(s.copy(enabled = !s.enabled)); player?.preview(SoundEvent.SELECT)
         })
-        row("Theme", { SoundThemes.byId(s.themeId).name }, onOk = {
+        val cycleTheme = { d: Int ->
             val all = SoundThemes.all
-            val i = all.indexOfFirst { it.id == s.themeId }
-            update(s.copy(themeId = all[(i + 1) % all.size].id))
+            val i = all.indexOfFirst { it.id == s.themeId }.coerceAtLeast(0)
+            update(s.copy(themeId = all[(i + d + all.size) % all.size].id))
             player?.preview(SoundEvent.SELECT)
-        })
+        }
+        row("Theme (OK or left / right)", { SoundThemes.byId(s.themeId).name },
+            onOk = { cycleTheme(1) }, onHorizontal = { d -> cycleTheme(d) })
         row("Volume", { "${s.volume}%   (left / right)" }, onOk = { player?.preview(SoundEvent.SELECT) },
             onHorizontal = { d ->
                 update(s.copy(volume = (s.volume + d * 10).coerceIn(0, 100)))
@@ -71,7 +85,11 @@ class SoundSettingsPanel(
             setPadding(dp(Theme.S4), dp(Theme.S2), dp(Theme.S4), dp(Theme.S3))
         })
         row("Preview", { "OK to play all" }, onOk = {
-            SoundEvent.values().forEachIndexed { i, e -> postDelayed({ player?.preview(e) }, i * 450L) }
+            SoundEvent.values().forEachIndexed { i, e ->
+                val r = Runnable { player?.preview(e) }
+                previewRunnables += r
+                postDelayed(r, i * 450L)
+            }
         })
         refresh()
     }
@@ -112,7 +130,7 @@ class SoundSettingsPanel(
             background = bg
             setOnClickListener { onOk() }
             setOnFocusChangeListener { _, f ->
-                bg.setColor(if (f) Color.WHITE else Theme.SURFACE)
+                bg.setColor(if (f) Theme.TEXT else Theme.SURFACE)
                 setTextColor(if (f) Theme.TEXT_DARK else Theme.TEXT)
             }
             setOnKeyListener { _: View, code: Int, ev: KeyEvent ->
@@ -123,6 +141,7 @@ class SoundSettingsPanel(
                 } else false
             }
         }
+        if (firstRow == null) firstRow = tv
         refreshers += { tv.text = "$title:  ${value()}" }
         addView(tv, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
             topMargin = dp(Theme.S2)

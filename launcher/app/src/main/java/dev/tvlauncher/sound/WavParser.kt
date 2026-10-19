@@ -38,8 +38,9 @@ object WavParser {
                 fmtOk = true
             } else if (tag(b, pos, "data")) {
                 if (!fmtOk) return null
-                val avail = (b.size - body).toLong()
-                val len = minOf(size, avail).toInt()
+                // Declared data size larger than the file means truncated: reject.
+                if (size > (b.size - body).toLong()) return null
+                val len = size.toInt()
                 val frameBytes = 2 * channels
                 val frames = len / frameBytes
                 if (frames == 0) return null

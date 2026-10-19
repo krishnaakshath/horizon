@@ -48,6 +48,13 @@ class ToneSynthTest {
         assertTrue("flat=$flat up=$up", up > flat * 1.5)
     }
 
+    @Test fun length_within_one_sample_for_many_durations() {
+        for (rate in listOf(22050, 44100)) for (ms in listOf(1, 33, 45, 123, 399)) {
+            val n = ToneSynth.render(spec(ms = ms), rate).size
+            assertTrue("$rate/$ms n=$n", abs(n - rate * ms / 1000) <= 1)
+        }
+    }
+
     @Test fun zero_duration_is_empty() {
         assertEquals(0, ToneSynth.render(spec(ms = 0)).size)
     }
