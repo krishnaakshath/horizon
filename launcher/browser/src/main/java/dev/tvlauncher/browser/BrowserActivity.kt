@@ -92,6 +92,11 @@ import dev.tvlauncher.browser.data.SessionSnapshot
 import dev.tvlauncher.browser.data.SessionState
 import dev.tvlauncher.browser.net.SslErrorPolicy
 import dev.tvlauncher.browser.net.UpgradeLoopGuard
+import dev.tvlauncher.browser.net.SslFallback
+import dev.tvlauncher.browser.data.ClearGate
+import dev.tvlauncher.browser.data.SequencedWriter
+import dev.tvlauncher.browser.ui.Menus
+import dev.tvlauncher.browser.ui.ThumbCache
 
 /**
  * TV browser. D-pad drives a virtual mouse cursor by default (hold BACK for focus mode); MENU
@@ -135,11 +140,17 @@ class BrowserActivity : Activity() {
 
     private var tabs = TabModel()
     private val savedStates = HashMap<Long, Bundle>()
-    private val thumbs = HashMap<Long, Bitmap>()
+    private val thumbs by lazy { ThumbCache(File(cacheDir, "tabs")) }
     private var pendingScroll = 0
     /** Main-frame URL currently being loaded (after redirects), for SSL error attribution. */
     private var loadingUrl: String? = null
     private val upgradeGuard = UpgradeLoopGuard()
+    private val sslFallback = SslFallback(8000)
+    private var committed = false
+    private val clearGate = ClearGate()
+    private val sslCheck = Runnable {
+        sslFallback.due(SystemClock.uptimeMillis())?.let { p -> if (web != null && !showingStart) showError(p.url, "SSL:${p.primaryError}") }
+    }
 
     private var web: WebView? = null
     private var webFailed = false
@@ -318,11 +329,6 @@ class BrowserActivity : Activity() {
         if (restoreSession) {
             val f = File(filesDir, "session.json")
             if (f.exists()) tabs = TabModel.decode(try { f.readText() } catch (e: Exception) { null })
-            tabs.tabs.forEach { t ->
-                val tf = File(cacheDir, "tabs/${t.id}.jpg")
-                if (tf.exists()) BitmapFactory.decodeFile(tf.path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })
-                    ?.let { thumbs[t.id] = it }
-            }
         }
         activate(tabs.active)
     }
@@ -330,10 +336,13 @@ class BrowserActivity : Activity() {
     private val sessionFile by lazy { File(filesDir, "session.json") }
 
     /** Delayed save after page loads; writes go through the single io thread (ordered, atomic). */
+    /** Only the newest session snapshot lands on disk, whichever thread writes it. */
+    private val sessionWriter by lazy { SequencedWriter { json -> AtomicText.write(FileOps.Real, sessionFile, json) } }
+
     private val sessionSaver = DebouncedSaver(
         post = { r, ms -> main.postDelayed(r, ms) },
         remove = { r -> main.removeCallbacks(r) },
-        write = { json -> io.execute { AtomicText.write(FileOps.Real, sessionFile, json) } }
+        write = { json -> val seq = sessionWriter.next(); io.execute { sessionWriter.write(seq, json) } }
     )
 
     private fun sessionJson(): String {
@@ -342,21 +351,19 @@ class BrowserActivity : Activity() {
     }
 
     private fun scheduleSessionSave() {
-        if (restoreSession) sessionSaver.schedule(2000) { sessionJson() }
+        if (restoreSession && clearGate.shouldScheduleSession()) sessionSaver.schedule(2000) { sessionJson() }
     }
 
-    /** Synchronous, atomic save (onStop): queued after any pending io write so it is the last one. */
+    /**
+     * onStop: small synchronous atomic write on the main thread (not queued behind thumbnail
+     * compression); any older queued write is skipped by the sequence check.
+     */
     private fun saveSessionNow() {
         sessionSaver.cancel()
-        val json = if (restoreSession) sessionJson() else null
-        try {
-            io.submit {
-                if (json == null) sessionFile.delete() else AtomicText.write(FileOps.Real, sessionFile, json)
-            }.get(2, TimeUnit.SECONDS)
-        } catch (e: Exception) {
-            Log.w(TAG, "session save", e)
-        }
+        if (!restoreSession) { io.execute { sessionFile.delete() }; return }
+        sessionWriter.write(sessionWriter.next(), sessionJson())
     }
+
 
     /** Copies the live WebView's state into the active tab (and optionally a thumbnail). Never blanks a page URL. */
     private fun snapshotActive(thumb: Boolean) {
@@ -376,18 +383,12 @@ class BrowserActivity : Activity() {
             c.scale(s, s)
             c.translate(-w.scrollX.toFloat(), -w.scrollY.toFloat())
             w.draw(c)
-            thumbs[id] = bmp // the old bitmap may still be compressing on io; let GC free it
-            val file = File(cacheDir, "tabs/$id.jpg")
-            io.execute {
-                try {
-                    file.parentFile?.mkdirs()
-                    file.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 70, it) }
-                } catch (e: Exception) { }
-            }
+            thumbs.put(id, bmp) // saved to cacheDir/tabs off-thread; reloadable after memory trims
         } catch (t: Throwable) {
             Log.w(TAG, "thumbnail", t)
         }
     }
+
 
     /** Shows [tab] in the single live WebView (recreated), or the start page. */
     private fun activate(tab: Tab) {
@@ -423,7 +424,6 @@ class BrowserActivity : Activity() {
         val wasActive = t.id == tabs.active.id
         savedStates.remove(t.id)
         thumbs.remove(t.id)
-        File(cacheDir, "tabs/${t.id}.jpg").delete()
         if (wasActive) {
             val next = tabs.close(t.id)
             activate(next)
@@ -443,7 +443,7 @@ class BrowserActivity : Activity() {
         tabs.active.url = url
         urlBar.show(url, null)
         loadingUrl = url
-        upgradeGuard.reset()
+        upgradeGuard.onUserNavigation()
         w.loadUrl(url)
         updateNav()
         if (!cursorMode) w.requestFocus()
@@ -582,7 +582,7 @@ class BrowserActivity : Activity() {
                 return true // intent:, market:, tel:, javascript:, ... open nothing external
             }
             if (target != url) { // http -> https, unless the site keeps bouncing back to http
-                if (upgradeGuard.isLoop(url)) { view.stopLoading(); showError(url, "CLEARTEXT"); return true }
+                if (upgradeGuard.isLoop(url, SystemClock.uptimeMillis())) { view.stopLoading(); showError(url, "CLEARTEXT"); return true }
                 loadingUrl = target
                 view.loadUrl(target)
                 return true
@@ -595,6 +595,7 @@ class BrowserActivity : Activity() {
             if (view !== web) return
             loading = true
             loadingUrl = url
+            committed = false
             urlBar.show(url, null)
             progress.setProgress(5)
             showToolbar(true)
@@ -603,20 +604,26 @@ class BrowserActivity : Activity() {
         }
 
         override fun onPageCommitVisible(view: WebView, url: String) {
-            if (view === web) firstLoaded(view)
+            if (view !== web) return
+            committed = true
+            sslFallback.onCommitted()
+            main.removeCallbacks(sslCheck)
+            firstLoaded(view)
         }
 
         override fun onPageFinished(view: WebView, url: String) {
             if (view !== web) return
             loading = false
-            if (url.startsWith("https://") && message.visibility != View.VISIBLE) upgradeGuard.reset()
+            upgradeGuard.onFinished(url, SystemClock.uptimeMillis())
+            main.removeCallbacks(sslCheck)
+            sslFallback.onFinished(failed = !committed && url != "about:blank")?.let { p -> showError(p.url, "SSL:${p.primaryError}"); return }
             if (clearHistoryOnFinish && url != "about:blank") {
                 clearHistoryOnFinish = false
                 view.clearHistory() // BACK from the first page returns to the start page
             }
             firstLoaded(view)
             if (pendingScroll > 0) { val y = pendingScroll; pendingScroll = 0; view.postDelayed({ view.scrollTo(0, y) }, 300) }
-            if (UrlPolicy.isStorable(url)) {
+            if (clearGate.shouldRecordHistory(url)) {
                 history.record(url, view.title ?: "", System.currentTimeMillis())
                 saveHistorySoon()
                 scheduleSessionSave()
@@ -641,8 +648,13 @@ class BrowserActivity : Activity() {
         override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
             handler.cancel() // always refuse the bad certificate
             // Only a main-frame failure replaces the page; sub-resources (ads, trackers) are just blocked.
-            if (view === web && SslErrorPolicy.shouldShowPageError(error.url, view.url, loadingUrl)) {
+            if (view !== web) return
+            if (SslErrorPolicy.shouldShowPageError(error.url, view.url, loadingUrl)) {
                 showError(error.url, "SSL:${error.primaryError}")
+            } else if (!committed) {
+                // Possibly the main frame under an unexpected URL: show it if the page never commits.
+                sslFallback.onSuppressed(error.url, error.primaryError, SystemClock.uptimeMillis())
+                main.removeCallbacks(sslCheck); main.postDelayed(sslCheck, 8000)
             }
         }
 
@@ -683,7 +695,7 @@ class BrowserActivity : Activity() {
         override fun onReceivedTitle(view: WebView, title: String?) {
             if (view !== web || title == null) return
             urlBar.show(view.url, title)
-            view.url?.let { history.updateTitle(it, title) }
+            view.url?.let { if (clearGate.shouldRecordHistory(it)) history.updateTitle(it, title) }
             tabs.active.title = title
         }
 
@@ -796,7 +808,11 @@ class BrowserActivity : Activity() {
         sidePanel.showBookmarks(bookmarks.items,
             onOpen = { navigate(it) },
             onMove = { a, b -> bookmarks.move(a, b); saveBookmarks(); openBookmarks() },
-            onDelete = { b -> bookmarks.remove(b.url); saveBookmarks(); updateNav(); openBookmarks() })
+            onDelete = { b ->
+                confirm(Menus.DELETE_BOOKMARK, b.title, onCancel = { openBookmarks() }) {
+                    bookmarks.remove(b.url); saveBookmarks(); updateNav(); openBookmarks()
+                }
+            })
     }
 
     private fun openHistory() {
@@ -804,32 +820,64 @@ class BrowserActivity : Activity() {
         enterOverlay()
         sidePanel.showHistory(history.daySections(System.currentTimeMillis(), TimeZone.getDefault(), Locale.getDefault()),
             onOpen = { navigate(it) },
-            onClear = { history.clear(); saveHistorySoon(); refreshStart(); openHistory(); hint.show("History cleared") })
+            onClear = {
+                confirm(Menus.CLEAR_HISTORY, null, onCancel = { openHistory() }) {
+                    history.clear(); saveHistorySoon(); refreshStart(); openHistory(); hint.show("History cleared")
+                }
+            })
     }
 
     private fun tileMenu(b: Bookmark, index: Int) {
         val n = bookmarks.items.size
-        showContextMenu(b.title, listOf(
-            MenuCard.Item(R.drawable.ic_forward, "Open") { navigate(b.url) },
-            MenuCard.Item(R.drawable.ic_tabs, "Open in new tab") { openInNewTab(b.url) },
-            MenuCard.Item(R.drawable.ic_left, "Move left") { if (index > 0) { bookmarks.move(index, index - 1); saveBookmarks(); refreshStart() } },
-            MenuCard.Item(R.drawable.ic_right, "Move right") { if (index < n - 1) { bookmarks.move(index, index + 1); saveBookmarks(); refreshStart() } },
-            MenuCard.Item(R.drawable.ic_trash, "Remove from favorites") { bookmarks.remove(b.url); saveBookmarks(); refreshStart() }
+        menuFrom(Menus.TILE, b.title, mapOf(
+            "open" to { navigate(b.url) },
+            "new_tab" to { openInNewTab(b.url) },
+            "left" to { if (index > 0) { bookmarks.move(index, index - 1); saveBookmarks(); refreshStart() } },
+            "right" to { if (index < n - 1) { bookmarks.move(index, index + 1); saveBookmarks(); refreshStart() } },
+            "remove" to {
+                main.post {
+                    confirm(Menus.REMOVE_FAVORITE, b.title) { bookmarks.remove(b.url); saveBookmarks(); refreshStart(); updateNav() }
+                }
+            }
         ))
     }
 
     private fun linkMenu(href: String) {
-        showContextMenu(UrlPolicy.hostOf(href).ifEmpty { "Link" }, listOf(
-            MenuCard.Item(R.drawable.ic_tabs, "Open in new tab") { openInNewTab(href) },
-            MenuCard.Item(R.drawable.ic_forward, "Open") { navigate(href) },
-            MenuCard.Item(R.drawable.ic_bookmarks, "Copy link") {
+        menuFrom(Menus.LINK, UrlPolicy.hostOf(href).ifEmpty { "Link" }, mapOf(
+            "new_tab" to { openInNewTab(href) },
+            "open" to { navigate(href) },
+            "copy" to {
                 getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Link", href))
                 hint.show("Link copied")
             },
-            MenuCard.Item(R.drawable.ic_star, "Add bookmark") {
+            "bookmark" to {
                 if (bookmarks.add(href, UrlPolicy.hostOf(href))) { saveBookmarks(); hint.show("Bookmarked") } else hint.show("Already bookmarked")
             }
         ))
+    }
+
+    private fun iconFor(e: Menus.Entry): Int = when (e.id) {
+        "cancel" -> R.drawable.ic_close
+        "confirm", "remove" -> R.drawable.ic_trash
+        "new_tab" -> R.drawable.ic_tabs
+        "open" -> R.drawable.ic_forward
+        "left" -> R.drawable.ic_left
+        "right" -> R.drawable.ic_right
+        "copy" -> R.drawable.ic_bookmarks
+        "bookmark" -> R.drawable.ic_star
+        else -> R.drawable.ic_menu
+    }
+
+    private fun menuFrom(def: Menus.Def, title: String?, actions: Map<String, () -> Unit>) {
+        showContextMenu(title ?: def.title, def.entries.map { e ->
+            MenuCard.Item(iconFor(e), e.label, kind = e.kind) { actions[e.id]?.invoke() }
+        })
+    }
+
+    /** Destructive confirmation: Cancel first and focused; BACK cancels too. */
+    private fun confirm(def: Menus.Def, subject: String?, onCancel: () -> Unit = {}, onConfirm: () -> Unit) {
+        menuFrom(def, if (subject != null) "${def.title.removeSuffix("?")}: $subject?" else def.title,
+            mapOf("cancel" to { main.post(onCancel) }, "confirm" to onConfirm))
     }
 
     private fun showContextMenu(title: String, items: List<MenuCard.Item>) {
@@ -953,10 +1001,13 @@ class BrowserActivity : Activity() {
         if (!reopen) closeOverlays() else if (switcher.isOpen) switcher.visibility = View.GONE
         snapshotActive(true)
         enterOverlay()
-        switcher.open(tabs.tabs, tabs.activeIndex, thumbs, tabs.canOpen(),
-            onPick = { i -> switchTo(i) },
-            onCloseTab = { t -> closeTab(t) },
-            onNew = { switcher.close(); snapshotActive(true); tabs.open(null)?.let { activate(it) } })
+        // Previews come from memory or are reloaded from cacheDir/tabs off-thread (never lost after a trim).
+        thumbs.load(tabs.tabs.map { it.id }) { previews ->
+            switcher.open(tabs.tabs, tabs.activeIndex, previews, tabs.canOpen(),
+                onPick = { i -> switchTo(i) },
+                onCloseTab = { t -> closeTab(t) },
+                onNew = { switcher.close(); snapshotActive(true); tabs.open(null)?.let { activate(it) } })
+        }
     }
 
     private fun openFind() {
@@ -984,36 +1035,44 @@ class BrowserActivity : Activity() {
         cursor?.speedFactor = s.speed
     }
 
-    /** Confirmation card listing exactly what will be removed. */
+    /** Confirmation card (Cancel focused) stating what is cleared and what stays. */
     private fun confirmClear(includeBookmarks: Boolean) {
         val plan = ClearPlan.forOption(includeBookmarks)
-        showContextMenu(if (includeBookmarks) "Clear everything?" else "Clear browsing data?", listOf(
-            MenuCard.Item(R.drawable.ic_trash, "Clear now") { clearData(plan) },
-            MenuCard.Item(R.drawable.ic_close, "Cancel") { }
-        ))
-        hint.show("Removes " + ClearPlan.describe(plan), 6000)
+        confirm(if (includeBookmarks) Menus.CLEAR_EVERYTHING else Menus.CLEAR_DATA, null) { clearData(plan) }
+        hint.show(ClearPlan.confirmText(includeBookmarks), 7000)
     }
 
+    /**
+     * Stop everything that could re-record data, leave the page, then clear. The gate keeps a
+     * late onPageFinished from writing history/session back.
+     */
     private fun clearData(plan: Set<ClearPlan.Item>) {
-        BrowsingDataCleaner(this).clearWebData(plan, web)
-        if (ClearPlan.Item.HISTORY in plan) { history.clear(); main.removeCallbacks(historySaver); historySaver.run() }
-        if (ClearPlan.Item.FAVICONS in plan) loader.clear()
-        if (ClearPlan.Item.TAB_THUMBNAILS in plan) {
-            thumbs.clear()
-            io.execute { File(cacheDir, "tabs").deleteRecursively() }
-        }
-        if (ClearPlan.Item.TAB_STATES in plan) savedStates.clear()
-        if (ClearPlan.Item.INACTIVE_TABS in plan) tabs = SessionState.afterClear(tabs)
-        if (ClearPlan.Item.SESSION_FILE in plan) {
+        clearGate.begin()
+        try {
             sessionSaver.cancel()
-            val json = tabs.encode()
-            io.execute { AtomicText.write(FileOps.Real, sessionFile, json) }
+            main.removeCallbacks(historySaver)
+            main.removeCallbacks(sslCheck)
+            loadingUrl = null
+            web?.let { it.stopLoading(); it.loadUrl("about:blank") }
+            BrowsingDataCleaner(this).clearWebData(plan, web)
+            if (ClearPlan.Item.HISTORY in plan) { history.clear(); historySaver.run() }
+            if (ClearPlan.Item.FAVICONS in plan) loader.clear()
+            if (ClearPlan.Item.TAB_THUMBNAILS in plan) thumbs.clearAll()
+            if (ClearPlan.Item.TAB_STATES in plan) savedStates.clear()
+            if (ClearPlan.Item.OPEN_TABS in plan) {
+                tabs = SessionState.afterClear(tabs) // one blank tab; per-tab desktop flag gone
+                showStart() // destroys the WebView, so its desktop UA goes with it
+            }
+            if (ClearPlan.Item.SESSION_FILE in plan) sessionWriter.write(sessionWriter.next(), tabs.encode())
+            if (ClearPlan.Item.BOOKMARKS in plan) { bookmarks.reset(DefaultFavorites.list); saveBookmarks() }
+        } finally {
+            clearGate.end()
         }
-        if (ClearPlan.Item.BOOKMARKS in plan) { bookmarks.reset(DefaultFavorites.list); saveBookmarks() }
         refreshStart()
         updateNav()
         hint.show(if (ClearPlan.Item.BOOKMARKS in plan) "Everything cleared" else "Browsing data cleared")
     }
+
 
 
     private fun toggleMode() {
@@ -1354,6 +1413,7 @@ class BrowserActivity : Activity() {
         if (customView != null) exitFullscreen()
         main.removeCallbacksAndMessages(null) // no late session/history saves after this point
         hrefHandler.removeCallbacksAndMessages(null)
+        thumbs.shutdown()
         sessionSaver.cancel()
         suggest.shutdown()
         loader.shutdown()
@@ -1364,13 +1424,16 @@ class BrowserActivity : Activity() {
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        if (level >= TRIM_MEMORY_RUNNING_LOW) {
-            thumbs.clear()
-            val active = tabs.active.id
-            savedStates.keys.retainAll(setOf(active)) // inactive tabs keep their URLs and reload when opened
-            loader.trimMemory()
+        when (TrimPolicy.actionFor(level)) {
+            TrimPolicy.Action.NONE -> Unit
+            TrimPolicy.Action.DROP_CACHES -> { thumbs.trim(); loader.trimMemory() }
+            TrimPolicy.Action.DROP_ALL -> {
+                thumbs.trim(); loader.trimMemory()
+                savedStates.keys.retainAll(setOf(tabs.active.id)) // inactive tabs keep URLs and reload
+            }
         }
     }
+
 
     private companion object {
         const val TAG = "Browser"

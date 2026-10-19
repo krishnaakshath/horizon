@@ -16,12 +16,16 @@ import dev.tvlauncher.browser.data.ClearPlan.Item
  * bookmarks) are handled by the activity, which owns those stores.
  */
 class BrowsingDataCleaner(private val context: Context) {
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+
     fun clearWebData(plan: Set<Item>, live: WebView?) {
         var temp: WebView? = null
         try {
-            val w = live ?: if (ClearPlan.needsTemporaryWebView(false) && (Item.HTTP_CACHE in plan || Item.FORM_DATA in plan)) {
-                WebView(context.applicationContext).also { temp = it }
-            } else null
+            val needsWebView = Item.HTTP_CACHE in plan || Item.FORM_DATA in plan
+            val w = when (ClearPlan.cacheStep(live != null)) {
+                ClearPlan.CacheStep.DIRECT -> live
+                ClearPlan.CacheStep.TEMP_WEBVIEW -> if (needsWebView) WebView(context.applicationContext).also { temp = it } else null
+            }
             if (Item.HTTP_CACHE in plan) w?.clearCache(true)
             if (Item.FORM_DATA in plan) w?.clearFormData()
             if (Item.TAB_STATES in plan) live?.clearHistory()
@@ -32,7 +36,13 @@ class BrowsingDataCleaner(private val context: Context) {
         }
         try {
             if (Item.WEB_STORAGE in plan) WebStorage.getInstance().deleteAllData()
-            if (Item.COOKIES in plan) CookieManager.getInstance().apply { removeAllCookies(null); flush() }
+            if (Item.COOKIES in plan) {
+                val cm = CookieManager.getInstance()
+                // Flush once removal has completed; a timeout fallback flushes anyway.
+                val fallback = Runnable { cm.flush() }
+                main.postDelayed(fallback, 2000)
+                cm.removeAllCookies { main.removeCallbacks(fallback); cm.flush() }
+            }
             if (Item.HTTP_AUTH in plan) WebViewDatabase.getInstance(context).clearHttpAuthUsernamePassword()
         } catch (t: Throwable) {
             Log.w(TAG, "clear web storage", t)

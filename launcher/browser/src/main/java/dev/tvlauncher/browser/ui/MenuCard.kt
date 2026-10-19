@@ -17,7 +17,8 @@ import dev.tvlauncher.browser.ui.Theme.style
 class MenuCard(context: Context) : ScrollView(context) {
     class Item(
         val icon: Int, val label: String, val value: (() -> String)? = null,
-        val adjust: ((Int) -> Unit)? = null, val keepOpen: Boolean = false, val action: () -> Unit
+        val adjust: ((Int) -> Unit)? = null, val keepOpen: Boolean = false,
+        val kind: Menus.Kind = Menus.Kind.NORMAL, val action: () -> Unit
     )
 
     private val list = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
@@ -47,7 +48,9 @@ class MenuCard(context: Context) : ScrollView(context) {
         scrollTo(0, 0)
         alpha = 0f; translationY = -context.dpf(6f)
         animate().alpha(1f).translationY(0f).setDuration(150).start()
-        post { list.getChildAt(if (title != null) 1 else 0)?.requestFocus() }
+        // Destructive cards focus Cancel (see MenuModel); others the first row.
+        val focus = MenuModel.defaultFocusIndex(items.map { it.kind })
+        post { list.getChildAt(focus + if (title != null) 1 else 0)?.requestFocus() }
     }
 
     private fun row(item: Item): Card {

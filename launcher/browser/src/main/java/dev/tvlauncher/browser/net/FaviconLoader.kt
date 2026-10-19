@@ -23,31 +23,32 @@ class FaviconLoader(context: Context) {
 
     private val dir = File(context.cacheDir, "favicons")
     private val mem = LruCache<String, Icon>(24)
-    private val failedAt = HashMap<String, Long>()
-    private val waiting = HashMap<String, MutableList<(Icon?) -> Unit>>()
     private val main = Handler(Looper.getMainLooper())
     private val exec = Executors.newFixedThreadPool(2, ThreadFactory { r ->
         Thread({ Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND); r.run() }, "favicons").apply { isDaemon = true }
     })
+    /** Per-origin de-duplication, failure TTL and clear() generation discard (pure, unit-tested). */
+    private val coordinator = FetchCoordinator(
+        execute = { r -> exec.execute(r) },
+        post = { r -> main.post(r) },
+        clock = { System.currentTimeMillis() },
+        cache = object : FetchCoordinator.Cache<Icon> {
+            override fun get(key: String) = mem.get(key)
+            override fun put(key: String, value: Icon) { mem.put(key, value) }
+            override fun clear() = mem.evictAll()
+        },
+        failTtlMs = FAIL_TTL_MS
+    )
 
-    init { exec.execute { prune() } }
+    init { try { exec.execute { prune() } } catch (e: Exception) { } }
 
     fun peek(pageUrl: String): Icon? = FaviconUrlCandidates.origin(pageUrl)?.let { mem.get(it) }
 
     /** Calls [cb] on the main thread with the icon, or null when none could be loaded. */
     fun load(pageUrl: String, cb: (Icon?) -> Unit) {
         val origin = FaviconUrlCandidates.origin(pageUrl) ?: return cb(null)
-        mem.get(origin)?.let { return cb(it) }
-        failedAt[origin]?.let { if (System.currentTimeMillis() - it < FAIL_TTL_MS) return cb(null) else failedAt.remove(origin) }
-        waiting[origin]?.let { it.add(cb); return }
-        waiting[origin] = mutableListOf(cb)
-        exec.execute {
-            val icon = try { fromDisk(origin) ?: fromNetwork(pageUrl, origin) } catch (t: Throwable) { null }
-            main.post {
-                if (icon != null) mem.put(origin, icon) else failedAt[origin] = System.currentTimeMillis()
-                waiting.remove(origin)?.forEach { it(icon) }
-            }
-        }
+        val gen = diskGeneration
+        coordinator.load(origin, cb) { fromDisk(origin) ?: fromNetwork(pageUrl, origin, gen) }
     }
 
     private fun file(origin: String): File {
@@ -62,7 +63,9 @@ class FaviconLoader(context: Context) {
         return describe(b)
     }
 
-    private fun fromNetwork(pageUrl: String, origin: String): Icon? {
+    @Volatile private var diskGeneration = 0
+
+    private fun fromNetwork(pageUrl: String, origin: String, gen: Int): Icon? {
         val tried = HashSet<String>()
         var best: Bitmap? = null
         fun consider(list: List<String>): Boolean {
@@ -82,7 +85,7 @@ class FaviconLoader(context: Context) {
             consider(FaviconUrlCandidates.build(pageUrl, head))
         }
         val b = best ?: return null
-        try {
+        if (gen == diskGeneration) try { // a clear() since the fetch started: don't write it back
             dir.mkdirs()
             file(origin).outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) }
             prune() // keep the disk cache within 4 MB after every write
@@ -120,7 +123,8 @@ class FaviconLoader(context: Context) {
 
     /** Clears memory and disk caches (synchronous disk delete so a following clear is complete). */
     fun clear() {
-        mem.evictAll(); failedAt.clear()
+        diskGeneration++
+        coordinator.clear() // in-flight fetches are discarded, failures forgotten, memory emptied
         dir.listFiles()?.forEach { it.delete() }
     }
 
