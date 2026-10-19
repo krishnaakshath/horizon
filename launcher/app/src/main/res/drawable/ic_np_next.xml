@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original icon drawn for TV Launcher. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M5,6.7v10.6c0,0.8 0.89,1.27 1.55,0.82l7.7,-5.3c0.57,-0.4 0.57,-1.24 0,-1.64l-7.7,-5.3C5.89,5.43 5,5.9 5,6.7zM16.5,6h1.5c0.55,0 1,0.45 1,1v10c0,0.55 -0.45,1 -1,1h-1.5c-0.55,0 -1,-0.45 -1,-1V7c0,-0.55 0.45,-1 1,-1z"/>
+</vector>
