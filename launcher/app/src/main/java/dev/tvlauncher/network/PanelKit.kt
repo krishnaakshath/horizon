@@ -18,6 +18,10 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import dev.tvlauncher.audit.AuditTags
+import dev.tvlauncher.audit.auditTag
+import dev.tvlauncher.ui.Glass
+import dev.tvlauncher.ui.GlassTokens
 import dev.tvlauncher.ui.Theme
 import dev.tvlauncher.ui.Theme.style
 import dev.tvlauncher.ui.dp
@@ -71,11 +75,9 @@ internal class PanelShell(private val context: Context, private val lite: Boolea
         // Fallback so focus is trapped even when the panel has no focusable rows.
         root.isFocusable = true
         root.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
-        card.background = GradientDrawable().apply {
-            setColor(NetColors.GLASS_FILL)
-            cornerRadius = context.dp(RADIUS).toFloat()
-            setStroke(context.dp(1), NetColors.GLASS_STROKE)
-        }
+        root.auditTag(AuditTags.SCRIM)
+        // The shared glass style (ui/Glass): frosted card, top-lit sheen, hairline edge; FULL: blur + shadow.
+        Glass.frost(card, full = !lite, radiusDp = RADIUS)
         val pad = context.dp(Theme.S4)
         card.setPadding(pad, pad, pad, pad)
         card.addView(header, LinearLayout.LayoutParams(-1, -2))
@@ -148,7 +150,7 @@ internal class PanelShell(private val context: Context, private val lite: Boolea
     }
 
     companion object {
-        const val RADIUS = 20
+        const val RADIUS = GlassTokens.RADIUS_PANEL
         const val WIDTH = 480
         const val TOP_BAR_CLEARANCE = 56
         const val FULL_MS = 220L

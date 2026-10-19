@@ -183,8 +183,9 @@ class TopBar(
             addView(label)
             background = StateListDrawable().apply {
                 addState(intArrayOf(android.R.attr.state_focused), pill(Theme.TEXT, 0))
-                addState(intArrayOf(), pill(0x1AFFFFFF, Theme.STROKE))
+                addState(intArrayOf(), Glass.clear(context, false, Theme.RADIUS_PILL))
             }
+            Glass.track(this)
             setOnClickListener { onClick() }
             applyFocus(false)
         }

@@ -85,7 +85,7 @@ class SpotlightPanel(
         setPadding(p, p, p, p)
         clipChildren = false
         clipToPadding = false
-        background = Glass.panel(context, full, CARD_RADIUS_DP)
+        Glass.frost(this, full, CARD_RADIUS_DP)
     }
     val search: EditText = object : EditText(context) {
         override fun onKeyPreIme(keyCode: Int, event: KeyEvent): Boolean {
@@ -413,7 +413,7 @@ class SpotlightPanel(
 
     private companion object {
         const val CARD_W_DP = 760
-        const val CARD_RADIUS_DP = 28
+        const val CARD_RADIUS_DP = GlassTokens.RADIUS_PANEL
         const val SLIDE_DP = 72
         const val ACTION_DP = 52
         const val RESULT_W_DP = 104

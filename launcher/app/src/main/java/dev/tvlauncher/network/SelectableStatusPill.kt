@@ -9,6 +9,7 @@ import android.view.Gravity
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import dev.tvlauncher.ui.Glass
 import dev.tvlauncher.ui.Motion
 import dev.tvlauncher.ui.Theme
 import dev.tvlauncher.ui.Theme.style
@@ -39,8 +40,9 @@ class SelectableStatusPill(context: Context, iconRes: Int, label: String? = null
         }
         background = StateListDrawable().apply {
             addState(intArrayOf(android.R.attr.state_focused), pill(Theme.TEXT, 0))
-            addState(intArrayOf(), pill(NetColors.PILL_FILL, Theme.STROKE))
+            addState(intArrayOf(), Glass.clear(context, false, Theme.RADIUS_PILL))
         }
+        Glass.track(this)
         setOnClickListener { onClick() }
         applyFocus(false)
     }

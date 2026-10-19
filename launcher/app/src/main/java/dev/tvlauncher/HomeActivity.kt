@@ -107,7 +107,7 @@ class HomeActivity : Activity() {
     private fun buildUi() {
         val full = look.profile.full
         root = FrameLayout(this)
-        backdrop = BackdropView(this, look.backdropMs)
+        backdrop = BackdropView(this, look.backdropMs).apply { glassBlur = full }
         root.addView(backdrop, FrameLayout.LayoutParams(-1, -1))
         topBar = TopBar(
             this,

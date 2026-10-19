@@ -48,7 +48,8 @@ class QuickStrip(
         setPadding(p, p, p, p)
         clipChildren = false
         clipToPadding = false
-        background = Glass.surface(context, full, Theme.RADIUS_PILL)
+        background = Glass.clear(context, full, Theme.RADIUS_PILL)
+        Glass.track(this)
     }
     private val label = TextView(context).apply {
         style(Theme.SP_LABEL, Theme.medium)

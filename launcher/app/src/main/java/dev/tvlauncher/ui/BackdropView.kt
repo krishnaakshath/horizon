@@ -5,6 +5,7 @@ import dev.tvlauncher.audit.auditTag
 import android.animation.ArgbEvaluator
 import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
@@ -54,6 +55,11 @@ object RoomBackdrop {
  * the dock area calm. Nothing is allocated per frame: the color arrays and animator are reused.
  * Optional [setBaseLayer] (Settings > Ambient > "Use wallpaper on home") draws a drawable under the
  * gradient, which then drops to [BackdropLayers.BRAND_TINT_ALPHA]. The caller owns its lifetime.
+ *
+ * Glass: once the colours settle (debounced, never per frame) the settled gradient is published to
+ * [GlassBackdrop]; with [glassBlur] (FULL) a 1/8-scale copy is drawn once on the main thread and
+ * box-blurred on the glass thread. The copy is rebuilt only on a size, room, accent or base-layer
+ * change, and dropped on detach.
  */
 class BackdropView(context: Context, durationMs: Long) : View(context) {
     private val evaluator = ArgbEvaluator()
@@ -75,6 +81,13 @@ class BackdropView(context: Context, durationMs: Long) : View(context) {
     private var roomBlend = RoomBackdrop.REFERENCE_BLEND
     private var scrimAlpha = RoomBackdrop.SCRIM_ALPHA
     private val scrimColors = intArrayOf(0x00000000, 0x00000000, 0x8C000000.toInt())
+    /** FULL: also publish a blurred copy for frosted glass. Off (LITE) costs nothing. */
+    var glassBlur = false
+    private var small: Bitmap? = null
+    private var smallCanvas: Canvas? = null
+    private var blurToken = 0
+    private var baseDirty = false
+    private val sampleRunnable = Runnable { sample() }
     private val animator = ValueAnimator.ofFloat(0f, 1f).apply {
         duration = durationMs
         interpolator = DecelerateInterpolator(1.5f)
@@ -108,6 +121,7 @@ class BackdropView(context: Context, durationMs: Long) : View(context) {
             glow.colors = now
             invalidate()
         }
+        scheduleSample()
     }
 
     private fun computeTargets() {
@@ -132,6 +146,7 @@ class BackdropView(context: Context, durationMs: Long) : View(context) {
             glow.colors = now
         }
         invalidate()
+        scheduleSample()
     }
 
     /** A full-bleed layer under the brand gradient, or null for the plain gradient. */
@@ -143,14 +158,84 @@ class BackdropView(context: Context, durationMs: Long) : View(context) {
         d?.setBounds(0, 0, width, height)
         glow.alpha = BackdropLayers.glowAlpha(d != null)
         invalidate()
+        baseDirty = true
+        scheduleSample()
     }
 
     override fun verifyDrawable(who: Drawable): Boolean = who === base || super.verifyDrawable(who)
+
+    /** The base layer finished loading (or changed): the glass sample follows. */
+    override fun invalidateDrawable(drawable: Drawable) {
+        super.invalidateDrawable(drawable)
+        if (drawable === base) { baseDirty = true; scheduleSample() }
+    }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         glow.setBounds(0, 0, w, h)
         scrim.setBounds(0, 0, w, h)
         base?.setBounds(0, 0, w, h)
+        scheduleSample()
+    }
+
+    /** Back in front (e.g. Home after Settings): this window's backdrop is the glass sample again. */
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (visibility == View.VISIBLE) scheduleSample(now = true)
+    }
+
+    /** Publishes after the colours settle: [SAMPLE_SETTLE_MS] after the last change or crossfade. */
+    private fun scheduleSample(now: Boolean = false) {
+        removeCallbacks(sampleRunnable)
+        val wait = if (now) 0L else SAMPLE_SETTLE_MS + if (animator.isRunning) animator.duration else 0L
+        postDelayed(sampleRunnable, wait)
+    }
+
+    private fun sample() {
+        val w = width
+        val h = height
+        if (w <= 0 || h <= 0 || !isAttachedToWindow) return
+        if (animator.isRunning) return scheduleSample()
+        val changed = GlassBackdrop.publish(this, to, scrimAlpha, w, h)
+        if (glassBlur && (changed || baseDirty || GlassBackdrop.blur == null)) blurCopy(w, h)
+        baseDirty = false
+    }
+
+    /** One small copy drawn here (main thread, microseconds at 1/8 scale), blurred off the main thread. */
+    private fun blurCopy(w: Int, h: Int) {
+        val (sw, sh) = BoxBlur.scaled(w, h)
+        var bmp = small
+        var c = smallCanvas
+        if (bmp == null || c == null || bmp.width != sw || bmp.height != sh) {
+            bmp?.recycle() // only ever a software render target, never in a display list
+            bmp = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888)
+            c = Canvas(bmp)
+            small = bmp; smallCanvas = c
+        }
+        val px = IntArray(sw * sh)
+        try {
+            c.drawColor(Theme.BASE)
+            c.save()
+            c.scale(sw / w.toFloat(), sh / h.toFloat())
+            base?.draw(c)
+            glow.draw(c)
+            scrim.draw(c)
+            c.restore()
+            bmp.getPixels(px, 0, sw, 0, 0, sw, sh)
+        } catch (e: RuntimeException) {
+            return // e.g. a hardware bitmap in the base layer: the gradient fallback stays
+        }
+        val token = ++blurToken
+        try {
+            GlassBackdrop.executor.execute {
+                BoxBlur.blur(px, sw, sh, BoxBlur.RADIUS)
+                val brightest = GlassTokens.brightest(px)
+                val out = Bitmap.createBitmap(px, sw, sh, Bitmap.Config.ARGB_8888)
+                GlassBackdrop.main.post {
+                    if (token == blurToken && isAttachedToWindow) GlassBackdrop.setBlur(this, out, brightest)
+                }
+            }
+        } catch (e: RuntimeException) {
+        }
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -161,10 +246,17 @@ class BackdropView(context: Context, durationMs: Long) : View(context) {
 
     override fun onDetachedFromWindow() {
         animator.cancel()
+        removeCallbacks(sampleRunnable)
+        blurToken++
+        GlassBackdrop.release(this)
+        small?.recycle()
+        small = null
+        smallCanvas = null
         super.onDetachedFromWindow()
     }
 
     private companion object {
         const val STOPS = 3
+        const val SAMPLE_SETTLE_MS = 250L
     }
 }

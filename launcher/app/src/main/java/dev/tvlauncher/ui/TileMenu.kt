@@ -41,6 +41,16 @@ class TileMenu(private val context: Context, private val prefs: Prefs, private v
             .setItems(entries.map { it.first }.toTypedArray()) { _, i -> onPicked(); entries[i].second() }
             .setOnCancelListener { onCancelled() }
             .show()
+            .also(::glass)
+    }
+
+    /** The dialog window on the launcher's glass (a dense tint: it floats over tiles in its own window). */
+    private fun glass(d: AlertDialog) {
+        try {
+            val fill = GlassTokens.withAlpha(GlassBackdrop.tint, GlassTokens.MAX_TINT_ALPHA)
+            d.window?.setBackgroundDrawable(Glass.item(context, GlassTokens.RADIUS_PANEL, fill))
+        } catch (e: RuntimeException) {
+        }
     }
 
     fun isFavorite(app: AppEntry) = app.packageName in prefs.load().favorites
@@ -67,7 +77,7 @@ class TileMenu(private val context: Context, private val prefs: Prefs, private v
         dialog = AlertDialog.Builder(context).setItems(arrayOf("Unhide all apps")) { _, _ ->
             onPicked()
             edit(AppFilter.unhideAll(prefs.load(), visible, installed))
-        }.setOnCancelListener { onCancelled() }.show()
+        }.setOnCancelListener { onCancelled() }.show().also(::glass)
     }
 
     private fun edit(s: LauncherSettings) {
