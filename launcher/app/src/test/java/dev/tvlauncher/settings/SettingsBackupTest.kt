@@ -156,4 +156,32 @@ class SettingsBackupTest {
         assertEquals(dev.tvlauncher.room.RoomChoice.BRIGHT, room.choice)
         assertEquals(dev.tvlauncher.room.RoomSettings().transitionSeconds, room.transitionSeconds, 0f)
     }
+
+    // --- home_layout -----------------------------------------------------------------------------
+
+    @Test
+    fun homeLayout_roundTrips() {
+        val f = tmp.root.resolve(SettingsBackup.FILE_NAME)
+        val layout = dev.tvlauncher.homelayout.HomeLayoutSettings(
+            style = dev.tvlauncher.homelayout.HomeStyle.GRID, labels = dev.tvlauncher.homelayout.LabelMode.ALWAYS,
+            heroSubtitle = false, quickStrip = false
+        )
+        assertTrue(SettingsBackup.export(sample, f, null, layout))
+        val r = SettingsBackup.restoreOrNull(f)!!
+        assertEquals(sample, r.settings)
+        assertEquals(layout, r.layout)
+        assertNull(r.room)
+    }
+
+    @Test
+    fun olderFile_withoutHomeLayout_leavesItAlone() {
+        val r = SettingsBackup.parseRestored(sample.toJson())!!
+        assertNull(r.layout)
+    }
+
+    @Test
+    fun homeLayoutThatIsNotAnObject_rejectsTheFile() {
+        val text = org.json.JSONObject(sample.toJson()).put(SettingsBackup.HOME_LAYOUT_KEY, "grid").toString()
+        assertNull(SettingsBackup.parseRestored(text))
+    }
 }

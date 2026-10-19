@@ -1,5 +1,7 @@
 package dev.tvlauncher.ui
 
+import dev.tvlauncher.homelayout.LabelMode
+
 /** Pure-Kotlin tile constants so they can be asserted on the JVM. */
 object TileSpec {
     /** Card (art) size: 16:9. */
@@ -34,6 +36,13 @@ object TileSpec {
     const val LABEL_FOCUS_ALPHA = 1f
 
     fun labelAlpha(focused: Boolean): Float = if (focused) LABEL_FOCUS_ALPHA else LABEL_REST_ALPHA
+
+    /** Settings > Home layout > App names: on focus (the default), always, or never. */
+    fun labelAlpha(focused: Boolean, mode: LabelMode): Float = when (mode) {
+        LabelMode.FOCUS -> labelAlpha(focused)
+        LabelMode.ALWAYS -> LABEL_FOCUS_ALPHA
+        LabelMode.NEVER -> 0f
+    }
 
     const val LABEL_MAX_LINES = 1
     val LABEL_ELLIPSIZE = Ellipsize.END

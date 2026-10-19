@@ -1,5 +1,6 @@
 package dev.tvlauncher.settings
 
+import dev.tvlauncher.homelayout.HomeLayoutSettings
 import dev.tvlauncher.room.RoomSettings
 import org.json.JSONArray
 import org.json.JSONObject
@@ -13,12 +14,16 @@ import java.io.File
  * Optional section [ROOM_KEY]: the room-lighting preferences (SharedPreferences "room_settings",
  * [RoomSettings] JSON). Absent in older files (then room lighting is left alone); when present it
  * must be a JSON object, and its fields are read tolerantly (bad values fall back per field).
+ *
+ * Optional section [HOME_LAYOUT_KEY]: Settings > Home layout > Layout style ([HomeLayoutSettings]),
+ * with the same rules (absent = left alone; not an object = the file is rejected).
  */
 object SettingsBackup {
     const val ROOM_KEY = "room_settings"
+    const val HOME_LAYOUT_KEY = "home_layout"
 
-    /** A validated file: the launcher settings and, when the file had them, the room settings. */
-    data class Restored(val settings: LauncherSettings, val room: RoomSettings?)
+    /** A validated file: the launcher settings and, when the file had them, the room settings and home layout. */
+    data class Restored(val settings: LauncherSettings, val room: RoomSettings?, val layout: HomeLayoutSettings? = null)
 
     const val FILE_NAME = "launcher-settings.json"
     const val MAX_BYTES = 512 * 1024L
@@ -26,18 +31,19 @@ object SettingsBackup {
     const val MAX_PACKAGE_LENGTH = 255
     private val PACKAGE = Regex("^[A-Za-z0-9_.]+$")
 
-    /** The file's text: [settings] plus [room] under [ROOM_KEY] when given. */
-    fun toText(settings: LauncherSettings, room: RoomSettings? = null): String {
+    /** The file's text: [settings] plus [room] under [ROOM_KEY] and [layout] under [HOME_LAYOUT_KEY] when given. */
+    fun toText(settings: LauncherSettings, room: RoomSettings? = null, layout: HomeLayoutSettings? = null): String {
         val json = JSONObject(settings.toJson())
         if (room != null) json.put(ROOM_KEY, JSONObject(room.toJson()))
+        if (layout != null) json.put(HOME_LAYOUT_KEY, JSONObject(layout.toJson()))
         return json.toString(2)
     }
 
-    /** Writes [settings] (and [room]) to [file] via a temp file + rename. False on any I/O failure. */
-    fun export(settings: LauncherSettings, file: File, room: RoomSettings? = null): Boolean = try {
+    /** Writes [settings] (and [room], [layout]) to [file] via a temp file + rename. False on any I/O failure. */
+    fun export(settings: LauncherSettings, file: File, room: RoomSettings? = null, layout: HomeLayoutSettings? = null): Boolean = try {
         file.parentFile?.mkdirs()
         val tmp = File(file.path + ".tmp")
-        tmp.writeText(toText(settings, room))
+        tmp.writeText(toText(settings, room, layout))
         if (!tmp.renameTo(file)) {
             file.writeText(tmp.readText())
             tmp.delete()
@@ -64,7 +70,7 @@ object SettingsBackup {
         return parseRestored(text)
     }
 
-    /** [parse] plus the optional [ROOM_KEY] object; a [ROOM_KEY] that is not an object rejects the file. */
+    /** [parse] plus the optional [ROOM_KEY] and [HOME_LAYOUT_KEY] objects; either one present but not an object rejects the file. */
     fun parseRestored(text: String): Restored? {
         val settings = parse(text) ?: return null
         val json = try { JSONObject(text) } catch (e: Exception) { return null }
@@ -73,7 +79,12 @@ object SettingsBackup {
             is JSONObject -> RoomSettings.fromJson(r.toString())
             else -> return null
         }
-        return Restored(settings, room)
+        val layout = when (val l = json.opt(HOME_LAYOUT_KEY)) {
+            null -> null
+            is JSONObject -> HomeLayoutSettings.fromJson(l.toString())
+            else -> return null
+        }
+        return Restored(settings, room, layout)
     }
 
     /**

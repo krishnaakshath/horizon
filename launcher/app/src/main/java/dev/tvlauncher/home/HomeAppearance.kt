@@ -57,11 +57,12 @@ object HomeAppearance {
     fun showSplash(motion: EffectsMode?): Boolean = motion != null
 
     /**
-     * What returning from Settings needs: a rebuild when the tile size or the resolved motion
-     * changed (sizes and durations are fixed when views are built), a live update for the rest.
+     * What returning from Settings needs: a rebuild when the resolved motion changed (durations are
+     * fixed when views are built), a live update for the rest. Tile size is live: the home layout
+     * rebuilds the tile views in place (HomeLayoutController).
      */
     fun change(old: AppearanceSettings, oldMotion: EffectsMode?, new: AppearanceSettings, newMotion: EffectsMode?): Change = when {
-        old.rowTileSize != new.rowTileSize || oldMotion != newMotion -> Change.REBUILD
+        oldMotion != newMotion -> Change.REBUILD
         old != new -> Change.LIVE
         else -> Change.NONE
     }

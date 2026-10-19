@@ -54,6 +54,7 @@ object ConfigBackupSection : SettingsSection, SpecifiedPage {
         val r = SettingsBackup.restoreOrNull(legacy) ?: return false
         Prefs(context).save(r.settings)
         r.room?.let { RoomPrefs(context).save(it) }
+        r.layout?.let { dev.tvlauncher.homelayout.HomeLayoutPrefs(context).save(it) }
         return true
     }
 }

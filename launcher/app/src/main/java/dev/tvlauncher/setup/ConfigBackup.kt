@@ -8,7 +8,7 @@ import java.io.File
 
 /**
  * The whole launcher configuration as one JSON file: favorites/order/hidden apps, appearance,
- * home screen extras, room lighting, wallpaper and ambient, sounds and Discover. Pure core
+ * home layout style, home screen extras, room lighting, wallpaper and ambient, sounds and Discover. Pure core
  * ([encode]/[decode]); [ConfigBackupIo] does the files. Import is strict: an unknown store, a
  * wrong type or an invalid launcher list rejects the whole file and nothing changes.
  */
@@ -23,7 +23,7 @@ object ConfigBackup {
     /** The stores that make up "the configuration" (crash, setup and UI state are not included). */
     val STORES = listOf(
         "launcher_settings", "appearance_settings", "home_extras", "room_settings",
-        "wallpaper_settings", "sound_settings", "discover_settings"
+        "wallpaper_settings", "sound_settings", "discover_settings", "home_layout"
     )
 
     fun encode(stores: Map<String, Map<String, Any?>>): String {

@@ -1,5 +1,7 @@
 package dev.tvlauncher.appsettings
 
+import dev.tvlauncher.homelayout.HomeLayoutPrefs
+
 import android.content.Context
 import android.content.pm.PackageManager
 import android.view.View
@@ -79,7 +81,7 @@ object BackupSection : SettingsSection, SpecifiedPage {
     override val title = "Backup & restore"
     override val iconRes = R.drawable.ic_set_backup
     override val group = SettingsGroup.SYSTEM
-    override val description = "Favorites, order, hidden apps and room lighting, saved on this TV."
+    override val description = "Favorites, order, hidden apps, home layout and room lighting, saved on this TV."
     override val spec = PageSpec(ID, listOf("backup.export", "backup.import"))
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
@@ -87,7 +89,7 @@ object BackupSection : SettingsSection, SpecifiedPage {
         val app = context.applicationContext
         val prefs = Prefs(app)
         page.row("backup.export", "Export settings", RowKind.Action(chevron = false) {
-            nav.task({ backupFile(app)?.let { f -> SettingsBackup.export(prefs.load(), f, RoomPrefs(app).load()) } }) { ok ->
+            nav.task({ backupFile(app)?.let { f -> SettingsBackup.export(prefs.load(), f, RoomPrefs(app).load(), HomeLayoutPrefs(app).load()) } }) { ok ->
                 nav.notify(
                     when (ok) {
                         null -> "Storage is not available"
@@ -104,6 +106,7 @@ object BackupSection : SettingsSection, SpecifiedPage {
                     SettingsBackup.restoreOrNull(f)?.also { r ->
                         prefs.save(r.settings)
                         r.room?.let { RoomPrefs(app).save(it) }
+                        r.layout?.let { HomeLayoutPrefs(app).save(it) }
                     }
                 }
             }) { s ->

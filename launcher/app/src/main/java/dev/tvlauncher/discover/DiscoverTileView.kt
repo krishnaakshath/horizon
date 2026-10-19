@@ -48,6 +48,10 @@ class DiscoverTileView(
         alpha = TileSpec.LABEL_REST_ALPHA // like app tiles: the name shows on focus only
     }
 
+    /** Settings > Home layout > App names, like the app tiles. */
+    var labelMode = dev.tvlauncher.homelayout.LabelMode.FOCUS
+        set(v) { field = v; label.alpha = TileSpec.labelAlpha(isFocused, v) }
+
     init {
         isFocusable = true
         isClickable = true
@@ -81,7 +85,7 @@ class DiscoverTileView(
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
         fill.setColor(if (gainFocus) DiscoverTileSpec.FILL_FOCUSED else DiscoverTileSpec.FILL)
         label.animate().cancel()
-        label.animate().alpha(TileSpec.labelAlpha(gainFocus)).setDuration(Motion.ms(TileSpec.FOCUS_MS)).start()
+        label.animate().alpha(TileSpec.labelAlpha(gainFocus, labelMode)).setDuration(Motion.ms(TileSpec.FOCUS_MS)).start()
         plus.alpha = if (gainFocus) 1f else 0.8f
         val s = if (gainFocus) TileSpec.FOCUS_SCALE else 1f
         animate().cancel()

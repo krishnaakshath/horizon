@@ -48,4 +48,11 @@ class ConfigBackupTest {
         assertEquals(File("/sdcard/Android/data/dev.tvlauncher/files/tvlauncher-config.json"), c[2])
         assertEquals(File("/sdcard/Pictures/TVLauncher/tvlauncher-config.json"), c[3])
     }
+
+    @Test fun homeLayout_isPartOfTheWholeConfig() {
+        assertEquals(true, "home_layout" in ConfigBackup.STORES)
+        val withLayout = stores + ("home_layout" to mapOf("json" to """{"version":1,"style":"TWO_ROWS"}"""))
+        val back = ConfigBackup.decode(ConfigBackup.encode(withLayout))!!
+        assertEquals("""{"version":1,"style":"TWO_ROWS"}""", back["home_layout"]!!["json"])
+    }
 }
