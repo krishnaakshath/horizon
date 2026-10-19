@@ -73,6 +73,14 @@ class LauncherApp : Application() {
             // The row keeps its defaults; only the page is missing.
         }
         try {
+            // Settings > System > Recent apps, Focus mode and Remote.
+            dev.tvlauncher.switcher.SwitcherSection.register()
+            dev.tvlauncher.focus.FocusSection.register()
+            dev.tvlauncher.remotecheck.RemoteCheckSection.register()
+        } catch (e: Throwable) {
+            // Those pages are missing this run; the home screen is unaffected.
+        }
+        try {
             // Launcher-owned system pages that are not built in (Devices, Accessibility,
             // Parental controls, Apps); last, so Devices fills its built-in slot.
             dev.tvlauncher.system.SystemSections.registerAll()

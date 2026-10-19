@@ -47,6 +47,15 @@ object SetupStatus {
 
     const val REQ_PERMISSION = 7301
 
+    /** Setup on its permissions step (usage access and the other optional access). */
+    fun openPermissions(context: Context): Boolean = try {
+        context.startActivity(Intent(context, SetupActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            .putExtra(SetupActivity.EXTRA_PAGE, SetupActivity.PAGE_PERMISSIONS))
+        true
+    } catch (e: Throwable) {
+        false
+    }
+
     /** Opens setup where it was left; [restart] starts again from the first page. */
     fun open(context: Context, restart: Boolean = false): Boolean = try {
         context.startActivity(Intent(context, SetupActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

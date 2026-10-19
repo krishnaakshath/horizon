@@ -603,6 +603,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
 
     /** The controller mapping; remote keys reach [handleKey] unchanged (volume keys stay with the TV). */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (dev.tvlauncher.remotecheck.RemoteCapture.dispatch(event)) return true // Settings > System > Remote, live page only
         return pad.dispatch(event, ::handleKey)
     }
 

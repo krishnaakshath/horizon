@@ -71,6 +71,7 @@ class HomeDevices(
     private fun onEvent(e: DeviceEvent) {
         val since = SystemClock.uptimeMillis() - startedAt
         if (!DeviceAnnouncePolicy.showCard(e, since, splashRunning())) return
+        if (dev.tvlauncher.focus.FocusMode.quiet(context).deviceCards) return // Focus mode: no device cards
         toasts.show(e)
     }
 

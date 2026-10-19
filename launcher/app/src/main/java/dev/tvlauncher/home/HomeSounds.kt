@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference
  * Edits made in Settings (which has its own preview player) are picked up by [reload] in onResume.
  */
 class HomeSounds(context: Context) {
+    private val app = context.applicationContext
     private val prefs = SoundPrefs(context)
     private val current = AtomicReference(prefs.load())
     val player = SoundPlayer(context.applicationContext, settings = { current.get() })
@@ -70,6 +71,7 @@ class HomeSounds(context: Context) {
     }
 
     private fun play(e: SoundEvent?) {
+        if (e != null && dev.tvlauncher.focus.FocusMode.quiet(app).sounds) return // Focus mode: no launcher sounds
         when (e) {
             SoundEvent.MOVE -> facade.onFocusMoved()
             SoundEvent.SELECT -> facade.onSelect()

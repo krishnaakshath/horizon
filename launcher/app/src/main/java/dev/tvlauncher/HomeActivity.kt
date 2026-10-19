@@ -76,6 +76,9 @@ class HomeActivity : Activity() {
     private lateinit var modules: HomeModules
     /** Settings > Home layout: the style, its list layout and its D-pad rules. */
     private lateinit var layout: HomeLayoutController
+    /** Recent apps strip (double Home, Spotlight action, controller Y when chosen). */
+    private lateinit var switcher: dev.tvlauncher.switcher.HomeSwitcher
+    private val focusTick = Runnable { applyFocusMode() }
     /** The focused tile may show the quick-strip (bottom row of a multi-row style, strip turned on). */
     private var stripHere = true
     private val loader = Executors.newSingleThreadExecutor()
@@ -104,7 +107,8 @@ class HomeActivity : Activity() {
     private val pad = GamepadInput(this, object : GamepadInput.Host {
         override fun onPadCommand(command: PadCommand, repeat: Int): Boolean = when {
             redirected -> false
-            command == PadCommand.SEARCH || command == PadCommand.START -> { toggleSpotlight(); true }
+            command == PadCommand.SEARCH && switcher.store.padY && !spotlight.isOpen -> { switcher.toggle(); true }
+            command == PadCommand.SEARCH || command == PadCommand.START -> { if (!switcher.isOpen) toggleSpotlight(); true }
             command == PadCommand.SELECT -> { if (SystemActions.launcherSettings(this@HomeActivity)) sounds.action(true); true }
             command == PadCommand.HOME -> { goHome(); true }
             command == PadCommand.PAGE_PREV || command == PadCommand.PAGE_NEXT -> pageShelf(command == PadCommand.PAGE_NEXT)
@@ -183,13 +187,19 @@ class HomeActivity : Activity() {
         adapter.onNavKey = ::onShelfKey
         spotlight = SpotlightPanel(
             this, packageManager, full,
-            onAction = { modules.quickAction(it) },
+            onAction = ::onQuickAction,
             onActionLongPress = { tileMenu.showDockMenu(visiblePackages(), installed); sounds.menuOpen() },
             onLaunch = ::launch,
             onClosed = ::onSpotlightClosed,
             iconFor = { modules.actionIcon(it) }
         )
         root.addView(spotlight, FrameLayout.LayoutParams(-1, -1))
+        switcher = dev.tvlauncher.switcher.HomeSwitcher(this, root, full, content, object : dev.tvlauncher.switcher.HomeSwitcher.Callbacks {
+            override fun launch(app: AppEntry, from: View): Boolean { this@HomeActivity.launch(app, from); return true }
+            override fun sound(ok: Boolean) = sounds.action(ok)
+            override fun moved() = sounds.onFocusChanged()
+            override fun shown(open: Boolean) = modules.spotlightChanged(open) // pauses the idle timer like Spotlight
+        })
         launchOverlay = LaunchOverlay(this)
         root.addView(launchOverlay, FrameLayout.LayoutParams(-1, -1))
         modules = HomeModules(
@@ -212,12 +222,63 @@ class HomeActivity : Activity() {
         shelf = shelf
     ).also { w -> w.onProgramsChanged = { spotlight.setWatchPrograms(w.programs) } }
 
-    private fun launch(app: AppEntry, v: View) = launcher.launch(app, v).let {
+    /**
+     * Per-app launch motion ([dev.tvlauncher.launch.LaunchMotion]): the tile grows into the app's
+     * brand colour, then the app starts; with animations off it starts at once.
+     */
+    private fun launch(app: AppEntry, v: View) {
+        if (launchOverlay.isPlaying) return // one launch at a time
+        val now = System.currentTimeMillis()
+        val plan = dev.tvlauncher.launch.LaunchMotion.plan(look.profile.motion, animatorScale(), app.packageName,
+            dev.tvlauncher.launch.LaunchMotion.isWarm(switcher.lastLaunchOf(app.packageName), now))
+        if (!plan.animated) { startApp(app, v, overlay = true); return }
+        val rect = android.graphics.Rect().also { r ->
+            val loc = IntArray(2); v.getLocationInWindow(loc)
+            r.set(loc[0], loc[1], loc[0] + v.width, loc[1] + v.height)
+        }
+        val art = try { adapter.artCopy(app, resources) } catch (e: RuntimeException) { null }
+        launchOverlay.play(plan, adapter.accentOf(app), art, rect.takeIf { v.isAttachedToWindow }) {
+            if (!isDestroyed) startApp(app, null, overlay = false)
+        }
+    }
+
+    private fun startApp(app: AppEntry, v: View?, overlay: Boolean) = launcher.launch(app, v).let {
         sounds.launch(it)
         if (it) {
-            launchOverlay.show()
+            if (overlay) launchOverlay.show()
             try { spotlightPrefs.recordLaunch(app.packageName) } catch (e: RuntimeException) { } // Spotlight's "recent"
+            switcher.recordLaunch(app.packageName) // Recent apps without usage access
+        } else launchOverlay.hide()
+    }
+
+    private fun animatorScale(): Float = try {
+        android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+    } catch (e: RuntimeException) { 1f }
+
+    /** Spotlight quick actions: Recent apps and Focus mode live here, the rest in [HomeModules]. */
+    private fun onQuickAction(item: dev.tvlauncher.ui.QuickActions.Item) {
+        when (item) {
+            dev.tvlauncher.ui.QuickActions.Item.RECENTS -> {
+                spotlight.close(animate = false)
+                switcher.open()
+            }
+            dev.tvlauncher.ui.QuickActions.Item.FOCUS -> {
+                val on = dev.tvlauncher.focus.FocusMode.toggle(this)
+                if (!on) sounds.action(true) // when turning on, Focus itself is silent
+                spotlight.close()
+                applyFocusMode()
+            }
+            else -> modules.quickAction(item)
         }
+    }
+
+    /** Focus mode: top bar dot and dimmed clock; re-checked when it is due to end. */
+    private fun applyFocusMode() {
+        root.removeCallbacks(focusTick)
+        val now = System.currentTimeMillis()
+        val s = dev.tvlauncher.focus.FocusMode.state(this)
+        topBar.setFocus(s.isOn(now), look.accent { dev.tvlauncher.settings.AppearanceSettings.DEFAULT_ACCENT })
+        s.msLeft(now)?.let { root.postDelayed(focusTick, it + 500) }
     }
 
     private fun visiblePackages() = adapter.getItems().map { it.packageName }
@@ -280,7 +341,7 @@ class HomeActivity : Activity() {
             pendingSpotlight = true
             return
         }
-        if (spotlight.isOpen || splash != null || isDestroyed || modules.isShowing) return // not under the splash or a panel
+        if (spotlight.isOpen || splash != null || isDestroyed || modules.isShowing || switcher.isOpen) return // not under the splash or a panel
         val f = currentFocus
         restoreFocus = f?.takeIf { it.parent !== shelf && !strip.hasFocus() }
         restoreIndex = adapter.lastFocused
@@ -419,6 +480,7 @@ class HomeActivity : Activity() {
         if (redirected) return super.dispatchKeyEvent(event)
         modules.onUserActivity() // any key, repeats included, resets the ambient idle timer
         sounds.onKey(event)
+        if (switcher.isOpen) return switcher.onKey(event) || super.dispatchKeyEvent(event)
         val down = event.action == KeyEvent.ACTION_DOWN
         if (!down && event.action != KeyEvent.ACTION_UP) return super.dispatchKeyEvent(event)
         return when (spotlightKeys.onKey(event.keyCode, down, event.repeatCount, spotlightConfig, tileMenu.isVisible)) {
@@ -437,6 +499,13 @@ class HomeActivity : Activity() {
         if (intent?.action == SpotlightKeys.ACTION) {
             openSpotlight()
         } else {
+            launchOverlay.hide()
+            if (switcher.onHomePress()) { // a quick second Home press: Recent apps
+                spotlight.close(animate = false)
+                modules.closeAll()
+                tileMenu.dismiss()
+                return
+            }
             spotlight.close(animate = false) // HOME press: back to a clean shelf
             modules.closeAll()
             focusTile(0)
@@ -451,7 +520,8 @@ class HomeActivity : Activity() {
     override fun onPause() {
         if (redirected) return super.onPause()
         modules.pause()
-        launchOverlay.hide()
+        // The launch motion keeps covering the screen until home stops (the app is up) or times out.
+        if (!launchOverlay.isPlaying) launchOverlay.hide()
         super.onPause()
     }
 
@@ -483,15 +553,18 @@ class HomeActivity : Activity() {
         topBar.startStatus()
         modules.start()
         watch?.start() // Continue watching: settings, provider observer, refresh
+        applyFocusMode()
     }
 
     override fun onStop() {
         if (redirected) return super.onStop()
         if (!isChangingConfigurations && !isFinishing) {
             launchOverlay.hide()
+            switcher.close(animate = false)
             // "Close after an action" off: Spotlight is still there when the owner comes back.
             if (!spotlight.keepOpenOnStop) spotlight.close(animate = false)
         }
+        root.removeCallbacks(focusTick)
         topBar.stopStatus() // always paired with startStatus (TopBar tracks it)
         modules.stop() // panels closed; controllers, device monitor and idle timer stopped
         watch?.stop()
@@ -509,6 +582,7 @@ class HomeActivity : Activity() {
     override fun onBackPressed() {
         if (redirected) return super.onBackPressed()
         val closed = when {
+            switcher.isOpen -> { switcher.close(); true }
             modules.onBack() -> true
             spotlight.isOpen -> { spotlight.close(); true }
             else -> strip.hasFocus() && strip.returnToTile()
@@ -520,6 +594,7 @@ class HomeActivity : Activity() {
         if (redirected) return super.onDestroy()
         tileMenu.dismiss()
         watch?.destroy()
+        switcher.release()
         modules.destroy()
         repo.unregister()
         loader.shutdownNow()

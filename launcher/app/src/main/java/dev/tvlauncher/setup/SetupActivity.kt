@@ -175,7 +175,8 @@ class SetupActivity : Activity() {
                     // The visible page stays in the flow while the user is on it, even once satisfied.
                     if (moveTo == null && !started) {
                         started = true
-                        page = OobePlan.resume(p, memory)
+                        page = if (intent?.getStringExtra(EXTRA_PAGE) == PAGE_PERMISSIONS) OobePage.PERMISSIONS
+                            else OobePlan.resume(p, memory)
                     } else if (moveTo != null) page = moveTo
                     pages = OobePage.values().filter { it in p || it == page }
                     render()
@@ -542,6 +543,9 @@ class SetupActivity : Activity() {
     companion object {
         /** Start from the first page (Settings > System > Setup when the flow was finished). */
         const val EXTRA_RESTART = "restart"
+        /** Open on one page ([PAGE_PERMISSIONS]); used by the Recent apps hint. */
+        const val EXTRA_PAGE = "page"
+        const val PAGE_PERMISSIONS = "permissions"
         private const val REQ_HOME = 41
         private const val MAX_APPS = 8
         private const val SLIDESHOW_SEC = 60
