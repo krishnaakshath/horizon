@@ -14,6 +14,21 @@ object Theme {
     const val TEXT_DARK_2 = 0xCC0B0D12.toInt()
     const val STROKE = 0x1FFFFFFF
 
+    // Glass layers (Settings screen): translucent white/near-black over BASE, no blur.
+    /** SURFACE at 85% opacity: the content pane. */
+    const val GLASS_PANEL = (0xD9 shl 24) or (SURFACE and 0x00FFFFFF)
+    const val GLASS_ROW = 0x0FFFFFFF
+    const val GLASS_ROW_FOCUS = 0x26FFFFFF
+    const val GLASS_CHIP = 0x14FFFFFF
+    const val GLASS_SHEEN = 0x08FFFFFF
+    const val GLASS_SCRIM = 0xF2101319.toInt()
+    /** Track of a switch that is off. */
+    const val TOGGLE_OFF = 0x40FFFFFF
+    /** Subtitle on a focused row: between TEXT_2 and TEXT. */
+    const val TEXT_SUB_FOCUSED = 0xFFC9D0DC.toInt()
+    /** Alpha (in the top byte) of the static accent glow behind Settings. */
+    const val GLOW_ALPHA = 0x2E000000
+
     // Spacing scale (dp).
     const val S1 = 4
     const val S2 = 8

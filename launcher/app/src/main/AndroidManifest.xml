@@ -25,7 +25,9 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
-        <!-- Spotlight shows a Browser quick action only when our browser is installed. -->
+        <!-- Optional companion apps: Spotlight shows a Browser quick action only when our
+             browser is installed; the Settings screen detects the helper and browser. -->
+        <package android:name="dev.tvlauncher.helper" />
         <package android:name="dev.tvlauncher.browser" />
     </queries>
 
@@ -55,5 +57,15 @@
         <activity
             android:name=".insights.InsightsActivity"
             android:exported="false" />
+        <activity
+            android:name=".appsettings.AppSettingsActivity"
+            android:exported="false"
+            android:label="Settings"
+            android:configChanges="keyboard|keyboardHidden|navigation">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.action.SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>
