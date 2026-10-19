@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Near-black window so the first frame matches the backdrop (no white/grey flash). -->
+    <style name="HomeTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/base</item>
+        <item name="android:colorBackground">@color/base</item>
+        <item name="android:windowShowWallpaper">false</item>
+    </style>
+    <color name="base">#FF0B0D12</color>
+</resources>

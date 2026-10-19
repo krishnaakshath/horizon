@@ -25,6 +25,9 @@ class ShelfAdapter(
     private val artCache = LruCache<String, TileArt<Drawable>>(
         if (profile.effectsMode == EffectsMode.FULL) 96 else 40
     )
+    private val accents = BrandColors.Cache()
+    private var sampler: ArtSampler? = null
+    private var bgSampler: ArtSampler? = null
 
     /** Position of the most recently focused tile, used to return from the dock. */
     var lastFocused = 0
@@ -38,21 +41,41 @@ class ShelfAdapter(
         notifyDataSetChanged()
     }
 
+    /** Brand accent for [app]; resolves art and samples it on first use (main thread). */
+    fun accentOf(app: AppEntry): Int = accents.get(app.packageName) {
+        val s = sampler ?: ArtSampler().also { sampler = it }
+        s.pixels(artOf(app))
+    }
+
+    /**
+     * Loader thread only: resolves art and samples accents for the first [count] apps so the
+     * first bind on the main thread does no drawable loading or pixel work.
+     */
+    fun preload(apps: List<AppEntry>, count: Int) {
+        val s = bgSampler ?: ArtSampler().also { bgSampler = it }
+        for (app in apps.take(count)) {
+            val art = artOf(app)
+            accents.get(app.packageName) { s.pixels(art) }
+        }
+    }
+
+    private fun artOf(app: AppEntry): TileArt<Drawable> = artCache.get(app.packageName)
+        ?: TileArtResolver.resolve(pm, app).also { artCache.put(app.packageName, it) }
+
     override fun getItemCount() = items.size
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
         val tile = TileView(parent.context)
         tile.layoutParams = RecyclerView.LayoutParams(
-            parent.context.dp(TileSpec.WIDTH_DP), parent.context.dp(TileSpec.HEIGHT_DP)
+            parent.context.dp(TileSpec.VIEW_WIDTH_DP), parent.context.dp(TileSpec.VIEW_HEIGHT_DP)
         )
         return Holder(tile)
     }
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
         val app = items[position]
-        val art = artCache.get(app.packageName)
-            ?: TileArtResolver.resolve(pm, app).also { artCache.put(app.packageName, it) }
-        holder.tile.bind(app, art, profile)
+        val art = artOf(app)
+        holder.tile.bind(app, art, profile, accentOf(app))
         holder.tile.setOnClickListener { onClick(app, holder.tile) }
         // Covers touch long-press and DPAD_CENTER long-press (framework maps it to a long click).
         holder.tile.setOnLongClickListener { onLongPress(app); true }
