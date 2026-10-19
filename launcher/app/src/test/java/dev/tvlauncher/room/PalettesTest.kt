@@ -70,6 +70,56 @@ class PalettesTest {
         for (i in 1 until l.size) assertTrue("floor order at $i: $l", l[i] > l[i - 1])
     }
 
+    @Test fun successive_black_floors_differ_at_least_2x() {
+        val l = modes.map { Contrast.luminance(Palettes.of(it).backdropFloor) }
+        for (i in 1 until l.size) assertTrue("floor ratio at $i: $l", l[i] / l[i - 1] >= Palettes.MIN_FLOOR_STEP)
+        assertEquals(2.0, Palettes.MIN_FLOOR_STEP, 0.0)
+    }
+
+    @Test fun floor_luminances_are_the_documented_values() {
+        // Hand-computed (WCAG: c/12.92 if c <= 0.04045 else ((c + 0.055) / 1.055)^2.4, c = v / 255):
+        //  CINEMA #040404: 4/255 = 0.015686 -> /12.92 = 0.0012141; grey, so L = 0.00121.
+        //  BRIGHT #343B49: R 52 -> 0.03434, G 59 -> 0.04374, B 73 -> 0.06663;
+        //    L = 0.2126*0.03434 + 0.7152*0.04374 + 0.0722*0.06663 = 0.00730 + 0.03128 + 0.00481 = 0.04339.
+        assertEquals(0.00121, Contrast.luminance(Palettes.of(RoomMode.CINEMA).backdropFloor), 0.00001)
+        assertEquals(0.00414, Contrast.luminance(Palettes.of(RoomMode.EVENING).backdropFloor), 0.00001)
+        assertEquals(0.01082, Contrast.luminance(Palettes.of(RoomMode.STANDARD).backdropFloor), 0.00001)
+        assertEquals(0.04339, Contrast.luminance(Palettes.of(RoomMode.BRIGHT).backdropFloor), 0.00001)
+        // BRIGHT surface ~L 0.07 (beats a ~3 % reflection of a lit room).
+        assertEquals(0.0696, Contrast.luminance(Palettes.of(RoomMode.BRIGHT).surface), 0.0005)
+    }
+
+    @Test fun evening_is_visibly_warmer_than_cinema() {
+        fun warmth(c: Int) = ((c shr 16) and 255) - (c and 255)
+        val c = Palettes.of(RoomMode.CINEMA); val e = Palettes.of(RoomMode.EVENING)
+        // Backdrop top: R-B at least MIN_EVENING_WARMTH_SHIFT (6) channel steps warmer.
+        assertTrue(warmth(e.backdropTop) - warmth(c.backdropTop) >= Palettes.MIN_EVENING_WARMTH_SHIFT)
+        // Text: at least 10 steps warmer.
+        assertTrue(warmth(e.textPrimary) - warmth(c.textPrimary) >= 10)
+        // And EVENING's top is visibly lighter (>= 2x luminance).
+        assertTrue(Contrast.luminance(e.backdropTop) / Contrast.luminance(c.backdropTop) >= 2.0)
+    }
+
+    @Test fun glass_opacity_bounds() {
+        assertTrue(alpha(Palettes.of(RoomMode.BRIGHT).glassFill) >= 0xE0)
+        assertTrue(alpha(Palettes.of(RoomMode.CINEMA).glassFill) <= 0xC8)
+        val a = modes.map { alpha(Palettes.of(it).glassFill) }
+        for (i in 1 until a.size) assertTrue(a[i] >= a[i - 1])
+    }
+
+    @Test fun blender_matches_blend_exactly() {
+        val b = PaletteBlender()
+        val f = PaletteFrame()
+        for (x in modes) for (y in modes) {
+            b.prepare(Palettes.of(x), Palettes.of(y))
+            for (i in 0..20) {
+                val t = i / 20f
+                b.blendInto(t, f)
+                assertEquals("$x->$y @$t", Palettes.blend(Palettes.of(x), Palettes.of(y), t), f.toPalette())
+            }
+        }
+    }
+
     @Test fun focus_ring_width_non_decreasing_and_bright_is_thick() {
         val w = modes.map { Palettes.of(it).focusRingWidthDp }
         for (i in 1 until w.size) assertTrue(w[i] >= w[i - 1])
@@ -82,6 +132,7 @@ class PalettesTest {
         for (c in listOf(p.backdropFloor, p.backdropTop, p.backdropBottom, p.surface)) {
             assertTrue(Contrast.luminance(c) >= Palettes.BRIGHT_MIN_FLOOR_LUMINANCE)
         }
+        assertTrue(Palettes.BRIGHT_MIN_FLOOR_LUMINANCE >= 0.04)
         assertEquals(0xFFFFFFFF.toInt(), p.textPrimary)
         // Less translucency than the dark modes.
         assertTrue(alpha(p.glassFill) > alpha(Palettes.of(RoomMode.CINEMA).glassFill))

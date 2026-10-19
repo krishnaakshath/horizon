@@ -90,15 +90,21 @@ class PaletteFrame {
  */
 object Palettes {
     /** BRIGHT's backdrop (floor, gradient, surface) never goes below this relative luminance. */
-    const val BRIGHT_MIN_FLOOR_LUMINANCE = 0.012
+    const val BRIGHT_MIN_FLOOR_LUMINANCE = 0.04
+
+    /** Each mode's black-floor relative luminance is at least this multiple of the darker mode's. */
+    const val MIN_FLOOR_STEP = 2.0
+
+    /** EVENING's backdrop top is at least this many (R - B) channel steps warmer than CINEMA's. */
+    const val MIN_EVENING_WARMTH_SHIFT = 6
 
     private val CINEMA = Palette(
-        backdropFloor = 0xFF040404.toInt(),
+        backdropFloor = 0xFF040404.toInt(),   // L 0.00121
         backdropTop = 0xFF0D0C0B.toInt(),
         backdropBottom = 0xFF060606.toInt(),
         surface = 0xFF161412.toInt(),
         surfaceElevated = 0xFF1F1C19.toInt(),
-        glassFill = 0xC0141210.toInt(),
+        glassFill = 0xC0141210.toInt(),       // 75 %
         glassBorder = 0x1FFFF4E6,
         textPrimary = 0xFFD2CDC5.toInt(),     // 82 % white level, warm-neutral
         textSecondary = 0xFF9C968D.toInt(),
@@ -115,20 +121,20 @@ object Palettes {
     )
 
     private val EVENING = Palette(
-        backdropFloor = 0xFF0A0908.toInt(),
-        backdropTop = 0xFF18150F.toInt(),
-        backdropBottom = 0xFF0D0B0A.toInt(),
-        surface = 0xFF1C1916.toInt(),
-        surfaceElevated = 0xFF25211D.toInt(),
-        glassFill = 0xC81A1714.toInt(),
+        backdropFloor = 0xFF0F0D0B.toInt(),   // L 0.00414 (3.4x CINEMA)
+        backdropTop = 0xFF1C1812.toInt(),     // warm: R-B = 10 (CINEMA 2)
+        backdropBottom = 0xFF120F0C.toInt(),
+        surface = 0xFF211D18.toInt(),
+        surfaceElevated = 0xFF2A251F.toInt(),
+        glassFill = 0xC81E1A15.toInt(),       // 78 %
         glassBorder = 0x29FFF2E0,
-        textPrimary = 0xFFEBE5DA.toInt(),     // ~92 %, warm
-        textSecondary = 0xFFADA69A.toInt(),
-        textDisabled = 0xFF6A645C.toInt(),
+        textPrimary = 0xFFF0E4D0.toInt(),     // warm ivory, R-B = 32 (CINEMA 13)
+        textSecondary = 0xFFB3A897.toInt(),
+        textDisabled = 0xFF6E665A.toInt(),
         accentBlend = 0.45f,
         glowStrength = 0.60f,
         shadowStrength = 0.55f,
-        focusRingColor = 0xFFE6DFD3.toInt(),
+        focusRingColor = 0xFFEDE2CF.toInt(),
         focusRingWidthDp = 3f,
         tileDimAlpha = 0.68f,
         textWeightBoost = 0f,
@@ -137,16 +143,16 @@ object Palettes {
     )
 
     private val STANDARD = Palette(
-        backdropFloor = 0xFF111419.toInt(),
-        backdropTop = 0xFF1D2129.toInt(),
-        backdropBottom = 0xFF14171D.toInt(),
-        surface = 0xFF1F232C.toInt(),
-        surfaceElevated = 0xFF292E39.toInt(),
-        glassFill = 0xD81A1E26.toInt(),
+        backdropFloor = 0xFF171B22.toInt(),   // L 0.01082 (2.6x EVENING): a real dark gray
+        backdropTop = 0xFF232833.toInt(),
+        backdropBottom = 0xFF1A1E26.toInt(),
+        surface = 0xFF252A35.toInt(),
+        surfaceElevated = 0xFF2F3541.toInt(),
+        glassFill = 0xD81E222B.toInt(),       // 85 %
         glassBorder = 0x3DFFFFFF,
         textPrimary = 0xFFF5F7FA.toInt(),
-        textSecondary = 0xFFB3BBC8.toInt(),
-        textDisabled = 0xFF737B88.toInt(),
+        textSecondary = 0xFFB8C0CC.toInt(),
+        textDisabled = 0xFF7A8290.toInt(),
         accentBlend = 0.55f,
         glowStrength = 0.70f,
         shadowStrength = 0.50f,
@@ -158,17 +164,22 @@ object Palettes {
         scrimStrength = 0.55f
     )
 
+    /*
+     * BRIGHT floor rationale: a ~250-nit panel at L 0.043 emits ~11 nits; a 3 % reflection of a
+     * 300-lux room adds ~3 nits, so the drawn floor still dominates the reflection (the old
+     * #1E232C, L 0.017, emitted ~4 nits and lost to it).
+     */
     private val BRIGHT = Palette(
-        backdropFloor = 0xFF1E232C.toInt(),   // dark slate, L = 0.0166
-        backdropTop = 0xFF2A303B.toInt(),
-        backdropBottom = 0xFF21262F.toInt(),
-        surface = 0xFF2E3440.toInt(),
-        surfaceElevated = 0xFF383F4C.toInt(),
-        glassFill = 0xF0242A35.toInt(),       // 94 % opaque: reflections can't wash the text
+        backdropFloor = 0xFF343B49.toInt(),   // L 0.04339 (4.0x STANDARD)
+        backdropTop = 0xFF3C4452.toInt(),     // L 0.0570
+        backdropBottom = 0xFF373E4C.toInt(),
+        surface = 0xFF434B5A.toInt(),         // L 0.0696
+        surfaceElevated = 0xFF4C5464.toInt(),
+        glassFill = 0xF0394150.toInt(),       // 94 % opaque: reflections can't wash the text
         glassBorder = 0x66FFFFFF,
         textPrimary = 0xFFFFFFFF.toInt(),
-        textSecondary = 0xFFD2D8E2.toInt(),
-        textDisabled = 0xFF8E96A3.toInt(),
+        textSecondary = 0xFFDCE1EA.toInt(),
+        textDisabled = 0xFF9AA2AF.toInt(),
         accentBlend = 0.30f,                  // flatter, less glossy gradient
         glowStrength = 0.20f,
         shadowStrength = 0.25f,
@@ -237,10 +248,84 @@ object Palettes {
         return (alpha shl 24) or (channel(a, b, 16, t) shl 16) or (channel(a, b, 8, t) shl 8) or channel(a, b, 0, t)
     }
 
-    private fun channel(a: Int, b: Int, shift: Int, t: Float): Int {
+    internal fun channel(a: Int, b: Int, shift: Int, t: Float): Int {
         val ca = (a shr shift) and 255; val cb = (b shr shift) and 255
         if (ca == cb) return ca
         val la = Contrast.toLinear(ca)
         return Contrast.toSrgb(la + (Contrast.toLinear(cb) - la) * t)
+    }
+}
+
+/**
+ * [Palettes.blendInto] with the endpoint colours' sRGB -> linear conversions done once in
+ * [prepare] instead of every frame. Produces exactly the same values as [Palettes.blend].
+ * Used by [PaletteAnimator]; allocation-free after construction.
+ */
+class PaletteBlender {
+    private var a: Palette? = null
+    private var b: Palette? = null
+    private val la = DoubleArray(COLORS * 3)
+    private val lb = DoubleArray(COLORS * 3)
+    private val ca = IntArray(COLORS)
+    private val cb = IntArray(COLORS)
+    private val out = IntArray(COLORS)
+
+    fun prepare(from: Palette, to: Palette) {
+        a = from; b = to
+        fill(from, ca); fill(to, cb)
+        for (i in 0 until COLORS) for (k in 0..2) {
+            val shift = 16 - 8 * k
+            la[i * 3 + k] = Contrast.toLinear((ca[i] shr shift) and 255)
+            lb[i * 3 + k] = Contrast.toLinear((cb[i] shr shift) and 255)
+        }
+    }
+
+    fun blendInto(t: Float, frame: PaletteFrame): PaletteFrame {
+        val pa = a ?: return frame
+        val pb = b ?: return frame
+        val x = if (t.isNaN()) 0f else t.coerceIn(0f, 1f)
+        if (x <= 0f) return frame.set(pa)
+        if (x >= 1f) return frame.set(pb)
+        for (i in 0 until COLORS) {
+            val c0 = ca[i]; val c1 = cb[i]
+            if (c0 == c1) { out[i] = c0; continue }
+            val a0 = (c0 ushr 24) and 255; val a1 = (c1 ushr 24) and 255
+            var argb = Math.round(a0 + (a1 - a0) * x).coerceIn(0, 255) shl 24
+            for (k in 0..2) {
+                val shift = 16 - 8 * k
+                val s0 = (c0 shr shift) and 255; val s1 = (c1 shr shift) and 255
+                val v = if (s0 == s1) s0 else {
+                    val l0 = la[i * 3 + k]
+                    Contrast.toSrgb(l0 + (lb[i * 3 + k] - l0) * x)
+                }
+                argb = argb or (v shl shift)
+            }
+            out[i] = argb
+        }
+        // Floats: same arithmetic as Palettes.blendInto.
+        frame.accentBlend = pa.accentBlend + (pb.accentBlend - pa.accentBlend) * x
+        frame.glowStrength = pa.glowStrength + (pb.glowStrength - pa.glowStrength) * x
+        frame.shadowStrength = pa.shadowStrength + (pb.shadowStrength - pa.shadowStrength) * x
+        frame.focusRingWidthDp = pa.focusRingWidthDp + (pb.focusRingWidthDp - pa.focusRingWidthDp) * x
+        frame.tileDimAlpha = pa.tileDimAlpha + (pb.tileDimAlpha - pa.tileDimAlpha) * x
+        frame.textWeightBoost = pa.textWeightBoost + (pb.textWeightBoost - pa.textWeightBoost) * x
+        frame.minTextScale = pa.minTextScale + (pb.minTextScale - pa.minTextScale) * x
+        frame.scrimStrength = pa.scrimStrength + (pb.scrimStrength - pa.scrimStrength) * x
+        frame.backdropFloor = out[0]; frame.backdropTop = out[1]; frame.backdropBottom = out[2]
+        frame.surface = out[3]; frame.surfaceElevated = out[4]; frame.glassFill = out[5]
+        frame.glassBorder = out[6]; frame.textPrimary = out[7]; frame.textSecondary = out[8]
+        frame.textDisabled = out[9]; frame.focusRingColor = out[10]
+        return frame
+    }
+
+    private fun fill(p: Palette, dst: IntArray) {
+        dst[0] = p.backdropFloor; dst[1] = p.backdropTop; dst[2] = p.backdropBottom
+        dst[3] = p.surface; dst[4] = p.surfaceElevated; dst[5] = p.glassFill
+        dst[6] = p.glassBorder; dst[7] = p.textPrimary; dst[8] = p.textSecondary
+        dst[9] = p.textDisabled; dst[10] = p.focusRingColor
+    }
+
+    private companion object {
+        const val COLORS = 11
     }
 }
