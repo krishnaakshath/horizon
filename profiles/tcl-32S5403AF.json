@@ -1,0 +1,112 @@
+{
+  "model": "32S5403AF",
+  "match": {
+    "manufacturer": "TCL",
+    "fingerprint_prefix": "TCL/C06_2K_GB/C06:11"
+  },
+  "safe": [
+    "in.startv.hotstar",
+    "com.graymatrix.did",
+    "com.jio.media.stb.ondemand",
+    "com.google.android.youtube.tvmusic",
+    "com.google.android.play.games",
+    "com.google.android.videos",
+    "com.tcl.esticker",
+    "com.tcl.waterfall.overseas",
+    "com.tcl.dashboard",
+    "com.tcl.suspension"
+  ],
+  "optional": [
+    {
+      "pkg": "com.google.android.backdrop",
+      "breaks": "Ambient screensaver"
+    },
+    {
+      "pkg": "com.tcl.smartalexa",
+      "breaks": "TCL Alexa integration"
+    },
+    {
+      "pkg": "com.tcl.copydatatotv",
+      "breaks": "Copying data from phone to TV"
+    },
+    {
+      "pkg": "com.google.android.feedback",
+      "breaks": "Feedback/crash report sending"
+    },
+    {
+      "pkg": "com.android.providers.calendar",
+      "breaks": "Calendar storage; calendar sync apps"
+    },
+    {
+      "pkg": "com.google.android.syncadapters.calendar",
+      "breaks": "Google Calendar sync"
+    },
+    {
+      "pkg": "com.android.printspooler",
+      "breaks": "Printing"
+    },
+    {
+      "pkg": "com.android.htmlviewer",
+      "breaks": "Opening local HTML files"
+    },
+    {
+      "pkg": "com.tcl.guard",
+      "breaks": "TCL device guard/protection service; may affect TCL maintenance features"
+    },
+    {
+      "pkg": "com.tcl.partnercustomizer",
+      "breaks": "TCL partner/region customization"
+    },
+    {
+      "pkg": "com.tcl.usercenter",
+      "breaks": "TCL account / user center sign-in"
+    },
+    {
+      "pkg": "com.google.android.tvrecommendations",
+      "breaks": "Home screen recommendation rows"
+    },
+    {
+      "pkg": "com.google.android.apps.mediashell",
+      "breaks": "Chromecast receiver (casting to the TV)"
+    },
+    {
+      "pkg": "com.google.android.marvin.talkback",
+      "breaks": "Accessibility screen reader (TalkBack)"
+    },
+    {
+      "pkg": "com.google.android.katniss",
+      "breaks": "Google Assistant / mic button (voice search)"
+    },
+    {
+      "pkg": "com.tcl.t_solo",
+      "breaks": "TCL T-Solo service; effects unverified"
+    },
+    {
+      "pkg": "com.tcl.messagebox",
+      "breaks": "TCL system message notifications"
+    },
+    {
+      "pkg": "com.tcl.keyhelp",
+      "breaks": "TCL on-screen key help"
+    }
+  ],
+  "never": [
+    "com.tcl.tv",
+    "com.tcl.ttvs",
+    "com.tcl.tvinput",
+    "com.tcl.system.server",
+    "com.tcl.settings",
+    "com.tcl.inputmethod.international",
+    "com.tcl.tcl_bt_rcu_service",
+    "com.google.android.gms",
+    "com.android.vending",
+    "com.android.systemui",
+    "com.android.tv.settings",
+    "com.android.providers.tv",
+    "com.google.android.tv.remote.service",
+    "com.dolby.android.audio.service",
+    "com.google.android.webview",
+    "com.tcl.android.webview",
+    "com.google.android.tvlauncher"
+  ]
+}
