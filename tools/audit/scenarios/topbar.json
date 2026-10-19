@@ -1,0 +1,24 @@
+{
+  "description": "Up into the top bar and across every pill.",
+  "package": "dev.tvlauncher",
+  "start": {"action": "android.intent.action.MAIN", "category": "android.intent.category.LEANBACK_LAUNCHER"},
+  "steps": [
+    {"wait": 2},
+    {"key": "DPAD_UP", "wait": 1},
+    {"key": "DPAD_UP", "wait": 1.5},
+    {"audit": "topbar-0"},
+    {"screenshot": "topbar-0"},
+    {"key": "DPAD_RIGHT", "wait": 1.2},
+    {"audit": "topbar-1"},
+    {"key": "DPAD_RIGHT", "wait": 1.2},
+    {"audit": "topbar-2"},
+    {"key": "DPAD_RIGHT", "wait": 1.2},
+    {"audit": "topbar-3"},
+    {"key": "DPAD_RIGHT", "wait": 1.2},
+    {"audit": "topbar-4"},
+    {"key": "DPAD_RIGHT", "wait": 1.2},
+    {"audit": "topbar-5"},
+    {"screenshot": "topbar-5"},
+    {"key": "DPAD_DOWN", "wait": 1}
+  ]
+}
