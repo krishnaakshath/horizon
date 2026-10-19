@@ -2,6 +2,7 @@ package dev.tvlauncher.type
 
 import android.content.Context
 import android.graphics.Typeface
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReferenceArray
 
 /**
@@ -10,6 +11,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray
  * or corrupt asset degrades to the system family from [FontPlan].
  */
 object Fonts {
+    private val warmed = AtomicBoolean(false)
     private val cache = AtomicReferenceArray<Typeface>(FontWeight.values().size)
 
     fun typeface(context: Context, weight: FontWeight): Typeface {
@@ -32,8 +34,9 @@ object Fonts {
             Typeface.create(e.fallbackFamily, e.fallbackStyle)
         }
 
-    /** Preloads every weight off the main thread so first use never blocks a frame. */
+    /** Preloads every weight off the main thread (one-shot; later calls are no-ops) so first use never blocks a frame. */
     fun warmUp(context: Context) {
+        if (!warmed.compareAndSet(false, true)) return
         val app = context.applicationContext
         Thread({ FontWeight.values().forEach { typeface(app, it) } }, "font-warmup").apply {
             isDaemon = true
