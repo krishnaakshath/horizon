@@ -33,5 +33,10 @@ class LauncherApp : Application() {
         } catch (e: Throwable) {
             // Same: the wave-2 pages stay placeholders or absent.
         }
+        try {
+            dev.tvlauncher.system.SystemSections.registerAll()
+        } catch (e: Throwable) {
+            // The older shortcut pages stay in place.
+        }
     }
 }

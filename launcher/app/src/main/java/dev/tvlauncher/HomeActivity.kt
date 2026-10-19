@@ -80,6 +80,9 @@ class HomeActivity : Activity() {
     /** True when onCreate returned early (redirected to safe mode): nothing is built, so lifecycle callbacks must not touch it. */
     private val redirected get() = !::modes.isInitialized
 
+    /** Settings > Accessibility > Text size scales every launcher text. */
+    override fun attachBaseContext(base: android.content.Context) = super.attachBaseContext(dev.tvlauncher.system.A11yScale.wrap(base))
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (SafeMode.redirectIfTripped(this)) return // repeated crashes: the tiny safe-mode launcher

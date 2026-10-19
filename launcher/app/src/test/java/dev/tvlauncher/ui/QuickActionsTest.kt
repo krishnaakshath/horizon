@@ -21,7 +21,7 @@ class QuickActionsTest {
     @Test fun order_isStable() {
         val expected = listOf(
             Item.INPUTS, Item.SETTINGS, Item.NETWORK, Item.BLUETOOTH, Item.SOUND,
-            Item.DEVICES, Item.AMBIENT, Item.ROOM, Item.INSIGHTS
+            Item.DEVICES, Item.AMBIENT, Item.ROOM, Item.INSIGHTS, Item.ACCESSIBILITY, Item.POWER
         )
         assertEquals(expected, QuickActions.items(emptySet()))
         assertEquals(expected, QuickActions.items(setOf("a", "b")))
@@ -64,6 +64,16 @@ class QuickActionsTest {
         for (i in listOf(Item.SETTINGS, Item.SOUND, Item.INSIGHTS, Item.BROWSER)) {
             assertEquals(QuickActions.Route.SYSTEM, QuickActions.route(i, bluetoothPresent = true))
         }
+    }
+
+    @Test fun systemRoute_alwaysLandsInTheLaunchersOwnPages() {
+        assertEquals(null, QuickActions.launcherSection(Item.SETTINGS))
+        assertEquals("system", QuickActions.launcherSection(Item.SOUND))
+        assertEquals("bluetooth", QuickActions.launcherSection(Item.BLUETOOTH))
+        assertEquals("network", QuickActions.launcherSection(Item.NETWORK))
+        assertEquals("devices", QuickActions.launcherSection(Item.DEVICES))
+        assertEquals("accessibility", QuickActions.launcherSection(Item.ACCESSIBILITY))
+        assertEquals("system", QuickActions.launcherSection(Item.POWER))
     }
 
     @Test fun titles_forNewItems() {

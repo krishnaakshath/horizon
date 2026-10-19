@@ -8,6 +8,11 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
+    <!-- Same definition as in the launcher (same signer): only the launcher may ask for the power menu. -->
+    <permission
+        android:name="dev.tvlauncher.permission.HELPER_ACTIONS"
+        android:protectionLevel="signature" />
+
     <application
         android:allowBackup="false"
         android:banner="@drawable/banner"

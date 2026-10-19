@@ -131,7 +131,7 @@ class StatusIcons(private val context: Context, private val onChange: (StatusMod
      * getProfileConnectionState returns a *connection* state, so it is compared with
      * BluetoothAdapter.STATE_CONNECTED (not BluetoothProfile's profile-state constant).
      */
-    @SuppressLint("MissingPermission") // BLUETOOTH is declared (normal permission, targetSdk 30).
+    @SuppressLint("MissingPermission") // BLUETOOTH is declared (normal permission, install-time).
     @Suppress("DEPRECATION")
     private fun bluetooth(): NetIcons.BtState? = try {
         val a = BluetoothAdapter.getDefaultAdapter()

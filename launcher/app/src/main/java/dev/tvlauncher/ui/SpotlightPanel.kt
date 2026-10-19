@@ -286,6 +286,8 @@ class SpotlightPanel(
         Item.AMBIENT -> R.drawable.ic_qa_ambient
         Item.ROOM -> R.drawable.ic_room_auto
         Item.INSIGHTS -> R.drawable.ic_insights
+        Item.ACCESSIBILITY -> R.drawable.ic_sys_access
+        Item.POWER -> R.drawable.ic_sys_power
         Item.BROWSER -> R.drawable.ic_browser
     }
 

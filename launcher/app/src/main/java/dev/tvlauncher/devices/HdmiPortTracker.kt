@@ -151,6 +151,12 @@ class HdmiPortTracker(clock: () -> Long, quietMs: Long = FlapGuard.DEFAULT_QUIET
         private const val TYPE_HDMI = 1007
         private const val TYPE_DISPLAY_PORT = 1008
 
+        /**
+         * Analog ports (composite/AV, S-Video, SCART, component, VGA) have no hotplug detection:
+         * the TV reports them connected all the time, so they never count as a connected device.
+         */
+        fun undetectable(type: Int) = type in 1001..1005
+
         fun buildPorts(inputs: List<InputSnapshot>): List<ConnectedDevice> {
             val byId = inputs.associateBy { it.id }
             fun parentOf(i: InputSnapshot): String? {
@@ -165,6 +171,7 @@ class HdmiPortTracker(clock: () -> Long, quietMs: Long = FlapGuard.DEFAULT_QUIET
                 if (parent[port.id] != null) continue
                 val child = inputs.filter { parent[it.id] == port.id && it.live }.minByOrNull { it.id }
                 if (!port.live && child == null) continue
+                if (undetectable(port.type) && child == null) continue
                 val isHdmi = port.type == TYPE_HDMI || port.type == TYPE_DISPLAY_PORT
                 val portLabel = port.label.trim().takeIf { it.isNotEmpty() }
                 val childName = child?.label?.trim()?.takeIf { it.isNotEmpty() }

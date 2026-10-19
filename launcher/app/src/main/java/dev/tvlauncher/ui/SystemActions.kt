@@ -4,14 +4,17 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.media.tv.TvContract
-import android.net.Uri
 import android.media.tv.TvInputInfo
 import android.media.tv.TvInputManager
-import android.provider.Settings
 import dev.tvlauncher.ambient.AmbientActivity
 import dev.tvlauncher.appsettings.AppSettingsActivity
+import dev.tvlauncher.system.SystemLinks
 
-/** System shortcuts. Every launch is guarded so a missing handler never crashes. */
+/**
+ * Launches from the home screen. Every launch is guarded so a missing handler never crashes.
+ * Nothing here opens the TV's settings app: settings go to the launcher's own pages
+ * ([launcherSettings]); the few TV-only screens live behind dev.tvlauncher.system.TvScreens.
+ */
 object SystemActions {
     fun start(context: Context, intent: Intent): Boolean = try {
         context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -22,13 +25,9 @@ object SystemActions {
         false
     }
 
-    fun settings(context: Context) = start(context, Intent(Settings.ACTION_SETTINGS))
-
-    /** A specific settings page, falling back to the main Settings screen. */
-    fun settingsPage(context: Context, action: String) = start(context, Intent(action)) || settings(context)
-
+    /** App details in the launcher's own Settings > Apps page (open, version, size, stop, uninstall). */
     fun appInfo(context: Context, pkg: String) =
-        start(context, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$pkg")))
+        start(context, AppSettingsActivity.intent(context, SystemLinks.APPS).putExtra(SystemLinks.EXTRA_SUBPAGE, SystemLinks.appPage(pkg)))
 
     /** Starts an app by package (leanback entry first); false when it is not installed. */
     fun launchPackage(context: Context, pkg: String): Boolean {
@@ -42,21 +41,19 @@ object SystemActions {
 
     fun quickAction(context: Context, item: QuickActions.Item): Boolean = when (item) {
         QuickActions.Item.INPUTS -> inputs(context)
-        QuickActions.Item.SETTINGS -> launcherSettings(context) || settings(context)
-        QuickActions.Item.NETWORK -> settingsPage(context, Settings.ACTION_WIFI_SETTINGS)
-        QuickActions.Item.BLUETOOTH -> settingsPage(context, Settings.ACTION_BLUETOOTH_SETTINGS)
-        QuickActions.Item.SOUND -> settingsPage(context, Settings.ACTION_SOUND_SETTINGS)
-        // Fallbacks only: the home screen opens its Devices panel / AmbientActivity itself.
-        QuickActions.Item.DEVICES -> launcherSettings(context) || settings(context)
         QuickActions.Item.AMBIENT -> ambient(context)
         QuickActions.Item.ROOM -> false // handled on the home screen (HomeModules)
         QuickActions.Item.INSIGHTS -> insights(context)
         QuickActions.Item.BROWSER -> launchPackage(context, QuickActions.BROWSER_PACKAGE)
+        QuickActions.Item.SOUND -> launcherSettings(context, QuickActions.launcherSection(item), SystemLinks.VOLUME)
+        QuickActions.Item.POWER -> launcherSettings(context, QuickActions.launcherSection(item), SystemLinks.POWER)
+        else -> launcherSettings(context, QuickActions.launcherSection(item))
     }
 
-    /** The launcher's own settings screen ([AppSettingsActivity]); false if it does not resolve. */
-    fun launcherSettings(context: Context): Boolean {
-        val i = AppSettingsActivity.intent(context)
+    /** The launcher's own settings screen ([AppSettingsActivity]), optionally on a section and sub-page. */
+    fun launcherSettings(context: Context, section: String? = null, subpage: String? = null): Boolean {
+        val i = AppSettingsActivity.intent(context, section)
+        subpage?.let { i.putExtra(SystemLinks.EXTRA_SUBPAGE, it) }
         if (context.packageManager.resolveActivity(i, 0) == null) return false
         return start(context, i)
     }

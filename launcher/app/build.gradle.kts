@@ -9,7 +9,10 @@ android {
     defaultConfig {
         applicationId = "dev.tvlauncher"
         minSdk = 24
-        targetSdk = 30
+        // 28 on purpose: keeps the legacy WifiManager calls (setWifiEnabled, addNetwork,
+        // enableNetwork, removeNetwork, reconnect) working on Android 10/11, so Wi-Fi is run from
+        // the launcher instead of the TV's settings. See lint.xml and docs/SYSTEM_SETTINGS.md.
+        targetSdk = 28
         versionCode = 1
         versionName = "0.1.0"
     }

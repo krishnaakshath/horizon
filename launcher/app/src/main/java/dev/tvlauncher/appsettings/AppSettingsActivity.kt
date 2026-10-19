@@ -74,6 +74,9 @@ class AppSettingsActivity : Activity(), SettingsNav {
     private val selectRunnable = Runnable { pendingSelect?.let { select(it) } }
     private val hideToast = Runnable { fade(toast, 0f) }
 
+    /** Settings > Accessibility > Text size scales every launcher text. */
+    override fun attachBaseContext(base: android.content.Context) = super.attachBaseContext(dev.tvlauncher.system.A11yScale.wrap(base))
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         profile = DeviceProfileReader.read(this)

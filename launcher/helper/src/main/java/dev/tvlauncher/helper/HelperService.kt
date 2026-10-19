@@ -1,7 +1,10 @@
 package dev.tvlauncher.helper
 
 import android.accessibilityservice.AccessibilityService
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
@@ -9,9 +12,11 @@ import android.view.accessibility.AccessibilityEvent
 class HelperService : AccessibilityService() {
     private var machine: KeyStateMachine? = null
     private var foreground: String? = null
+    private var actions: BroadcastReceiver? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        registerActions()
         val prefs = HelperPrefs(this)
         machine = KeyStateMachine(
             now = { SystemClock.uptimeMillis() },
@@ -29,6 +34,33 @@ class HelperService : AccessibilityService() {
     }
 
     override fun onInterrupt() = Unit
+
+    override fun onDestroy() {
+        actions?.let { try { unregisterReceiver(it) } catch (e: Exception) { } }
+        actions = null
+        super.onDestroy()
+    }
+
+    /**
+     * The launcher's Power page asks for the TV's power menu here (apps cannot open it themselves).
+     * Only senders holding the signature permission (the launcher) reach this receiver.
+     */
+    private fun registerActions() {
+        if (actions != null) return
+        val r = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, i: Intent?) {
+                if (i?.action == ACTION_POWER_MENU) {
+                    try { performGlobalAction(GLOBAL_ACTION_POWER_DIALOG) } catch (e: Exception) { }
+                }
+            }
+        }
+        try {
+            registerReceiver(r, IntentFilter(ACTION_POWER_MENU), PERMISSION, null)
+            actions = r
+        } catch (e: Exception) {
+            // No power menu from the launcher this session.
+        }
+    }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
         return try {
@@ -62,5 +94,10 @@ class HelperService : AccessibilityService() {
         } catch (e: Exception) {
             // Launcher missing or not handling the action: do nothing.
         }
+    }
+
+    companion object {
+        const val ACTION_POWER_MENU = "dev.tvlauncher.helper.action.POWER_MENU"
+        const val PERMISSION = "dev.tvlauncher.permission.HELPER_ACTIONS"
     }
 }

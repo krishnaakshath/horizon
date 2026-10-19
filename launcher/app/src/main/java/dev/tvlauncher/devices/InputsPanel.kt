@@ -9,7 +9,6 @@ import android.os.Looper
 import android.view.ViewGroup
 import dev.tvlauncher.panel.PanelEntry
 import dev.tvlauncher.panel.PanelShell
-import dev.tvlauncher.ui.SystemActions
 
 /**
  * Inputs panel (HDMI and other passthrough inputs) in the shared [PanelShell] anatomy; content
@@ -107,7 +106,6 @@ class InputsPanel(
     }
 
     private fun onRow(row: PanelEntry.Row) {
-        if (row.key == InputsModel.KEY_SETTINGS) { SystemActions.settings(context); return }
         val id = row.key.removePrefix(InputsModel.PREFIX)
         val ok = DevicesPanel.switchTo(context, id)
         if (ok) {

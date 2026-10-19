@@ -1,5 +1,10 @@
 package dev.tvlauncher.appsettings
 
+import dev.tvlauncher.system.BluetoothSettingsSection
+import dev.tvlauncher.system.SystemHubSection
+import dev.tvlauncher.system.SystemSpecs
+import dev.tvlauncher.system.WifiSettingsSection
+
 /**
  * Ordered settings sections. Built-ins come first in a fixed order; [register] appends new ids
  * after them, replaces a same-id entry in place (so a module's real page takes its placeholder's
@@ -34,19 +39,19 @@ class SettingsRegistry(builtIns: List<SettingsSection>) {
         /** Ids of the built-in sections, in registry order. */
         val BUILT_IN_IDS = listOf(
             AppearanceSection.ID, HomeLayoutSection.ID,
-            NetworkSection.ID, BluetoothSection.ID, ModulePlaceholderSection.DEVICES,
+            SystemSpecs.NETWORK, SystemSpecs.BLUETOOTH, ModulePlaceholderSection.DEVICES,
             ModulePlaceholderSection.SOUNDS,
             ModulePlaceholderSection.BROWSER, GetAppsSection.ID, ModulePlaceholderSection.HELPER,
             ModulePlaceholderSection.INSIGHTS, AddOnsSection.ID,
-            SystemSection.ID, BackupSection.ID, AboutSection.ID
+            SystemSpecs.SYSTEM, BackupSection.ID, AboutSection.ID
         )
 
         fun newDefault(): SettingsRegistry = SettingsRegistry(
             listOf(
                 AppearanceSection,
                 HomeLayoutSection,
-                NetworkSection,
-                BluetoothSection,
+                WifiSettingsSection,
+                BluetoothSettingsSection,
                 ModulePlaceholderSection.devices(),
                 ModulePlaceholderSection.sounds(),
                 ModulePlaceholderSection.browser(),
@@ -54,7 +59,7 @@ class SettingsRegistry(builtIns: List<SettingsSection>) {
                 ModulePlaceholderSection.helper(),
                 ModulePlaceholderSection.insights(),
                 AddOnsSection,
-                SystemSection,
+                SystemHubSection,
                 BackupSection,
                 AboutSection
             )

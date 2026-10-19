@@ -32,9 +32,10 @@ data class BtSnapshot(
  * main thread. [start] in onStart, [stop] in onStop (cancels discovery and the pairing watchdog,
  * unregisters the receiver, closes every profile proxy). Never throws: operations return a result.
  *
- * Platform limits: connect/disconnect of a profile and bond removal are not public API (Forget
- * uses reflection with a settings fallback); enable()/disable() only work on API <= 32 and with
- * BLUETOOTH_ADMIN; battery level is not exposed, so none is shown.
+ * Platform limits: connect/disconnect of a profile and bond removal are not public API; they are
+ * tried by reflection (reachable for apps targeting API 28) and report [Result.NOT_PERMITTED] when
+ * the TV refuses. enable()/disable() only work on API <= 32 and with BLUETOOTH_ADMIN; battery
+ * level is not exposed, so none is shown.
  */
 @SuppressLint("MissingPermission")
 @Suppress("DEPRECATION")
@@ -185,6 +186,33 @@ class BluetoothController(context: Context) {
         } catch (t: Throwable) {
             if (t is OutOfMemoryError) throw t
             Result.NOT_PERMITTED
+        }
+    }
+
+    /** Connects every open profile (audio, headset, input) the device accepts. */
+    fun connect(address: String): Result = profileCall(address, "connect")
+
+    fun disconnect(address: String): Result = profileCall(address, "disconnect")
+
+    private fun profileCall(address: String, method: String): Result {
+        val a = adapter ?: return Result.FAILED
+        if (proxies.isEmpty()) return Result.FAILED
+        var refused = false
+        var any = false
+        val d = safely<BluetoothDevice?>(null) { a.getRemoteDevice(address) } ?: return Result.FAILED
+        for (proxy in proxies.values.toList()) {
+            try {
+                val m = proxy.javaClass.getMethod(method, BluetoothDevice::class.java)
+                if (m.invoke(proxy, d) as? Boolean == true) any = true
+            } catch (t: Throwable) {
+                if (t is OutOfMemoryError) throw t
+                refused = true
+            }
+        }
+        return when {
+            any -> Result.OK
+            refused -> Result.NOT_PERMITTED
+            else -> Result.FAILED
         }
     }
 

@@ -8,8 +8,8 @@ import dev.tvlauncher.panel.Trailing
 
 /**
  * Pure content of the Devices panel: one row per connected device in [DeviceRegistry] order
- * (consoles, streaming, audio, ...), a chevron on TV inputs (OK switches to them) and the TV's
- * settings as the last row.
+ * (consoles, streaming, audio, ...), a chevron on TV inputs (OK switches to them) and the
+ * launcher's own device settings as the last row.
  */
 object DevicesPanelModel {
     const val KEY_SETTINGS = "act:settings"
@@ -26,12 +26,12 @@ object DevicesPanelModel {
         notice?.let { e += PanelEntry.Message("msg:notice", it) }
         if (devices.isEmpty()) e += PanelEntry.Message("msg:empty", "Nothing connected right now.")
         devices.mapTo(e) { row(it) }
-        e += PanelEntry.Row(KEY_SETTINGS, R.drawable.ic_settings, "TV settings", trailing = Trailing.Chevron)
+        e += PanelEntry.Row(KEY_SETTINGS, R.drawable.ic_settings, "Device settings", trailing = Trailing.Chevron)
         return PanelContent(header(devices), e)
     }
 
     fun row(d: ConnectedDevice): PanelEntry.Row {
-        val label = d.name.trim().ifEmpty { DeviceCopy.label(d.kind) }
+        val label = dev.tvlauncher.system.DevicesPageModel.tidyName(d)
         val sub = DeviceCopy.subtitle(d, true).takeUnless { it == label }
         val input = DeviceActions.passthroughInputId(d) != null
         return PanelEntry.Row(PREFIX + d.id, DeviceIcons.res(d.kind), label, sub,
@@ -49,13 +49,38 @@ data class RawInput(
     val state: Int
 )
 
-/** A physical input port with the name of the device behind it, when known. */
-data class TvInputItem(val id: String, val label: String, val type: Int, val state: Int, val device: String?)
+/**
+ * A physical input port with the name of the device behind it, when known. [cec] is true when an
+ * HDMI-CEC device input was folded into this port (a live CEC child is real detection).
+ */
+data class TvInputItem(
+    val id: String,
+    val label: String,
+    val type: Int,
+    val state: Int,
+    val device: String?,
+    val cec: Boolean = false
+) {
+    val signal: InputSignal get() = InputsModel.signal(type, state, cec)
+}
+
+/**
+ * What the launcher may honestly say about a port. Only HDMI has hotplug (and CEC) detection;
+ * analog ports (AV/composite, S-Video, SCART, component, VGA) are reported "connected" by the
+ * TV whether or not a cable is in, so they are only ever [AVAILABLE].
+ */
+enum class InputSignal(val word: String, val live: Boolean) {
+    CONNECTED("Connected", true),
+    STANDBY("Standby", true),
+    NO_SIGNAL("No signal", false),
+    AVAILABLE("Available", false)
+}
 
 /**
  * Pure content of the Inputs panel: every physical input port in natural order (HDMI 1, HDMI 2,
  * ... HDMI 10), each with the device behind it or its signal state; OK switches to it. CEC child
- * inputs fold into their port, contributing the device name.
+ * inputs fold into their port, contributing the device name. Ports without detection say
+ * "Available" ([InputSignal]), never "Connected".
  */
 object InputsModel {
     const val KEY_SETTINGS = "act:settings"
@@ -89,7 +114,8 @@ object InputsModel {
             val device = (kids.map { it.label } + listOfNotNull(names[p.id]))
                 .map { it.trim() }.firstOrNull { it.isNotEmpty() && !isGeneric(it, p.label) }
             val state = (kids.map { it.state } + p.state).minOrNull() ?: p.state
-            TvInputItem(p.id, p.label.trim().ifEmpty { fallbackLabel(p.type) }, p.type, state, device)
+            val cec = kids.any { it.state != STATE_DISCONNECTED }
+            TvInputItem(p.id, p.label.trim().ifEmpty { fallbackLabel(p.type) }, p.type, state, device, cec)
         }.sortedWith(compareBy(NATURAL) { it.label })
     }
 
@@ -106,8 +132,22 @@ object InputsModel {
         else -> "No signal"
     }
 
+    /** True for port types whose connection state the TV really detects (HDMI hotplug / CEC). */
+    fun detects(type: Int) = type == TYPE_HDMI
+
+    /**
+     * TvInputManager state mapped to what may be shown: HDMI ports (or any port with a live CEC
+     * device) report their real state; every other port is [InputSignal.AVAILABLE].
+     */
+    fun signal(type: Int, state: Int, cec: Boolean = false): InputSignal = when {
+        !detects(type) && !cec -> InputSignal.AVAILABLE
+        state == STATE_CONNECTED -> InputSignal.CONNECTED
+        state == STATE_STANDBY -> InputSignal.STANDBY
+        else -> InputSignal.NO_SIGNAL
+    }
+
     fun header(items: List<TvInputItem>): PanelHeader {
-        val live = items.count { it.state != STATE_DISCONNECTED }
+        val live = items.count { it.signal.live }
         return PanelHeader(R.drawable.ic_input, "Inputs", when {
             items.isEmpty() -> "None found"
             live == 0 -> "Nothing connected"
@@ -121,16 +161,13 @@ object InputsModel {
         notice?.let { e += PanelEntry.Message("msg:notice", it) }
         if (items.isEmpty()) e += PanelEntry.Message("msg:empty", "This TV has no external inputs.")
         items.mapTo(e) { row(it) }
-        e += PanelEntry.Row(KEY_SETTINGS, R.drawable.ic_settings, "TV settings", trailing = Trailing.Chevron)
         return PanelContent(header(items), e)
     }
 
-    fun row(i: TvInputItem) = PanelEntry.Row(
-        PREFIX + i.id,
-        iconFor(i.type),
-        i.label,
-        if (i.device != null && i.state != STATE_DISCONNECTED) i.device else stateWord(i.state)
-    )
+    fun row(i: TvInputItem): PanelEntry.Row {
+        val sig = i.signal
+        return PanelEntry.Row(PREFIX + i.id, iconFor(i.type), i.label, if (i.device != null && sig.live) i.device else sig.word)
+    }
 
     fun iconFor(type: Int) = when (type) {
         TYPE_HDMI, TYPE_DVI, TYPE_DISPLAY_PORT -> R.drawable.ic_dev_hdmi

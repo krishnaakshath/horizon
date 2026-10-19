@@ -62,8 +62,8 @@ object StoreLauncher {
     fun isGetAppsInstalled(context: Context): Boolean = launchIntent(context, GetAppsLink.PACKAGE) != null
 
     /**
-     * Catalog packages that are installed and launchable. Visible at targetSdk 30 through the
-     * MAIN/LAUNCHER and MAIN/LEANBACK_LAUNCHER `<queries>`; the controller may pass its own
+     * Catalog packages that are installed and launchable. Every package is visible at targetSdk 28;
+     * the MAIN/LAUNCHER and MAIN/LEANBACK_LAUNCHER `<queries>` keep it so if the target is raised. The controller may pass its own
      * installed set (AppRepository) instead.
      */
     fun installedCatalogPackages(context: Context): Set<String> =

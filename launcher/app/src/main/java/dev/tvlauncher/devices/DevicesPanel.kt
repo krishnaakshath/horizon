@@ -61,7 +61,7 @@ class DevicesPanel(context: Context) : ScrollView(context) {
     }
 
     private fun onRow(row: PanelEntry.Row) {
-        if (row.key == DevicesPanelModel.KEY_SETTINGS) { SystemActions.settings(context); return }
+        if (row.key == DevicesPanelModel.KEY_SETTINGS) { SystemActions.launcherSettings(context, "devices"); return }
         val d = devices.firstOrNull { DevicesPanelModel.PREFIX + it.id == row.key } ?: return
         val inputId = DeviceActions.passthroughInputId(d) ?: return
         val ok = switchTo(context, inputId)

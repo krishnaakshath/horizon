@@ -36,6 +36,20 @@
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
+    <!-- Settings > Apps: uninstall a user app through the system's confirm dialog (required for
+         ACTION_DELETE from targetSdk 28) and stop an app's background work. -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+    <!-- Optional, never requested: granted once by the owner's provisioning tool. With it the
+         Accessibility page can switch captions, colour correction and the helper service itself. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <!-- Lets the launcher ask its helper (same signer) to open the TV's power menu. -->
+    <permission
+        android:name="dev.tvlauncher.permission.HELPER_ACTIONS"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="dev.tvlauncher.permission.HELPER_ACTIONS" />
 
     <queries>
         <intent>
@@ -78,6 +92,15 @@
             <data android:scheme="https" />
         </intent>
         <package android:name="com.android.vending" />
+        <!-- Accessibility page: the screen reader row shows only when one is installed. -->
+        <package android:name="com.google.android.marvin.talkback" />
+        <!-- System pages: live TV / guide (TCL TV app) and the "Managed by the TV" screens. -->
+        <package android:name="com.tcl.tv" />
+        <package android:name="com.tcl.settings" />
+        <intent>
+            <action android:name="android.intent.action.DELETE" />
+            <data android:scheme="package" />
+        </intent>
     </queries>
 
     <application
@@ -155,6 +178,11 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </service>
+
+        <!-- Sleep timer: fires once at the chosen time (not exported). -->
+        <receiver
+            android:name=".system.SleepTimerReceiver"
+            android:exported="false" />
 
         <!-- Opt-in notification chips; bound only by the system after the user grants access. -->
         <service

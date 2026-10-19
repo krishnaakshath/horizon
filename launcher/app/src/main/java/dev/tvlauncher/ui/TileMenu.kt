@@ -86,7 +86,12 @@ class TileMenu(private val context: Context, private val prefs: Prefs, private v
 
     /** [visible] is the current shelf order; [installed] every launchable app (for restoring clutter). */
     fun showDockMenu(visible: List<String>, installed: List<AppEntry>) {
-        actions = mapOf(TileMenuModel.UNHIDE_ALL to { edit(AppFilter.unhideAll(prefs.load(), visible, installed)) })
+        actions = mapOf(TileMenuModel.UNHIDE_ALL to {
+            // A parental PIN, when set, guards bringing hidden apps back.
+            dev.tvlauncher.system.PinGate.run(context, (context as? Activity)?.findViewById(android.R.id.content), lite = false) {
+                edit(AppFilter.unhideAll(prefs.load(), visible, installed))
+            }
+        })
         open(PanelContent(PanelHeader(R.drawable.ic_set_home, "Home screen", "Apps on the home row"), TileMenuModel.dockEntries()))
     }
 
