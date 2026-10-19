@@ -10,9 +10,9 @@ object SignerCompare {
     enum class Verdict {
         /** Package is not installed yet. */
         NEW_INSTALL,
-        /** Installed and incoming share a signer (incoming may also carry its rotation history). */
+        /** Same current signer set, or a single-signer key rotation whose lineage includes the installed signer. */
         SAME,
-        /** No signer in common: the system will refuse to update over the installed app. */
+        /** Not the same signer (including partial multi-signer overlap): the system would refuse the update. */
         DIFFERENT,
         /** The incoming APK has no readable signature. */
         UNSIGNED,
@@ -23,16 +23,24 @@ object SignerCompare {
     fun normalise(fp: String?): String? = Sha256Stream.normalise(fp?.replace(":", ""))
 
     /**
-     * [installed] = current signer(s) of the installed package or null when not installed;
-     * [incoming] = signer(s) of the downloaded APK including its signing history when available.
+     * [installed] = the installed package's CURRENT signer set (null when not installed);
+     * [incoming] = the APK's CURRENT signer set (apkContentsSigners);
+     * [incomingHistory] = the APK's proven signing lineage (signingCertificateHistory, includes current).
+     *
+     * Conservative rule: SAME only when the current signer sets are equal, or — key rotation — when both sides
+     * have exactly one current signer and the incoming lineage contains the installed one. A partial overlap of
+     * multi-signer sets is DIFFERENT.
      */
-    fun verdict(installed: Set<String>?, incoming: Set<String>): Verdict {
+    fun verdict(installed: Set<String>?, incoming: Set<String>, incomingHistory: Set<String> = incoming): Verdict {
         val inc = incoming.mapNotNull { normalise(it) }.toSet()
         if (inc.isEmpty()) return Verdict.UNSIGNED
         if (installed == null) return Verdict.NEW_INSTALL
         val ins = installed.mapNotNull { normalise(it) }.toSet()
         if (ins.isEmpty()) return Verdict.INSTALLED_UNKNOWN
-        return if (ins.any { it in inc }) Verdict.SAME else Verdict.DIFFERENT
+        if (ins == inc) return Verdict.SAME
+        val lineage = incomingHistory.mapNotNull { normalise(it) }.toSet() + inc
+        if (ins.size == 1 && inc.size == 1 && ins.first() in lineage) return Verdict.SAME
+        return Verdict.DIFFERENT
     }
 
     /** null = source published no (valid) signer; true/false = the APK is / is not signed by it. */

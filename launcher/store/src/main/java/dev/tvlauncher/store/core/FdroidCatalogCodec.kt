@@ -52,9 +52,9 @@ object FdroidCatalogCodec {
             if (!file.endsWith(".apk") || file.contains('/') || file.contains("..")) continue
             apps += FdroidApp(
                 packageName = o.getString("p"),
-                name = o.optString("n"),
-                summary = o.optString("s"),
-                versionName = o.optString("vn"),
+                name = DisplayText.sanitize(o.optString("n"), DisplayText.NAME).ifEmpty { o.getString("p") },
+                summary = DisplayText.sanitize(o.optString("s"), DisplayText.SUMMARY),
+                versionName = DisplayText.sanitize(o.optString("vn"), 40),
                 versionCode = o.optLong("vc"),
                 apkName = file,
                 sha256 = sha,

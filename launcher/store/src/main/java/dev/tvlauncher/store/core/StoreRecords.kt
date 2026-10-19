@@ -48,19 +48,28 @@ object InstalledRegistry {
             val pkg = o.optString("pkg")
             if (!isValidPackageName(pkg)) return@mapNotNull null
             val src = runCatching { InstalledRecord.Source.valueOf(o.optString("src")) }.getOrDefault(InstalledRecord.Source.LINK)
-            InstalledRecord(pkg, o.optString("label").ifEmpty { pkg }, src, o.optString("ref"), o.optString("ver"), o.optLong("at"))
+            InstalledRecord(pkg, DisplayText.sanitize(o.optString("label"), DisplayText.LABEL).ifEmpty { pkg }, src, o.optString("ref"), o.optString("ver"), o.optLong("at"))
         }
     } catch (_: Exception) {
         emptyList()
     }
 }
 
-/** Recently used install links: most recent first, deduplicated, only URLs that pass [UrlPolicy]. */
+/**
+ * Recently used install links: most recent first, deduplicated, only URLs that pass [UrlPolicy]. Only
+ * scheme + host + path are stored — query strings and fragments (often one-time tokens) are dropped.
+ */
 object LinkHistory {
     const val MAX = 10
 
-    fun add(list: List<String>, url: String): List<String> {
+    fun strip(url: String): String {
         val u = url.trim()
+        val cut = u.indexOfFirst { it == '?' || it == '#' }
+        return if (cut >= 0) u.substring(0, cut) else u
+    }
+
+    fun add(list: List<String>, url: String): List<String> {
+        val u = strip(url)
         if (!UrlPolicy.isAllowedApkUrl(u)) return list
         return (listOf(u) + list.filter { it != u }).take(MAX)
     }
@@ -69,7 +78,8 @@ object LinkHistory {
 
     fun decode(json: String?): List<String> = try {
         val arr = JSONArray(json ?: "")
-        (0 until arr.length()).mapNotNull { arr.opt(it) as? String }.filter { UrlPolicy.isAllowedApkUrl(it) }.distinct().take(MAX)
+        (0 until arr.length()).mapNotNull { (arr.opt(it) as? String)?.let { s -> strip(s) } }
+            .filter { UrlPolicy.isAllowedApkUrl(it) }.distinct().take(MAX)
     } catch (_: Exception) {
         emptyList()
     }

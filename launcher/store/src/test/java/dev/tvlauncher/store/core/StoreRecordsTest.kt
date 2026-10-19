@@ -47,6 +47,17 @@ class StoreRecordsTest {
         assertTrue(LinkHistory.decode("""["http://x.org/a.apk", 3, "https://ok.org/a.apk"]""") == listOf("https://ok.org/a.apk"))
     }
 
+    @Test fun linkHistoryStoresHostAndPathOnly() {
+        val h = LinkHistory.add(emptyList(), "https://cdn.example.org/dl/app.apk?token=SECRET&x=1#frag")
+        assertEquals(listOf("https://cdn.example.org/dl/app.apk"), h)
+        assertEquals(listOf("https://ok.org/a.apk"), LinkHistory.decode("""["https://ok.org/a.apk?sig=abc"]"""))
+    }
+
+    @Test fun registryLabelsAreSanitised() {
+        val one = InstalledRegistry.decode("""[{"pkg":"a.b","label":"Evil\u202egpj.exe"}]""")
+        assertEquals("Evilgpj.exe", one[0].label)
+    }
+
     @Test fun githubRepoListRoundTrip() {
         val list = listOf("o/r", "jellyfin/jellyfin-androidtv")
         assertEquals(list, RepoList.decode(RepoList.encode(list)))

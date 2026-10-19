@@ -39,6 +39,18 @@ object IpRanges {
         if (b0 == 0xfe && (b1 and 0xc0) == 0x80) return true // link-local fe80::/10
         if (b0 == 0xfe && (b1 and 0xc0) == 0xc0) return true // site-local (deprecated)
         if ((b0 and 0xfe) == 0xfc) return true            // unique local fc00::/7
+        val g1 = (b0 shl 8) or b1
+        val g2 = (u(a[2]) shl 8) or u(a[3])
+        // NAT64 well-known prefix 64:ff9b::/96 embeds an IPv4 address in the last 4 bytes; anything else under
+        // 64:ff9b (e.g. the local-use 64:ff9b:1::/48) is refused outright.
+        if (g1 == 0x0064 && g2 == 0xff9b) {
+            val zeros = (4 until 12).all { a[it].toInt() == 0 }
+            return !zeros || isBlockedV4(a.copyOfRange(12, 16))
+        }
+        // 6to4 2002::/16 embeds an IPv4 address in bytes 2..5.
+        if (g1 == 0x2002) return isBlockedV4(a.copyOfRange(2, 6))
+        // Teredo 2001:0::/32 carries an obfuscated client address: refuse outright.
+        if (g1 == 0x2001 && g2 == 0x0000) return true
         return false
     }
 }

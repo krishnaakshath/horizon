@@ -47,6 +47,8 @@ class FdroidIndexParser(private val config: Config) {
         val maxEntries: Int = 6000,
         val maxBytes: Long = 2_500_000,
         val includeBeta: Boolean = false,
+        val maxDepth: Int = 64,
+        val maxString: Int = 64 * 1024,
     )
 
     data class Result(
@@ -64,7 +66,9 @@ class FdroidIndexParser(private val config: Config) {
     private val abis = config.abis.map { it.lowercase() }
     private val query = config.query?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
 
-    fun parse(src: JsonTokenSource, isCancelled: () -> Boolean = { false }): Result {
+    fun parse(source: JsonTokenSource, isCancelled: () -> Boolean = { false }): Result {
+        // Structural limits on untrusted input: nesting ≤ 64, any string/name ≤ 64 KB (abort beyond).
+        val src = BoundedTokenSource(source, maxDepth = config.maxDepth, maxString = config.maxString)
         val out = ArrayList<FdroidApp>()
         var seen = 0
         var truncated = false
@@ -140,9 +144,9 @@ class FdroidIndexParser(private val config: Config) {
         val v = best ?: return null
         return FdroidApp(
             packageName = pkg,
-            name = (name ?: pkg).take(80),
-            summary = (summary ?: "").take(120),
-            versionName = v.name.take(40),
+            name = DisplayText.sanitize(name ?: pkg, DisplayText.NAME).ifEmpty { pkg },
+            summary = DisplayText.sanitize(summary, DisplayText.SUMMARY),
+            versionName = DisplayText.sanitize(v.name, 40),
             versionCode = v.code,
             apkName = v.apk,
             sha256 = v.sha,
@@ -218,7 +222,7 @@ class FdroidIndexParser(private val config: Config) {
                 "antiFeatures" -> {
                     val keys = ArrayList<String>()
                     src.forEachMember { k -> if (keys.size < 8) keys += k.take(40); src.skipValue() }
-                    anti = keys
+                    anti = keys.map { DisplayText.sanitize(it, 40) }.filter { it.isNotEmpty() }
                 }
                 else -> src.skipValue()
             }
@@ -255,7 +259,7 @@ class FdroidIndexParser(private val config: Config) {
                 en ?: enAny ?: first
             }
             else -> { src.skipValue(); null }
-        }?.trim()?.replace(Regex("\\s+"), " ")
+        }
     }
 
     private fun stringList(src: JsonTokenSource, max: Int, maxLen: Int = 60): List<String> {

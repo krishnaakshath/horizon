@@ -19,9 +19,27 @@ class SignerCompareTest {
         assertEquals(Verdict.SAME, SignerCompare.verdict(setOf(a.uppercase()), setOf("AA:".repeat(31) + "AA")))
     }
 
-    @Test fun rotatedKeyWithHistoryMatches() {
-        // incoming carries signing history (old a -> new b)
-        assertEquals(Verdict.SAME, SignerCompare.verdict(setOf(a), setOf(a, b)))
+    @Test fun sameSet_ok() {
+        assertEquals(Verdict.SAME, SignerCompare.verdict(setOf(a, b), setOf(b, a)))
+    }
+
+    @Test fun overlapOnly_blocked() {
+        // multi-signer: sharing one certificate is NOT enough
+        assertEquals(Verdict.DIFFERENT, SignerCompare.verdict(setOf(a), setOf(a, b)))
+        assertEquals(Verdict.DIFFERENT, SignerCompare.verdict(setOf(a, b), setOf(a)))
+        assertEquals(Verdict.DIFFERENT, SignerCompare.verdict(setOf(a, b), setOf(a, c)))
+    }
+
+    @Test fun rotation_incomingHistoryContainsInstalled_ok() {
+        // installed signed with a; incoming rotated a -> b (current b, lineage a, b)
+        assertEquals(Verdict.SAME, SignerCompare.verdict(setOf(a), setOf(b), incomingHistory = setOf(a, b)))
+        // lineage that doesn't include the installed signer
+        assertEquals(Verdict.DIFFERENT, SignerCompare.verdict(setOf(a), setOf(b), incomingHistory = setOf(c, b)))
+    }
+
+    @Test fun disjoint_blocked() {
+        assertEquals(Verdict.DIFFERENT, SignerCompare.verdict(setOf(a), setOf(b)))
+        assertEquals(Verdict.DIFFERENT, SignerCompare.verdict(setOf(a, b), setOf(c)))
     }
 
     @Test fun differentSignerIsDifferent() {

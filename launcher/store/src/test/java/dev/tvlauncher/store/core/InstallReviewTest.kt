@@ -89,12 +89,48 @@ class InstallReviewTest {
             permissions = listOf("android.permission.RECORD_AUDIO", "android.permission.SYSTEM_ALERT_WINDOW")))
         assertTrue(r.canInstall)
         assertTrue(r.warnings.any { it.contains("checksum", ignoreCase = true) })
-        assertTrue(r.warnings.any { it.contains("2 sensitive permissions") })
+        assertTrue(r.warnings.any { it.contains("Contains 2 sensitive capabilities") })
     }
 
-    @Test fun unreadableInstalledSignerWarnsButAllows() {
+    @Test fun unreadableInstalledSignerBlocks() {
         val r = InstallReview.evaluate(base.copy(installedVersionCode = 5, installedSigners = emptySet()))
+        assertFalse(r.canInstall)
+        assertTrue(r.blockers.contains(InstallReview.INSTALLED_SIGNER_UNREADABLE))
+        val n = InstallReview.evaluate(base.copy(installedVersionCode = 5, installedSigners = null))
+        assertFalse(n.canInstall)
+    }
+
+    @Test fun installedStateInstalled() {
+        val r = InstallReview.evaluate(base.copy(installedVersionCode = 5, installedSigners = setOf(a)))
+        assertEquals(InstalledState.INSTALLED, r.installedState)
+        assertTrue(r.isUpdate)
+    }
+
+    @Test fun installedStateNotInstalled() {
+        val r = InstallReview.evaluate(base)
+        assertEquals(InstalledState.NOT_INSTALLED, r.installedState)
+        assertFalse(r.warnings.contains(InstallReview.INSTALL_STATE_UNKNOWN))
+    }
+
+    @Test fun installedStateUnknownIsPhrasedHonestly() {
+        val r = InstallReview.evaluate(base.copy(installedState = InstalledState.UNKNOWN))
+        assertEquals(InstalledState.UNKNOWN, r.installedState)
+        assertFalse(r.isUpdate)
         assertTrue(r.canInstall)
-        assertTrue(r.warnings.isNotEmpty())
+        assertTrue(r.warnings.contains(
+            "Couldn't check whether this app is already installed — Android will still block a different signer."))
+    }
+
+    @Test fun rotatedSignerUpdateAllowedViaLineage() {
+        val r = InstallReview.evaluate(base.copy(installedVersionCode = 5, installedSigners = setOf(b),
+            signers = setOf(a), signerHistory = setOf(b, a)))
+        assertTrue(r.canInstall)
+    }
+
+    @Test fun capabilitiesCountTowardsSummary() {
+        val caps = ComponentRisk.collect(listOf(ComponentRisk.Kind.SERVICE to "android.permission.BIND_ACCESSIBILITY_SERVICE"))
+        val r = InstallReview.evaluate(base.copy(capabilities = caps))
+        assertEquals(1, r.sensitiveCount)
+        assertTrue(r.warnings.contains("Contains 1 sensitive capability (highlighted)."))
     }
 }
