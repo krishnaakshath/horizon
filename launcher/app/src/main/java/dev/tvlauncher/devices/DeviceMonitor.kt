@@ -38,7 +38,8 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
     private val bySource = HashMap<String, List<ConnectedDevice>>()
     private var debouncer = Debouncer(DEBOUNCE_MS, clock)
     private var dedupe = CrossSourceDedupe(6000L, clock)
-    private val remoteFilter = RemoteFilter()
+    private val remoteFilter = RemoteFilter(clock)
+    private val vidPidById = HashMap<String, String>()
     private val tracker = HdmiPortTracker(clock)
     private var netPolicy = NetworkEventPolicy(3000L, clock)
     private val anonymousBt = HashSet<String>()
@@ -72,7 +73,7 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
         started = true
         seeding = true
         refreshTvInputs(); refreshUsb(); refreshInput(); seedBluetooth(); refreshNetwork()
-        for (src in listOf("usb", "input", "bt")) bySource[src].orEmpty().forEach { remoteFilter.seed(it.id) }
+        for (src in listOf("usb", "input", "bt")) bySource[src].orEmpty().forEach { remoteFilter.seed(it.id, vidPidById[it.id], it.kind) }
         seeding = false
         registerTv(); registerUsb(); registerInput(); registerBluetooth(); registerNetwork()
     }
@@ -93,7 +94,7 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
         netCallback = null
         closeBtProxies()
         // Forget everything so nothing stale survives a stop()/start() cycle.
-        btDevices.clear(); bySource.clear(); registry.clear(); anonymousBt.clear()
+        btDevices.clear(); bySource.clear(); registry.clear(); anonymousBt.clear(); vidPidById.clear()
         remoteFilter.reset(); tracker.reset(); netPolicy = NetworkEventPolicy(3000L, clock)
         debouncer = Debouncer(DEBOUNCE_MS, clock); dedupe = CrossSourceDedupe(6000L, clock)
         onChanged?.invoke()
@@ -121,9 +122,9 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
             if (!debouncer.accept(e)) continue
             if (source == "usb" || source == "input" || source == "bt") {
                 val d = e.device
-                val cand = Candidate(DeviceSource.of(d.id), d.id, d.name, d.kind, d.id in anonymousBt)
-                if (!remoteFilter.shouldAnnounce(cand)) continue
-                if (!dedupe.accept(source, e)) continue
+                val cand = Candidate(DeviceSource.of(d.id), d.id, d.name, d.kind, d.id in anonymousBt, vidPidById[d.id])
+                if (!remoteFilter.shouldAnnounce(cand, e !is DeviceEvent.Disconnected)) continue
+                if (!dedupe.accept(source, e, vidPidById[d.id])) continue
             }
             onEvent(e)
         }
@@ -214,7 +215,8 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
                     val itf = dev.getInterface(i++)
                     kind = DeviceClassifier.fromUsb(itf.interfaceClass, itf.interfaceSubclass, name)
                 }
-                if (kind == DeviceKind.UNKNOWN) kind = DeviceKind.USB_HID_OTHER
+                // Anything else stays UNKNOWN (non-HID): it is announced and never hit by the remote filter.
+                vidPidById["usb:$key"] = "%04x:%04x".format(dev.vendorId, dev.productId)
                 out.add(ConnectedDevice("usb:$key", name.ifEmpty { "USB device" }, kind, "USB", null))
             }
         }
@@ -244,6 +246,7 @@ class DeviceMonitor(context: Context, private val onEvent: (DeviceEvent) -> Unit
                 val external = d.keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC
                 val kind = DeviceClassifier.fromInputDevice(d.sources, d.name, external, d.isVirtual)
                 if (kind == DeviceKind.UNKNOWN) continue
+                if (d.vendorId != 0 || d.productId != 0) vidPidById["input:" + d.descriptor] = "%04x:%04x".format(d.vendorId, d.productId)
                 out.add(ConnectedDevice("input:" + d.descriptor, d.name.orEmpty().ifBlank { DeviceCopy.label(kind) }, kind, null, null))
             }
         }

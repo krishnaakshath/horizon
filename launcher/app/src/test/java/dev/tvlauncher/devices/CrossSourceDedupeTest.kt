@@ -1,5 +1,6 @@
 package dev.tvlauncher.devices
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -36,6 +37,37 @@ class CrossSourceDedupeTest {
         assertTrue(d.accept("usb", c("SanDisk Ultra", DeviceKind.USB_STORAGE)))
         assertTrue(d.accept("bt", c("Logitech K400", DeviceKind.BT_KEYBOARD_MOUSE)))
         assertTrue(d.accept("input", c("Apple Magic Keyboard", DeviceKind.KEYBOARD)))
+    }
+
+    @Test fun twoIdenticalGamepads_usbPlusBt_within6s_bothAnnounced_whenIdsDiffer() {
+        val d = dd()
+        val pad = { id: String, k: DeviceKind -> DeviceEvent.Connected(ConnectedDevice(id, "Wireless Gamepad Pro", k, null, null)) }
+        val sent = ArrayList<String>()
+        if (d.accept("usb", pad("usb:1", DeviceKind.GAMEPAD), "054c:0ce6")) sent.add("usb")
+        if (d.accept("bt", pad("bt:AA", DeviceKind.BT_GAMEPAD))) sent.add("bt")
+        // InputManager reports each pad once: both are consumed by their source record.
+        if (d.accept("input", pad("input:a", DeviceKind.GAMEPAD), "054c:0ce6")) sent.add("input-a")
+        if (d.accept("input", pad("input:b", DeviceKind.GAMEPAD), "054c:0ce6")) sent.add("input-b")
+        assertEquals(listOf("usb", "bt"), sent)
+    }
+
+    @Test fun matchIsConsumed_thirdReportAnnounces() {
+        val d = dd()
+        assertTrue(d.accept("bt", c("Pad Alpha", DeviceKind.BT_GAMEPAD)))
+        assertFalse(d.accept("input", c("Pad Alpha", DeviceKind.GAMEPAD)))
+        assertTrue(d.accept("input", c("Pad Alpha", DeviceKind.GAMEPAD)))
+    }
+
+    @Test fun genericTokenlessNames_withoutIdsNotMerged() {
+        val d = dd()
+        assertTrue(d.accept("usb", c("Wireless Controller", DeviceKind.GAMEPAD)))
+        assertTrue(d.accept("input", c("USB Gamepad", DeviceKind.GAMEPAD)))
+    }
+
+    @Test fun sameVidPid_merges() {
+        val d = dd()
+        assertTrue(d.accept("usb", c("Foo", DeviceKind.USB_HID_OTHER), "1234:5678"))
+        assertFalse(d.accept("input", c("Bar", DeviceKind.KEYBOARD), "1234:5678"))
     }
 
     @Test fun disconnectNotMergedWithConnect() {

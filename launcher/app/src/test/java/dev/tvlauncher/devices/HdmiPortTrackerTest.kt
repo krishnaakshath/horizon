@@ -32,8 +32,7 @@ class HdmiPortTrackerTest {
     @Test fun consolePowerOff_emitsAtMostOneEvent() {
         val t = tracker(); t.update(listOf(port(), child()), emit = false)
         val ev = t.update(listOf(port(), child(state = 2)))
-        assertTrue(ev.size <= 1)
-        assertTrue(ev.none { it is DeviceEvent.Connected || it is DeviceEvent.Disconnected })
+        assertEquals(emptyList<DeviceEvent>(), ev)
         assertEquals("HDMI device", t.devices().single().name)
     }
 
@@ -80,6 +79,28 @@ class HdmiPortTrackerTest {
         assertEquals("tv:hw1", d.id); assertEquals("Xbox", d.name); assertEquals(DeviceKind.CONSOLE_XBOX, d.kind)
     }
 
+    @Test fun stopStart_resetsState() {
+        val t = tracker()
+        t.update(listOf(port(), child()), emit = false)
+        now = 0; t.update(emptyList())
+        t.reset()
+        assertTrue(t.devices().isEmpty()); assertNull(t.nextDueDelayMs())
+        now = 20000; assertTrue(t.tick().isEmpty())
+        assertTrue(t.update(listOf(port()), emit = false).isEmpty())
+        assertEquals("HDMI device", t.devices().single().name)
+    }
+
+    @Test fun swapConsolesWithin8s_announcesNewDevice() {
+        val t = tracker(); t.update(listOf(port(), child()), emit = false)
+        now = 0; t.update(emptyList())
+        now = 3000
+        val ev = t.update(listOf(port(), child(label = "Xbox Series X")))
+        // Port reappears with a different console: one Updated, never a swallowed no-op.
+        assertEquals(1, ev.size)
+        val u = ev.single() as DeviceEvent.Updated
+        assertEquals("Xbox Series X", u.device.name); assertEquals("PlayStation 5", u.previous.name)
+    }
+
     @Test fun compositePort_keepsLabel() {
         val t = tracker()
         t.update(listOf(InputSnapshot("av1", null, "AV 1", 1001, 0)), emit = false)
@@ -102,6 +123,14 @@ class InputIdParserTest {
 }
 
 class FlapGuardTest {
+    @Test fun connectedDifferentDevice_afterHeldDisconnect_isUpdated() {
+        val g = FlapGuard(8000) { 0L }
+        val a = ConnectedDevice("tv:1", "PS5", DeviceKind.CONSOLE_PLAYSTATION, null, null)
+        val b = ConnectedDevice("tv:1", "Xbox", DeviceKind.CONSOLE_XBOX, null, null)
+        g.submit(DeviceEvent.Disconnected(a))
+        assertEquals(listOf<DeviceEvent>(DeviceEvent.Updated(b, a)), g.submit(DeviceEvent.Connected(b)))
+    }
+
     @Test fun updatedWithSameName_cancelsHeld() {
         var now = 0L
         val g = FlapGuard(8000) { now }

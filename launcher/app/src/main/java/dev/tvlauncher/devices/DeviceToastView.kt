@@ -144,7 +144,6 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
     fun animateIn(connected: Boolean, onShown: () -> Unit) {
         cancel()
         val d = if (animationsOn) entranceMs else 0L
-        if (!lite && animationsOn) setLayerType(LAYER_TYPE_HARDWARE, null)
         val slide = context.dp(40).toFloat()
         alpha = 0f
         card.translationX = slide
@@ -204,7 +203,6 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
             override fun onAnimationCancel(a: Animator) { cancelled = true }
             override fun onAnimationEnd(a: Animator) {
                 running = null
-                if (!lite) setLayerType(LAYER_TYPE_NONE, null)
                 if (!cancelled) onShown()
             }
         })
@@ -216,7 +214,6 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
     fun animateOut(onGone: () -> Unit) {
         cancel()
         val d = if (animationsOn) exitMs else 0L
-        if (!lite && animationsOn) setLayerType(LAYER_TYPE_HARDWARE, null)
         val set = AnimatorSet()
         set.playTogether(
             ObjectAnimator.ofFloat(this, ALPHA, alpha, 0f).setDuration(d),
@@ -228,7 +225,6 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
             override fun onAnimationCancel(a: Animator) { cancelled = true }
             override fun onAnimationEnd(a: Animator) {
                 running = null
-                if (!lite) setLayerType(LAYER_TYPE_NONE, null)
                 if (!cancelled) onGone()
             }
         })
@@ -243,7 +239,6 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
         for (r in rings) { r.visibility = INVISIBLE; r.animate().cancel() }
         sweep.visibility = GONE
         sweep.animate().cancel()
-        if (!lite) setLayerType(LAYER_TYPE_NONE, null)
     }
 
     private fun sweepAnimator(): Animator {

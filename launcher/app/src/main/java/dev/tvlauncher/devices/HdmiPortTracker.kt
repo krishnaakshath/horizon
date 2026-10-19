@@ -39,7 +39,14 @@ class FlapGuard(private val quietMs: Long = DEFAULT_QUIET_MS, private val clock:
         val id = e.device.id
         return when (e) {
             is DeviceEvent.Disconnected -> { held[id] = Held(e, clock() + quietMs); emptyList() }
-            is DeviceEvent.Connected -> if (held.remove(id) != null) emptyList() else listOf(e)
+            is DeviceEvent.Connected -> {
+                val h = held.remove(id)
+                when {
+                    h == null -> listOf(e)
+                    h.event.device.name == e.device.name && h.event.device.kind == e.device.kind -> emptyList()
+                    else -> listOf(DeviceEvent.Updated(e.device, h.event.device)) // different device swapped in
+                }
+            }
             is DeviceEvent.Updated -> {
                 val h = held.remove(id)
                 if (h != null && h.event.device.name == e.device.name) emptyList() else listOf(e)
