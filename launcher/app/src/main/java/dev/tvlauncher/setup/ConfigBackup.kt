@@ -26,7 +26,8 @@ object ConfigBackup {
     /** The stores that make up "the configuration" (crash, setup and UI state are not included). */
     val STORES = listOf(
         "launcher_settings", "appearance_settings", "home_extras", "room_settings",
-        "wallpaper_settings", "sound_settings", "discover_settings", "home_layout", "ambient_widgets"
+        "wallpaper_settings", "sound_settings", "discover_settings", "home_layout", "ambient_widgets",
+        "motion_style" // Settings > Appearance > Start-up and loading (splash.MotionStylePrefs.STORE)
     )
 
     /**

@@ -40,8 +40,6 @@ import dev.tvlauncher.ui.LaunchOverlay
 import dev.tvlauncher.ui.QuickStrip
 import dev.tvlauncher.ui.Shelf
 import dev.tvlauncher.ui.ShelfAdapter
-import dev.tvlauncher.ui.SplashOverlay
-import dev.tvlauncher.ui.SplashReveal
 import dev.tvlauncher.ui.SpotlightKeys
 import dev.tvlauncher.ui.SpotlightPanel
 import dev.tvlauncher.ui.SystemActions
@@ -89,7 +87,9 @@ class HomeActivity : Activity() {
     private val discoverStore by lazy { DiscoverStore(applicationContext) }
     private val generation = AtomicInteger()
     private var firstLoad = true
-    private var splash: SplashOverlay? = null
+    private var splash: dev.tvlauncher.splash.StartupPlayer? = null
+    /** Settings > Appearance > Start-up and loading; re-read in onStart. */
+    private var motionStyle = dev.tvlauncher.splash.MotionStyleSettings.DEFAULT
     @Volatile private var installed: List<AppEntry> = emptyList()
     /** Apps hidden from Home (user-hidden and setup clutter); their titles never show in Continue watching. */
     @Volatile private var hiddenPackages: Set<String> = emptySet()
@@ -138,9 +138,10 @@ class HomeActivity : Activity() {
         modes = ModeTracker(this) { heroBox.hero.setModeChip(RecentMode.chipText(it)) }
         val wantsSpotlight = intent?.action == SpotlightKeys.ACTION
         if (wantsSpotlight) setIntent(Intent(intent).setAction(null)) // a recreation must not re-open it
+        motionStyle = dev.tvlauncher.splash.MotionStylePrefs(this).load()
         if (look.showSplash && !wantsSpotlight && !HomeLook.isRebuild(intent)) {
-            splash = SplashOverlay(this, look.profile.full, look.accent { dev.tvlauncher.ui.SplashLook.DEFAULT_ACCENT }).also {
-                (content.parent as FrameLayout).addView(it, FrameLayout.LayoutParams(-1, -1))
+            splash = startupPlayer()?.also {
+                (content.parent as FrameLayout).addView(it.view, FrameLayout.LayoutParams(-1, -1))
                 it.prepare(content.revealTargets())
                 it.start()
                 shelfBox.loader.visibility = View.GONE // the splash is the loading moment
@@ -239,17 +240,35 @@ class HomeActivity : Activity() {
     private fun launch(app: AppEntry, v: View) {
         if (launchOverlay.isPlaying) return // one launch at a time
         val now = System.currentTimeMillis()
-        val plan = dev.tvlauncher.launch.LaunchMotion.plan(look.profile.motion, animatorScale(), app.packageName,
-            dev.tvlauncher.launch.LaunchMotion.isWarm(switcher.lastLaunchOf(app.packageName), now))
+        val styled = dev.tvlauncher.launch.LaunchStyles.plan(motionStyle.launch, look.profile.motion, animatorScale(), app.packageName,
+            dev.tvlauncher.launch.LaunchMotion.isWarm(switcher.lastLaunchOf(app.packageName), now), motionStyle.pace)
+        val plan = styled.plan
         if (!plan.animated) { startApp(app, v, overlay = true); return }
         val rect = android.graphics.Rect().also { r ->
             val loc = IntArray(2); v.getLocationInWindow(loc)
             r.set(loc[0], loc[1], loc[0] + v.width, loc[1] + v.height)
         }
         val art = try { adapter.artCopy(app, resources) } catch (e: RuntimeException) { null }
-        launchOverlay.play(plan, adapter.accentOf(app), art, rect.takeIf { v.isAttachedToWindow }) {
+        launchOverlay.play(plan, adapter.accentOf(app), art, rect.takeIf { v.isAttachedToWindow }, styled.style) {
             if (!isDestroyed) startApp(app, null, overlay = false)
         }
+    }
+
+    private fun startupPlayer(): dev.tvlauncher.splash.StartupPlayer? = dev.tvlauncher.splash.StartupPlayers.create(
+        this, motionStyle.startup, look.profile.full, look.showSplash,
+        look.accent { dev.tvlauncher.ui.SplashLook.DEFAULT_ACCENT }, motionStyle.pace
+    )
+
+    /** "Also after standby" (splash.WakeSplash): the start-up animation once more over the ready home. */
+    private fun maybeWakeSplash() {
+        if (firstLoad || splash != null || spotlight.isOpen || modules.isShowing) return
+        if (!dev.tvlauncher.splash.WakeSplash.consume(this)) return
+        val p = startupPlayer() ?: return
+        (content.parent as FrameLayout).addView(p.view, FrameLayout.LayoutParams(-1, -1))
+        val targets = content.revealTargets()
+        p.prepare(targets)
+        p.start()
+        shelf.post { p.reveal(targets) }
     }
 
     private fun startApp(app: AppEntry, v: View?, overlay: Boolean) = launcher.launch(app, v).let {
@@ -406,7 +425,7 @@ class HomeActivity : Activity() {
         val wasFirst = firstLoad
         firstLoad = false
         if (wasFirst) {
-            sounds.readyIn(if (splash != null) SplashReveal.totalMs(look.profile.full) else 0L)
+            sounds.readyIn(splash?.totalMs ?: 0L)
             splash?.let { s -> shelf.post { s.reveal(content.revealTargets()) } }
             splash = null
             if (pendingSpotlight) shelf.post { pendingSpotlight = false; openSpotlight() }
@@ -555,6 +574,8 @@ class HomeActivity : Activity() {
         if (look.reload() == HomeAppearance.Change.REBUILD) return HomeLook.rebuild(this)
         spotlightConfig = try { spotlightPrefs.load() } catch (e: RuntimeException) { SpotlightConfig.DEFAULT }
         spotlightKeys.reset()
+        motionStyle = dev.tvlauncher.splash.MotionStylePrefs(this).load()
+        launchOverlay.setLoaderStyle(motionStyle.loader)
         topBar.applyAppearance(look.settings)
         // Settings > Home layout (style, names, hero, strip) and tile size: relaid out in place.
         if (layout.reload()) {
@@ -569,6 +590,7 @@ class HomeActivity : Activity() {
         modules.start()
         watch?.start() // Continue watching: settings, provider observer, refresh
         applyFocusMode()
+        maybeWakeSplash()
     }
 
     override fun onStop() {

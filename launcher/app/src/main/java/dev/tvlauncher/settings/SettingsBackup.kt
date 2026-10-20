@@ -2,6 +2,7 @@ package dev.tvlauncher.settings
 
 import dev.tvlauncher.homelayout.HomeLayoutSettings
 import dev.tvlauncher.room.RoomSettings
+import dev.tvlauncher.splash.MotionStyleSettings
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -21,9 +22,16 @@ import java.io.File
 object SettingsBackup {
     const val ROOM_KEY = "room_settings"
     const val HOME_LAYOUT_KEY = "home_layout"
+    /** Optional: Settings > Appearance > Start-up and loading ([MotionStyleSettings]); same rules as [HOME_LAYOUT_KEY]. */
+    const val MOTION_KEY = "motion_style"
 
     /** A validated file: the launcher settings and, when the file had them, the room settings and home layout. */
-    data class Restored(val settings: LauncherSettings, val room: RoomSettings?, val layout: HomeLayoutSettings? = null)
+    data class Restored(
+        val settings: LauncherSettings,
+        val room: RoomSettings?,
+        val layout: HomeLayoutSettings? = null,
+        val motion: MotionStyleSettings? = null
+    )
 
     const val FILE_NAME = "launcher-settings.json"
     const val MAX_BYTES = 512 * 1024L
@@ -32,18 +40,25 @@ object SettingsBackup {
     private val PACKAGE = Regex("^[A-Za-z0-9_.]+$")
 
     /** The file's text: [settings] plus [room] under [ROOM_KEY] and [layout] under [HOME_LAYOUT_KEY] when given. */
-    fun toText(settings: LauncherSettings, room: RoomSettings? = null, layout: HomeLayoutSettings? = null): String {
+    fun toText(
+        settings: LauncherSettings, room: RoomSettings? = null, layout: HomeLayoutSettings? = null,
+        motion: MotionStyleSettings? = null
+    ): String {
         val json = JSONObject(settings.toJson())
         if (room != null) json.put(ROOM_KEY, JSONObject(room.toJson()))
         if (layout != null) json.put(HOME_LAYOUT_KEY, JSONObject(layout.toJson()))
+        if (motion != null) json.put(MOTION_KEY, JSONObject(motion.toJson()))
         return json.toString(2)
     }
 
     /** Writes [settings] (and [room], [layout]) to [file] via a temp file + rename. False on any I/O failure. */
-    fun export(settings: LauncherSettings, file: File, room: RoomSettings? = null, layout: HomeLayoutSettings? = null): Boolean = try {
+    fun export(
+        settings: LauncherSettings, file: File, room: RoomSettings? = null, layout: HomeLayoutSettings? = null,
+        motion: MotionStyleSettings? = null
+    ): Boolean = try {
         file.parentFile?.mkdirs()
         val tmp = File(file.path + ".tmp")
-        tmp.writeText(toText(settings, room, layout))
+        tmp.writeText(toText(settings, room, layout, motion))
         if (!tmp.renameTo(file)) {
             file.writeText(tmp.readText())
             tmp.delete()
@@ -84,7 +99,12 @@ object SettingsBackup {
             is JSONObject -> HomeLayoutSettings.fromJson(l.toString())
             else -> return null
         }
-        return Restored(settings, room, layout)
+        val motion = when (val m = json.opt(MOTION_KEY)) {
+            null -> null
+            is JSONObject -> MotionStyleSettings.fromJson(m.toString())
+            else -> return null
+        }
+        return Restored(settings, room, layout, motion)
     }
 
     /**

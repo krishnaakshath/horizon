@@ -40,6 +40,11 @@ class LauncherApp : Application(), dev.tvlauncher.profiles.ProfileStores.RawPref
             // The manifest receiver still covers boot and TCL's wake broadcast.
         }
         try {
+            dev.tvlauncher.splash.WakeSplash.install(this) // "Start-up: also after standby"
+        } catch (e: Throwable) {
+            // The start-up animation then plays on cold start only.
+        }
+        try {
             Theme.installFonts(this) // Inter everywhere; preloaded off the main thread
         } catch (e: Throwable) {
             // System sans instead.
