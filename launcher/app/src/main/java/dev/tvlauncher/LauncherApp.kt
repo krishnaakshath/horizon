@@ -111,5 +111,10 @@ class LauncherApp : Application(), dev.tvlauncher.profiles.ProfileStores.RawPref
         } catch (e: Throwable) {
             // The phone remote answers "not available" and its page is missing this run.
         }
+        try {
+            dev.tvlauncher.cast.CastSection.register() // Settings > Connections > Cast & AirPlay
+        } catch (e: Throwable) {
+            // The Cast & AirPlay page is missing this run.
+        }
     }
 }

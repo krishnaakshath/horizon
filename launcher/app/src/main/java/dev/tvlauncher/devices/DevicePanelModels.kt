@@ -116,7 +116,7 @@ object InputsModel {
             val state = (kids.map { it.state } + p.state).minOrNull() ?: p.state
             val cec = kids.any { it.state != STATE_DISCONNECTED }
             TvInputItem(p.id, p.label.trim().ifEmpty { fallbackLabel(p.type) }, p.type, state, device, cec)
-        }.sortedWith(compareBy(NATURAL) { it.label })
+        }.sortedWith(compareBy<TvInputItem> { isAirPlay(it) }.thenBy(NATURAL) { it.label }) // AirPlay after the ports
     }
 
     fun isGeneric(name: String, portLabel: String): Boolean {
@@ -158,7 +158,12 @@ object InputsModel {
         return PanelContent(header(items), e)
     }
 
+    /** The maker's AirPlay receiver input (e.g. TCL), shown as its own calm "AirPlay" row. */
+    fun isAirPlay(i: TvInputItem) = dev.tvlauncher.cast.CastModel.isAirPlayInput(i.id, i.label)
+
     fun row(i: TvInputItem): PanelEntry.Row {
+        if (isAirPlay(i)) return PanelEntry.Row(PREFIX + i.id, R.drawable.ic_dev_phonecast,
+            dev.tvlauncher.cast.CastModel.AIRPLAY_LABEL, dev.tvlauncher.cast.CastModel.AIRPLAY_SUBTITLE)
         val sig = i.signal
         return PanelEntry.Row(PREFIX + i.id, iconFor(i.type), i.label, if (i.device != null && sig.live) i.device else sig.word)
     }
