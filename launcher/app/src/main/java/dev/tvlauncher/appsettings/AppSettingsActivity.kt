@@ -62,6 +62,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
     private lateinit var backdrop: BackdropView
     private lateinit var sidebar: LinearLayout
     private lateinit var sidebarList: LinearLayout
+    private lateinit var sidebarTitle: TextView
     private lateinit var panel: FrameLayout
     private lateinit var pageHost: FrameLayout
     private lateinit var crumb: TextView
@@ -209,14 +210,13 @@ class AppSettingsActivity : Activity(), SettingsNav {
         Glass.frost(sidebar, full)
         val listPad = dp(SettingsLayout.SIDEBAR_LIST_PAD_DP)
         // A fixed title row; the list region starts below it and clips (SidebarMetrics.regions).
-        sidebar.addView(TextView(this).apply {
+        // The title is the first row of the scrolling list (added in renderSidebar), so scrolled entries can never be drawn over it.
+        sidebarTitle = TextView(this).apply {
             text = "Settings"
             style(26f, Theme.semibold)
             isSingleLine = true
             gravity = Gravity.CENTER_VERTICAL
-        }, LinearLayout.LayoutParams(-1, dp(SidebarMetrics.TITLE_DP)).apply {
-            marginStart = listPad + dp(6); bottomMargin = dp(SidebarMetrics.TITLE_GAP_DP)
-        })
+        }
         sidebarList = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             clipChildren = false
@@ -230,10 +230,9 @@ class AppSettingsActivity : Activity(), SettingsNav {
             // marks the clip edges (FULL; LITE clips hard) instead of scroll chevrons.
             clipChildren = true
             clipToPadding = true
-            if (full) {
-                isVerticalFadingEdgeEnabled = true
-                setFadingEdgeLength(dp(24))
-            }
+            // The fade also runs on LITE: a hard clip leaves half a line sticking out of the glass card.
+            isVerticalFadingEdgeEnabled = true
+            setFadingEdgeLength(dp(36))
             addView(sidebarList, FrameLayout.LayoutParams(-1, -2))
         }
         sidebar.addView(sideScroll, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -327,6 +326,9 @@ class AppSettingsActivity : Activity(), SettingsNav {
             sidebarList.requestFocus()
         }
         sidebarList.removeAllViews()
+        sidebarList.addView(sidebarTitle, LinearLayout.LayoutParams(-1, dp(SidebarMetrics.TITLE_DP)).apply {
+            marginStart = dp(6); bottomMargin = dp(SidebarMetrics.TITLE_GAP_DP)
+        })
         sidebarViews.clear()
         sidebarState.entries.forEachIndexed { i, e ->
             // One rhythm on the 8 dp grid: 48 dp entries, 40 dp headers, 8 dp before each later group.
