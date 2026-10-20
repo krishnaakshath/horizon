@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping with Horizon. This guide covers building, testing and sending changes.
+Thanks for helping with Mintaka. This guide covers building, testing and sending changes.
 
 ## Build
 
