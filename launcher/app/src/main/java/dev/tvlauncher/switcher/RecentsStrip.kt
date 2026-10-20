@@ -2,7 +2,6 @@ package dev.tvlauncher.switcher
 
 import android.content.Context
 import android.graphics.drawable.Drawable
-import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
 import android.view.Gravity
 import android.view.KeyEvent
@@ -48,8 +47,10 @@ class RecentsStrip(
     var isOpen = false
         private set
 
+    // The same full-screen dim as Spotlight: a bottom-only gradient left the shelf faintly visible
+    // through the strip in the Clear glass style.
     private val scrim = View(context).apply {
-        background = GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, intArrayOf(0xE60B0D12.toInt(), 0x000B0D12))
+        setBackgroundColor(dev.tvlauncher.ui.SpotlightKeys.scrimColor(full))
         auditTag(AuditTags.SCRIM)
     }
     private val title = TextView(context).apply { style(Theme.SP_SUB, Theme.semibold); text = SwitcherText.TITLE }
@@ -112,7 +113,7 @@ class RecentsStrip(
         auditTag(AuditTags.FULLBLEED, AuditTags.IGNORE) // transient overlay
         visibility = View.GONE
         clipChildren = false
-        addView(scrim, LayoutParams(-1, context.dp(SCRIM_DP), Gravity.BOTTOM))
+        addView(scrim, LayoutParams(-1, -1))
         addView(card, LayoutParams(-1, -2, Gravity.BOTTOM).apply {
             val h = context.dp(Theme.MARGIN_H)
             setMargins(h, 0, h, context.dp(Theme.MARGIN_V))
@@ -367,7 +368,6 @@ class RecentsStrip(
 
     private companion object {
         const val SLIDE_DP = 24
-        const val SCRIM_DP = 360
         const val CARD_W_DP = 196
         const val ART_H_DP = 104
         const val FOCUS_SCALE = 1.05f
