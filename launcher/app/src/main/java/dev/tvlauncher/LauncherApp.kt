@@ -108,6 +108,7 @@ class LauncherApp : Application(), dev.tvlauncher.profiles.ProfileStores.RawPref
         try {
             dev.tvlauncher.link.ForegroundTracker.install(this) // phone remote: which of our screens is in front
             dev.tvlauncher.link.PhoneRemoteSection.register() // Settings > System > Phone remote
+            dev.tvlauncher.link.SmartHomeSection.register() // Settings > System > Smart home (through H02 Link)
         } catch (e: Throwable) {
             // The phone remote answers "not available" and its page is missing this run.
         }

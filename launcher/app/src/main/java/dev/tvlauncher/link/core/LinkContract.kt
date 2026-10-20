@@ -102,6 +102,9 @@ object LinkContract {
     const val METHOD_HA_REFRESH = "ha_refresh"
     /** arg = entity id; [EXTRA_ACTION] (+ [EXTRA_VALUE]); result in [EXTRA_OK]. */
     const val METHOD_HA_ACTION = "ha_action"
+    /** arg = Home Assistant address; [EXTRA_VALUE] = token (absent keeps the saved one). Tests it; result in [EXTRA_STATE]. */
+    const val METHOD_HA_CONFIGURE = "ha_configure"
+    const val METHOD_HA_FORGET = "ha_forget"
     /** Checks the release feed when enabled and stale (arg "force" skips the day limit). */
     const val METHOD_UPDATE_CHECK = "update_check"
 

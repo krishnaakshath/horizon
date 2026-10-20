@@ -52,4 +52,38 @@ class LinkProTest {
         assertEquals(23, LinkContract.Key.OK_LONG.keyCode)
         assertTrue(LinkContract.MEDIA_ACTIONS.containsAll(listOf("play_pause", "next", "prev", "forward", "rewind")))
     }
+
+    @Test fun smartHomeWords_andActions() {
+        assertEquals("Connected", SmartHomeText.state(LinkContract.HA_OK))
+        assertEquals("Not connected", SmartHomeText.state(null))
+        assertEquals("Can't reach Home Assistant right now", SmartHomeText.state(LinkContract.HA_UNREACHABLE))
+        assertEquals(LinkContract.ACTION_ACTIVATE, SmartHomeText.action(LinkContract.CONTROL_SCENE))
+        assertEquals(LinkContract.ACTION_TOGGLE, SmartHomeText.action(LinkContract.CONTROL_TOGGLE))
+        assertNull(SmartHomeText.action(LinkContract.CONTROL_CLIMATE))
+        assertEquals("Unavailable", SmartHomeText.entitySubtitle(SmartEntity("light.a", "A", "toggle", "On", true, false)))
+    }
+
+    @Test fun linkQuickActions_hiddenByDefault_andNeedLink() {
+        val d = dev.tvlauncher.spotlight.SpotlightConfig.DEFAULT
+        assertTrue(QuickActions.Item.PHONE_REMOTE in d.hidden)
+        assertTrue(QuickActions.Item.SMART_HOME in d.hidden)
+        assertTrue(QuickActions.unavailableReason(QuickActions.Item.PHONE_REMOTE, QuickActions.Availability(emptySet())) != null)
+        assertNull(QuickActions.unavailableReason(QuickActions.Item.SMART_HOME, QuickActions.Availability(setOf(QuickActions.LINK_PACKAGE))))
+    }
+}
+
+class UpdateRowTextTest {
+    @Test fun offByDefault_andWithoutRepo() {
+        assertEquals("Off", UpdateRowText.value(null))
+        assertEquals("Off", UpdateRowText.value(UpdateState(true, "", "", false)))
+        assertEquals("Off", UpdateRowText.value(UpdateState(false, "owner/repo", "", false)))
+        assertEquals("Update checks are switched off", UpdateRowText.subtitle(null))
+    }
+
+    @Test fun activeStates() {
+        assertEquals("Not checked yet", UpdateRowText.value(UpdateState(true, "o/r", "", false)))
+        assertEquals("Up to date", UpdateRowText.value(UpdateState(true, "o/r", "v1", false)))
+        assertEquals("Update available", UpdateRowText.value(UpdateState(true, "o/r", "v2", true)))
+        assertEquals("Version v2 is ready in H02 Store", UpdateRowText.subtitle(UpdateState(true, "o/r", "v2", true)))
+    }
 }
