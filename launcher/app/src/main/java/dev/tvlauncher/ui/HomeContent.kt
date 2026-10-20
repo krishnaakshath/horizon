@@ -32,6 +32,16 @@ class HomeContent(
         addView(strip, LayoutParams(-1, context.dp(QuickStrip.ROW_DP)))
     }
 
+    /**
+     * Home sections (homesections.SectionStack): rows [above] and [below] the shelf. Both stay GONE
+     * for the Classic home, so the column is exactly the single row it always was.
+     */
+    fun setSectionSlots(above: View, below: View) {
+        val i = indexOfChild(shelf)
+        addView(above, i, LayoutParams(-1, -2))
+        addView(below, i + 2, LayoutParams(-1, -2))
+    }
+
     /** Row heights for [plan]: the list's height, the strip row (gone when off) and the hero takes the rest. */
     fun applyPlan(plan: LayoutPlan) {
         val s = shelf.layoutParams as LayoutParams

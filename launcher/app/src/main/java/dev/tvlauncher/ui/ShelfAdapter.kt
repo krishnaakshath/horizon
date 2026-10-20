@@ -137,6 +137,9 @@ class ShelfAdapter(
         }
     }
 
+    /** The cached art of [app] for another list (Home sections rows share this cache). */
+    fun sharedArt(app: AppEntry): TileArt<Drawable> = artOf(app)
+
     /** Fresh drawables over the cached art (same bitmaps), for a second view such as the big hero. */
     fun artCopy(app: AppEntry, res: android.content.res.Resources): TileArt<Drawable> = when (val a = artOf(app)) {
         is TileArt.Banner -> TileArt.Banner(copy(a.d, res))

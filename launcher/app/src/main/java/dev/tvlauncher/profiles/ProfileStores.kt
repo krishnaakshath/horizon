@@ -24,7 +24,7 @@ object ProfileStores {
     /** Per-person files: favorites/order/hidden apps, look, home extras, room lighting, wallpaper and ambient, Now Playing, home layout, ambient widgets. */
     val SCOPED: Set<String> = linkedSetOf(
         "launcher_settings", "appearance_settings", "home_extras", "room_settings",
-        "wallpaper_settings", "discover_settings", "home_layout", "ambient_widgets"
+        "wallpaper_settings", "discover_settings", "home_layout", "ambient_widgets", "home_sections"
     )
 
     /** The active profile id; read by [route] on every call (set by [ProfileManager]). */

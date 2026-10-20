@@ -1,6 +1,7 @@
 package dev.tvlauncher.settings
 
 import dev.tvlauncher.homelayout.HomeLayoutSettings
+import dev.tvlauncher.homesections.HomeSections
 import dev.tvlauncher.room.RoomSettings
 import dev.tvlauncher.splash.MotionStyleSettings
 import org.json.JSONArray
@@ -24,13 +25,16 @@ object SettingsBackup {
     const val HOME_LAYOUT_KEY = "home_layout"
     /** Optional: Settings > Appearance > Start-up and loading ([MotionStyleSettings]); same rules as [HOME_LAYOUT_KEY]. */
     const val MOTION_KEY = "motion_style"
+    /** Optional: Settings > Home layout > Home sections ([HomeSections]); same rules as [HOME_LAYOUT_KEY]. */
+    const val SECTIONS_KEY = "home_sections"
 
     /** A validated file: the launcher settings and, when the file had them, the room settings and home layout. */
     data class Restored(
         val settings: LauncherSettings,
         val room: RoomSettings?,
         val layout: HomeLayoutSettings? = null,
-        val motion: MotionStyleSettings? = null
+        val motion: MotionStyleSettings? = null,
+        val sections: HomeSections? = null
     )
 
     const val FILE_NAME = "launcher-settings.json"
@@ -42,12 +46,13 @@ object SettingsBackup {
     /** The file's text: [settings] plus [room] under [ROOM_KEY] and [layout] under [HOME_LAYOUT_KEY] when given. */
     fun toText(
         settings: LauncherSettings, room: RoomSettings? = null, layout: HomeLayoutSettings? = null,
-        motion: MotionStyleSettings? = null
+        motion: MotionStyleSettings? = null, sections: HomeSections? = null
     ): String {
         val json = JSONObject(settings.toJson())
         if (room != null) json.put(ROOM_KEY, JSONObject(room.toJson()))
         if (layout != null) json.put(HOME_LAYOUT_KEY, JSONObject(layout.toJson()))
         if (motion != null) json.put(MOTION_KEY, JSONObject(motion.toJson()))
+        if (sections != null) json.put(SECTIONS_KEY, JSONObject(sections.toJson()))
         return json.toString(2)
     }
 
@@ -104,7 +109,12 @@ object SettingsBackup {
             is JSONObject -> MotionStyleSettings.fromJson(m.toString())
             else -> return null
         }
-        return Restored(settings, room, layout, motion)
+        val sections = when (val h = json.opt(SECTIONS_KEY)) {
+            null -> null
+            is JSONObject -> HomeSections.fromJson(h.toString())
+            else -> return null
+        }
+        return Restored(settings, room, layout, motion, sections)
     }
 
     /**
