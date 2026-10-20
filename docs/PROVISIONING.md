@@ -172,3 +172,17 @@ is not affected**: the home screen, power-on (which uses "Display over other app
 Helper) and everything inside the launcher keep working. Re-running provisioning switches the
 Helper back on. The Helper's own screen and the launcher's Settings say the same in plain
 words.
+
+## Manual equivalents
+
+If you prefer not to use the tool, these adb commands do the same one-time steps (TV and
+computer on the same network, `adb connect <tv-ip>` first).
+
+| What | Command |
+| --- | --- |
+| Notification access (ambient chips, Now Playing) | `adb shell cmd notification allow_listener dev.tvlauncher/dev.tvlauncher.ambient.AmbientNotificationService` |
+| Usage access (Insights) | `adb shell appops set dev.tvlauncher GET_USAGE_STATS allow` |
+| Ambient as the screensaver | `adb shell settings put secure screensaver_components dev.tvlauncher/dev.tvlauncher.ambient.AmbientDream`, then `screensaver_enabled 1` and `screensaver_activate_on_sleep 1` |
+| Location for Wi-Fi and Bluetooth scans | `adb shell pm grant dev.tvlauncher android.permission.ACCESS_FINE_LOCATION` |
+| Copy a wallpaper | `adb push photo.jpg /sdcard/Android/data/dev.tvlauncher/files/wallpapers/` |
+| Install an add-on | `adb install <file>.apk` |
