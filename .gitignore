@@ -10,3 +10,8 @@ local.properties
 __pycache__/
 .pytest_cache/
 docs/superpowers/
+
+# Device-specific output of the provisioning tool (undo scripts, scans)
+tools/scans-out/
+scans-out/
+scans/
