@@ -95,7 +95,7 @@ object HttpParser {
         return HttpRequest(method, path, query, headers, body)
     }
 
-    private val SINGLE = setOf("host", "content-length", "content-type", "cookie", "origin", "x-h02-link")
+    private val SINGLE = setOf("host", "content-length", "content-type", "cookie", "origin", "x-m02-link")
 
     /** One CRLF (or bare LF) terminated line of at most [max] bytes, as Latin-1; null at end of stream. */
     private fun readLine(input: InputStream, max: Int): String? {

@@ -175,6 +175,8 @@ class LinkCoreTest {
         assertEquals(411, status("POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n"))
         assertEquals(413, status("POST /api/key HTTP/1.1\r\nContent-Length: 999999\r\n\r\n"))
         assertEquals(405, status("PUT / HTTP/1.1\r\n\r\n"))
+        // The CSRF header the phone page sends may appear only once.
+        assertEquals(400, status("POST /api/key HTTP/1.1\r\nX-M02-Link: 1\r\nX-M02-Link: 1\r\nContent-Length: 0\r\n\r\n"))
         assertEquals(400, status("GET /../x HTTP/1.1\r\n\r\n"))
         assertEquals(431, status("GET / HTTP/1.1\r\nX: " + "a".repeat(9000) + "\r\n\r\n"))
         assertEquals(400, status("GET / HTTP/1.1\r\nHost: a\r\nHost: b\r\n\r\n"))

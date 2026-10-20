@@ -13,7 +13,7 @@ import java.util.zip.ZipOutputStream
  */
 object BackupZip {
     const val ENTRY = "tvlauncher-config.json"
-    const val FILE_NAME = "h02-backup.h02"
+    const val FILE_NAME = "m02-backup.m02"
     const val MAX_JSON = 512 * 1024
     /** Largest encrypted file accepted from the phone or a server. */
     const val MAX_FILE = 1024 * 1024

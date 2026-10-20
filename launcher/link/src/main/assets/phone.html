@@ -273,7 +273,7 @@ border-radius:999px;padding:11px 18px;font-size:14px;opacity:0;transition:opacit
 <p class="note" style="margin:0 0 10px">Save your home screen, apps order and settings to this phone, locked with a passphrase you choose.</p>
 <input id="bkPass" type="password" placeholder="Passphrase (8 characters or more)" autocomplete="new-password" aria-label="Backup passphrase">
 <div class="g2"><button id="bkExport">Save backup</button><button id="bkImport">Restore backup</button></div>
-<input id="bkFile" type="file" class="hidden" accept=".h02,.zip,application/octet-stream,application/zip">
+<input id="bkFile" type="file" class="hidden" accept=".m02,.h02,.zip,application/octet-stream,application/zip">
 </div>
 
 <div class="card hidden" id="a2hsCard">
@@ -507,7 +507,7 @@ function passOk(){var p=$("bkPass").value;if(p.length<8){toast("Use a passphrase
 $("bkExport").onclick=function(){var p=passOk();if(!p)return;toast("Preparing the backup…");
   fetch("/api/backup/export",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-M02-Link":"1"},body:JSON.stringify({passphrase:p})})
   .then(function(r){if(!r.ok)return r.json().then(function(j){throw j});
-    var name=((r.headers.get("Content-Disposition")||"").match(/filename="([^"]+)"/)||[])[1]||"h02-backup.zip";
+    var name=((r.headers.get("Content-Disposition")||"").match(/filename="([^"]+)"/)||[])[1]||"m02-backup.m02";
     return r.blob().then(function(b){var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();
       setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},4000);toast("Backup saved to this phone")})})
   .catch(function(j){toast(j&&j.error==="slow_down"?"Wait a moment and try again":j&&j.error==="launcher"?"The TV couldn't make a backup":"Saving didn't work")})};
@@ -526,10 +526,10 @@ $("forget").onclick=function(){if(!confirm("Forget this phone? You'll need a new
 var tab="remote";
 function go(t){tab=t;all("[data-tab]").forEach(function(s){s.classList.toggle("hidden",s.dataset.tab!==t)});
   all("[data-go]").forEach(function(b){b.setAttribute("aria-selected",b.dataset.go===t)});
-  try{localStorage.setItem("h02tab",t)}catch(e){}
+  try{localStorage.setItem("m02tab",t)}catch(e){}
   if(t==="media"||t==="remote")poll();if(t==="apps"&&!apps.length)loadApps();if(t==="more"){loadHome();loadSpotify()}window.scrollTo(0,0)}
 all("[data-go]").forEach(function(b){b.onclick=function(){buzz(6);go(b.dataset.go)}});
-try{var saved=localStorage.getItem("h02tab");if(saved&&document.querySelector('[data-tab="'+saved+'"]'))go(saved)}catch(e){}
+try{var saved=localStorage.getItem("m02tab");if(saved&&document.querySelector('[data-tab="'+saved+'"]'))go(saved)}catch(e){}
 
 /* ---------- installable: manifest and icon made here ---------- */
 (function(){
