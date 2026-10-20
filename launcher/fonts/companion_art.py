@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Writes the companion artwork in the M02 look: M02 Store and M02 Browser (banner, launcher icons, wordmarks,
-browser splash mark) and the TV banners of M02 Weather, M02 Helper and M02 Link. The M02 mark is set in the
+"""Writes the companion artwork in the H02 look: H02 Store and H02 Browser (banner, launcher icons, wordmarks,
+browser splash mark) and the TV banners of H02 Weather, H02 Helper and H02 Link. The H02 mark is set in the
 brand font as vector paths, on a glass card over a horizon sunrise, with the app's caption below.
 Usage (fontTools venv, see build-brand-font.sh): python companion_art.py [brand_display.ttf] [launcher dir]"""
 import sys, os
@@ -29,14 +29,14 @@ def g(text, cx, base, cap, track=0.0):
         x += (GS[n].width + track * UPM) * s
     return " ".join(p for p in out if p)
 
-MARK = "M02"  # Brand.SHORT (Mintaka); BrandTest checks the generated files
+MARK = "H02"  # Brand.SHORT (Horizon); BrandTest checks the generated files
 TEXT = "#FFF5F7FA"; TEXT2 = "#FFA7B0C0"; CORE = "#FFB7CAED"
 NS = '''xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"'''
 def hdr(what):
     return f'''<?xml version="1.0" encoding="utf-8"?>
 <!-- {what}
-     Original artwork in the M02 look. Letters are outlines of Unbounded Medium (SIL OFL 1.1) converted
+     Original artwork in the H02 look. Letters are outlines of Unbounded Medium (SIL OFL 1.1) converted
      to paths: no font is loaded. Regenerate with fonts/companion_art.py. -->
 '''
 def night(w, h):
@@ -107,7 +107,7 @@ def banner(caption, accent):
     b += mark(g(MARK, 160, 92, 40)) + mark(g(caption, 160, 137, 7, 0.62), TEXT2)
     return vec(320, 180, b, tools=True)
 def fg_body(accent):
-    return glass(24, 24, 60, 60, 16, 0.8) + sun(54, 64, 5, 22, accent) + line(30, 78, 64, 1.1) + mark(g(MARK, 54, 56, 12.5))
+    return glass(24, 24, 60, 60, 16, 0.8) + sun(54, 64, 5, 22, accent) + line(30, 78, 64, 1.1) + mark(g(MARK, 54, 56, 13))
 def fg(accent):
     return vec(108, 108, fg_body(accent))
 def bg():
@@ -131,9 +131,9 @@ def adaptive(bgname, fgname, mono=False):
 </adaptive-icon>
 '''
 def browser_mark(named):
-    # 48 dp splash / start-page mark: a glass disc with M02 over a small sunrise (M is wide: cap 9).
+    # 48 dp splash / start-page mark: a glass disc with H02 over a small sunrise.
     body = glass(2, 2, 44, 44, 22, 0.8)
-    inner = sun(24, 31, 3.5, 14, BROWSER_ACCENT) + line(9, 39, 31, 0.9) + mark(g(MARK, 24, 27, 9), name="letters" if named else None)
+    inner = sun(24, 31, 3.5, 14, BROWSER_ACCENT) + line(9, 39, 31, 0.9) + mark(g(MARK, 24, 27, 9.5), name="letters" if named else None)
     if named:
         inner = "".join("    " + l + "\n" for l in inner.rstrip("\n").split("\n"))
         body += f'    <group android:name="mark" android:pivotX="24" android:pivotY="24">\n{inner}    </group>\n'
@@ -141,7 +141,7 @@ def browser_mark(named):
         body += inner
     return vec(48, 48, body)
 REVEAL = '''<?xml version="1.0" encoding="utf-8"?>
-<!-- Cold-start reveal of the M02 Browser mark: the sunrise scales up and the letters fade in (about 520 ms). -->
+<!-- Cold-start reveal of the H02 Browser mark: the sunrise scales up and the letters fade in (about 520 ms). -->
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:drawable="@drawable/brand_mark_anim_base">
@@ -168,22 +168,22 @@ WEATHER_ACCENT = "#FFFFB347"; HELPER_ACCENT = "#FF4C8DFF"; LINK_ACCENT = "#FF4FC
 st = os.path.join(ROOT, "store/src/main/res"); br = os.path.join(ROOT, "browser/src/main/res")
 wx = os.path.join(ROOT, "weather/src/main/res"); hp = os.path.join(ROOT, "helper/src/main/res"); lk = os.path.join(ROOT, "link/src/main/res")
 files = {
-    f"{st}/drawable/banner.xml": hdr("320 x 180 dp TV banner of M02 Store: the M02 mark on a glass card over a sunrise, STORE caption.") + banner("STORE", STORE_ACCENT),
-    f"{st}/drawable/ic_launcher_foreground.xml": hdr("M02 Store adaptive-icon foreground (108 dp, inside the 66 dp safe zone).") + fg(STORE_ACCENT),
-    f"{st}/drawable/ic_launcher_background.xml": hdr("M02 Store adaptive-icon background: the night base.") + bg(),
-    f"{st}/drawable/ic_launcher_legacy.xml": hdr("M02 Store icon for API 24-25: rounded night square with the glass M02 mark.") + legacy(STORE_ACCENT),
-    f"{st}/drawable/wordmark.xml": hdr("M02 Store wordmark for the page header.") + wordmark("M02 Store"),
-    f"{br}/drawable/banner_browser.xml": hdr("320 x 180 dp TV banner of M02 Browser: the M02 mark on a glass card over a sunrise, BROWSER caption.") + banner("BROWSER", BROWSER_ACCENT),
-    f"{br}/drawable/ic_launcher_fg.xml": hdr("M02 Browser adaptive-icon foreground (108 dp, inside the 66 dp safe zone).") + fg(BROWSER_ACCENT),
-    f"{br}/drawable/ic_launcher_bg.xml": hdr("M02 Browser adaptive-icon background: the night base.") + bg(),
-    f"{br}/mipmap-anydpi/ic_launcher.xml": hdr("M02 Browser icon for API 24-25: rounded night square with the glass M02 mark.") + legacy(BROWSER_ACCENT),
-    f"{br}/drawable/brand_mark.xml": hdr("M02 Browser mark (splash, start page, tabs): glass disc, M02 over a sunrise.") + browser_mark(False),
-    f"{br}/drawable/brand_mark_anim_base.xml": hdr("Base of brand_mark_reveal: the M02 Browser mark with named group and letters.") + browser_mark(True),
+    f"{st}/drawable/banner.xml": hdr("320 x 180 dp TV banner of H02 Store: the H02 mark on a glass card over a sunrise, STORE caption.") + banner("STORE", STORE_ACCENT),
+    f"{st}/drawable/ic_launcher_foreground.xml": hdr("H02 Store adaptive-icon foreground (108 dp, inside the 66 dp safe zone).") + fg(STORE_ACCENT),
+    f"{st}/drawable/ic_launcher_background.xml": hdr("H02 Store adaptive-icon background: the night base.") + bg(),
+    f"{st}/drawable/ic_launcher_legacy.xml": hdr("H02 Store icon for API 24-25: rounded night square with the glass H02 mark.") + legacy(STORE_ACCENT),
+    f"{st}/drawable/wordmark.xml": hdr("H02 Store wordmark for the page header.") + wordmark("H02 Store"),
+    f"{br}/drawable/banner_browser.xml": hdr("320 x 180 dp TV banner of H02 Browser: the H02 mark on a glass card over a sunrise, BROWSER caption.") + banner("BROWSER", BROWSER_ACCENT),
+    f"{br}/drawable/ic_launcher_fg.xml": hdr("H02 Browser adaptive-icon foreground (108 dp, inside the 66 dp safe zone).") + fg(BROWSER_ACCENT),
+    f"{br}/drawable/ic_launcher_bg.xml": hdr("H02 Browser adaptive-icon background: the night base.") + bg(),
+    f"{br}/mipmap-anydpi/ic_launcher.xml": hdr("H02 Browser icon for API 24-25: rounded night square with the glass H02 mark.") + legacy(BROWSER_ACCENT),
+    f"{br}/drawable/brand_mark.xml": hdr("H02 Browser mark (splash, start page, tabs): glass disc, H02 over a sunrise.") + browser_mark(False),
+    f"{br}/drawable/brand_mark_anim_base.xml": hdr("Base of brand_mark_reveal: the H02 Browser mark with named group and letters.") + browser_mark(True),
     f"{br}/drawable/brand_mark_reveal.xml": REVEAL,
-    f"{br}/drawable/brand_wordmark.xml": hdr("M02 Browser wordmark (splash and start page).") + wordmark("M02 Browser"),
-    f"{wx}/drawable/banner_weather.xml": hdr("320 x 180 dp TV banner of M02 Weather: the M02 mark on a glass card over a sunrise, WEATHER caption.") + banner("WEATHER", WEATHER_ACCENT),
-    f"{hp}/drawable/banner.xml": hdr("320 x 180 dp TV banner (and icon) of M02 Helper: the M02 mark on a glass card over a sunrise, HELPER caption.") + banner("HELPER", HELPER_ACCENT),
-    f"{lk}/drawable/banner.xml": hdr("320 x 180 dp TV banner of M02 Link (shown in the TV's app lists): the M02 mark on a glass card over a sunrise, LINK caption.") + banner("LINK", LINK_ACCENT),
+    f"{br}/drawable/brand_wordmark.xml": hdr("H02 Browser wordmark (splash and start page).") + wordmark("H02 Browser"),
+    f"{wx}/drawable/banner_weather.xml": hdr("320 x 180 dp TV banner of H02 Weather: the H02 mark on a glass card over a sunrise, WEATHER caption.") + banner("WEATHER", WEATHER_ACCENT),
+    f"{hp}/drawable/banner.xml": hdr("320 x 180 dp TV banner (and icon) of H02 Helper: the H02 mark on a glass card over a sunrise, HELPER caption.") + banner("HELPER", HELPER_ACCENT),
+    f"{lk}/drawable/banner.xml": hdr("320 x 180 dp TV banner of H02 Link (shown in the TV's app lists): the H02 mark on a glass card over a sunrise, LINK caption.") + banner("LINK", LINK_ACCENT),
 }
 for p, s in files.items():
     open(p, "w").write(s)

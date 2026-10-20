@@ -40,14 +40,14 @@ upm 2048, hhea ascent 1984 / descent -494 / lineGap 0, USE_TYPO_METRICS set: nat
 5% narrower; Theme.style applies size-based tracking (`Tracking`). Telugu, Devanagari, CJK, emoji etc. are not in the
 subset, so Android falls back to the system fonts per glyph.
 
-## Brand wordmark face (Mintaka / M02)
+## Brand wordmark face (Horizon / H02)
 
 Family: Unbounded (SIL OFL 1.1, no Reserved Font Name; Copyright 2022 The Unbounded Project Authors,
 https://github.com/googlefonts/unbounded). Source: the official Google Fonts repository,
 https://github.com/google/fonts at commit `47d54ca1ebb14fd864695f1d39dc734f39017c33`, `ofl/unbounded/Unbounded[wght].ttf`
 (778,272 bytes, sha256 `323b511be380c8d474ef030686b71aedde501f8d9cd46da558b7c40454372c3f`; METADATA.pb `license: "OFL"`),
 downloaded over HTTPS on 2026-10-20. Chosen over Sora, Syne, Bricolage Grotesque and Outfit. Syne's old-style
-figures turn a digit mark like "02" into "o2", and Sora reads as generic at display sizes. Unbounded's wide, even strokes hold up at
+figures turn "H02" into "Ho2", and Sora reads as generic at display sizes. Unbounded's wide, even strokes hold up at
 720p on dark glass.
 
 `fonts/build-brand-font.sh [venv] [Unbounded[wght].ttf]` builds a static wght=500 instance (fontTools varLib.instancer)
@@ -61,12 +61,11 @@ and subsets it with pyftsubset: space, `! & ' ( ) , - . / : 0-9 A-Z a-z · ’ �
 `OFL.txt` from the same commit (sha256 `31e5d4e83955e7103c34570dd49b0570ef490800bd65b42923c0dd02445263b3`) is
 `app/src/main/res/raw/brand_font_license_ofl.txt`, verbatim. `BrandFontTest` pins both hashes, the size limit (< 40 KB)
 and the notices (`FontNotices.BRAND`, `res/raw/third_party_notices.txt`). Use: `Theme.brand` / `BrandFont`, only for the
-splash "M02" and "MINTAKA". The asset lives outside `assets/fonts/` so the Inter plan (`FontPlan`) is unchanged.
-The subset already holds every letter of the 1.0.1 names (M, I, N, T, A, K and 0-9), so the rename to Mintaka / M02
-did not rebuild the font: the file and its hash are unchanged.
+splash "H02" and "HORIZON". The asset lives outside `assets/fonts/` so the Inter plan (`FontPlan`) is unchanged.
+The subset holds A-Z and 0-9, so every letter of the marks is covered; the file and its hash are unchanged.
 
 Icon and banner: `fonts/brand_art.py` converts the same outlines to vector paths in `res/drawable/tv_banner.xml`,
 `ic_launcher_foreground.xml`, `ic_launcher_background.xml` and `res/mipmap-anydpi*/ic_launcher.xml`. The app loads no font
-for these. `fonts/companion_art.py` does the same for M02 Store and M02 Browser (banner, icons, wordmarks, browser mark)
-and the banners of M02 Weather, M02 Helper and M02 Link. Both scripts need fontTools (the venv that
+for these. `fonts/companion_art.py` does the same for H02 Store and H02 Browser (banner, icons, wordmarks, browser mark)
+and the banners of H02 Weather, H02 Helper and H02 Link. Both scripts need fontTools (the venv that
 `build-brand-font.sh` creates): `.fonts-venv/bin/python fonts/brand_art.py`, then `fonts/companion_art.py`.

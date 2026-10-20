@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rebuild app/src/main/assets/brand/brand_display.ttf (the Mintaka wordmark face) from Unbounded,
+# Rebuild app/src/main/assets/brand/brand_display.ttf (the Horizon wordmark face) from Unbounded,
 # google/fonts commit 47d54ca1ebb14fd864695f1d39dc734f39017c33, ofl/unbounded (SIL OFL 1.1, no Reserved Font Name).
 # Usage: fonts/build-brand-font.sh [venv-dir] [Unbounded[wght].ttf]
 set -euo pipefail
