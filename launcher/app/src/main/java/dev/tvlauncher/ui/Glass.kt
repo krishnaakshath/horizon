@@ -419,12 +419,19 @@ class GlassDrawable(context: Context, val kind: Kind, radiusDp: Int, private val
         if (kind != Kind.ITEM && resolved.scrimAlpha > 0f) {
             // Behind text: the content area, inside the rim band, so the rim stays glassy.
             val band = GlassLooks.bandPx(bounds.width(), bounds.height(), density).toFloat()
-            inner.set(rect.left + band, rect.top + band, rect.right - band, rect.bottom - band)
-            if (inner.width() <= 0f || inner.height() <= 0f) inner.set(rect)
             textScrim.color = resolved.scrim
-            textScrim.alpha = (((resolved.scrim ushr 24) and 0xFF) * alphaMul) / 255
-            val ir = (r - band).coerceAtLeast(r / 2f)
-            canvas.drawRoundRect(inner, ir, ir, textScrim)
+            val total = (((resolved.scrim ushr 24) and 0xFF) * alphaMul) / 255
+            // A feathered edge instead of a hard rectangle: SCRIM_STEPS layers inset from a quarter
+            // band to the full band, each with the alpha that makes the stack compose to exactly
+            // [total] inside the band (where the text is), so contrast is unchanged.
+            textScrim.alpha = GlassScrim.stepAlpha(total, SCRIM_STEPS)
+            for (i in 0 until SCRIM_STEPS) {
+                val inset = band * GlassScrim.insetFraction(i, SCRIM_STEPS)
+                inner.set(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset)
+                if (inner.width() <= 0f || inner.height() <= 0f) inner.set(rect)
+                val ir = (r - inset).coerceAtLeast(r / 2f)
+                canvas.drawRoundRect(inner, ir, ir, textScrim)
+            }
         }
         sheen.alpha = alphaMul
         canvas.drawRoundRect(rect, r, r, sheen)
@@ -585,6 +592,9 @@ class GlassDrawable(context: Context, val kind: Kind, radiusDp: Int, private val
         if (kind == Kind.FROSTED && look.opaque && alphaMul == 255) PixelFormat.OPAQUE else PixelFormat.TRANSLUCENT
 
     private companion object {
+        /** Layers of the feathered text scrim (see [GlassScrim]). */
+        const val SCRIM_STEPS = 4
+
         /** One cached filter per (saturation, lift): looks have a handful of values. */
         private val filters = HashMap<Long, ColorFilter>()
 
@@ -641,4 +651,20 @@ class RoundButton(context: Context, iconRes: Int, title: String, onClick: () -> 
         animate().cancel()
         super.onDetachedFromWindow()
     }
+}
+
+/** The feathered text scrim's maths (pure, JVM-tested). */
+internal object GlassScrim {
+    /** Layer i of n sits this fraction of the rim band in: 0.25 .. 1.0. */
+    fun insetFraction(i: Int, n: Int): Float = if (n <= 1) 1f else 0.25f + 0.75f * i / (n - 1)
+
+    /** Alpha (0..255) per layer so that n stacked layers compose to [total] (0..255). */
+    fun stepAlpha(total: Int, n: Int): Int {
+        if (n <= 1 || total <= 0) return total.coerceIn(0, 255)
+        val a = total.coerceIn(0, 255) / 255.0
+        return Math.round((1.0 - Math.pow(1.0 - a, 1.0 / n)) * 255.0).toInt().coerceIn(0, 255)
+    }
+
+    /** What n layers of [step] give where they all overlap (0..255). */
+    fun composed(step: Int, n: Int): Int = Math.round((1.0 - Math.pow(1.0 - step / 255.0, n.toDouble())) * 255.0).toInt()
 }
