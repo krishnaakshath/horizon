@@ -14,16 +14,23 @@ class AmbientNowPlaying(context: Context) {
     private val app = context
     val card = NowPlayingCard(context, ambient = true)
     private var tracker: NowPlayingTracker? = null
+    /** The art shown on the card (null when nothing plays); Ambient widgets' album-art mode reuses it. */
+    var onArt: ((android.graphics.Bitmap?) -> Unit)? = null
+
+    private fun bind(n: NowPlaying?, art: android.graphics.Bitmap?) {
+        card.bind(n, art)
+        onArt?.invoke(if (n == null) null else art)
+    }
 
     fun start() {
         val run = DiscoverStore(app).loadNowPlaying().showAmbient(NowPlayingAccess.isGranted(app))
-        if (!run) { card.bind(null, null); return }
+        if (!run) { bind(null, null); return }
         val t = tracker ?: NowPlayingTracker(
             app,
             NowPlayingAccess.listenerComponent(app),
-            onChanged = { n -> card.bind(n, tracker?.currentArt) },
-            onArt = { _, bmp -> card.bind(tracker?.current, bmp) },
-            onAccessChanged = { ok -> if (!ok) card.bind(null, null) }
+            onChanged = { n -> bind(n, tracker?.currentArt) },
+            onArt = { _, bmp -> bind(tracker?.current, bmp) },
+            onAccessChanged = { ok -> if (!ok) bind(null, null) }
         ).also { tracker = it }
         t.start()
         card.start()
@@ -32,6 +39,6 @@ class AmbientNowPlaying(context: Context) {
     fun stop() {
         card.stop()
         tracker?.stop()
-        card.bind(null, null)
+        bind(null, null)
     }
 }

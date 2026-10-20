@@ -102,6 +102,8 @@ class LauncherApp : Application(), dev.tvlauncher.profiles.ProfileStores.RawPref
         try {
             dev.tvlauncher.profiles.ProfilesSection.register() // Settings > System > Profiles
             dev.tvlauncher.routines.RoutinesSection.register() // Settings > System > Routines
+            dev.tvlauncher.routines.RoutineScheduler.arm(this) // time routines: the next alarm
+            dev.tvlauncher.ambient.widgets.AmbientWidgetsSection.register() // Settings > Home screen > Ambient widgets
         } catch (e: Throwable) {
             // No Profiles / Routines pages this run; Home keeps the active profile.
         }

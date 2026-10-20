@@ -28,6 +28,7 @@ class LauncherRegistrationTest {
         SystemSections.registerAll(r)
         dev.tvlauncher.profiles.ProfilesSection.register(r)
         dev.tvlauncher.routines.RoutinesSection.register(r)
+        dev.tvlauncher.ambient.widgets.AmbientWidgetsSection.register(r)
         dev.tvlauncher.link.PhoneRemoteSection.register(r)
         return r
     }

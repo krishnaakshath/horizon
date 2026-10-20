@@ -75,6 +75,8 @@ class AmbientView(
     private val chips = LinearLayout(context)
     /** Now Playing: a large, calm card under the date (Settings > Home screen > Now Playing). */
     private val nowPlaying = dev.tvlauncher.nowplaying.AmbientNowPlaying(context)
+    /** Settings > Home screen > Ambient widgets: calendar, photo frame, album art. */
+    private val widgets = dev.tvlauncher.ambient.widgets.AmbientWidgets(context, lite)
 
     private var clockFormat = timeFormat(settings.clock24h)
     private val dateFormat = SimpleDateFormat(
@@ -111,6 +113,8 @@ class AmbientView(
         setBackgroundColor(Theme.BASE)
         clipChildren = true
         addView(wallpaper, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        addView(widgets.backdrop, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        nowPlaying.onArt = { bmp -> widgets.setArt(bmp) }
         addScrims()
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         dimOverlay.setBackgroundColor(0xFF000000.toInt())
@@ -240,6 +244,7 @@ class AmbientView(
         content.addView(clockBlock, lp(clockGravity))
         content.addView(weatherBlock, lp(Gravity.BOTTOM or Gravity.END).apply { width = LayoutParams.WRAP_CONTENT })
         content.addView(netRow, lp(Gravity.TOP or Gravity.END))
+        content.addView(widgets.calendar, lp(Gravity.TOP or Gravity.END).apply { topMargin += px(44f) })
         content.addView(chips, lp(chipsGravity))
     }
 
@@ -259,6 +264,7 @@ class AmbientView(
         status = StatusIcons(context) { renderNetwork(it) }.also { it.start() }
         syncFeedListener()
         nowPlaying.start()
+        widgets.start()
         content.alpha = 0f
         content.animate().alpha(1f).setDuration(if (lite) 250L else 600L).start()
     }
@@ -272,6 +278,7 @@ class AmbientView(
         status?.stop(); status = null
         feed.removeListener(feedListener)
         nowPlaying.stop()
+        widgets.stop()
         content.animate().cancel()
         dimOverlay.animate().cancel()
         wallpaperController.stop()

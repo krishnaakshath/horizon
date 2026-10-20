@@ -30,6 +30,9 @@
     <!-- Boot signal: "Open home after power on" (power.PowerOnReceiver) and re-applying the automatic
          setup after a reboot (setup.SetupBootReceiver). -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Optional: Settings > Ambient widgets > Calendar shows the next three events. A runtime
+         permission, asked only from that page; without it the calendar widget stays hidden. -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
     <!-- Granted only by the owner (Settings > TV & system > Power & sleep > Power on opens the TV's page). On Android 10/11
          it lets the launcher bring home forward when the TV wakes; nothing is drawn over other apps. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
@@ -345,6 +348,22 @@
         <receiver
             android:name=".system.SleepTimerReceiver"
             android:exported="false" />
+
+        <!-- Time routines (Settings > System > Routines): the routine alarm (own PendingIntent only)
+             and re-arming it after boot, an update, a clock change or a time-zone change. -->
+        <receiver
+            android:name=".routines.RoutineAlarmReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".routines.RoutineRearmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Controller settings (A/B swap, stick sensitivity, Guide button) for the companion apps
              and the Helper. Read-only; nothing private in it. -->
