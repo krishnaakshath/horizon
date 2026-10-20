@@ -224,8 +224,7 @@ class TopBar(
         override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: android.graphics.Rect?) {
             super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
             applyFocus(gainFocus)
-            animate().scaleX(if (gainFocus) 1.06f else 1f).scaleY(if (gainFocus) 1.06f else 1f)
-                .setDuration(Motion.ms(TileSpec.FOCUS_MS)).start()
+            Glass.focusScale(this, if (gainFocus) 1.06f else 1f, Motion.ms(TileSpec.FOCUS_MS), GlassBackdrop.fullTier)
         }
     }
 }

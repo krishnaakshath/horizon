@@ -174,6 +174,7 @@ class AppSettingsActivity : Activity(), SettingsNav {
             1f
         }
         val appearance = AppearancePrefs(this).load()
+        dev.tvlauncher.ui.GlassBackdrop.fullTier = device == EffectsMode.FULL
         dev.tvlauncher.ui.GlassBackdrop.setStyle(
             dev.tvlauncher.settings.GlassStyle.resolve(appearance.glassStyle, device == EffectsMode.FULL))
         return SettingsStyle.from(appearance, device, scale)

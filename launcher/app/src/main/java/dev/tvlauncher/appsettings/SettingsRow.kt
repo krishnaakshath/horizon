@@ -293,12 +293,7 @@ class SettingsRow(
         if (kind is RowKind.Action) arrowRight.alpha = if (gainFocus) 1f else 0.55f
         updateArrows()
         val s = if (gainFocus) FOCUS_SCALE else 1f
-        animate().cancel()
-        if (style.focusMs > 0) {
-            animate().scaleX(s).scaleY(s).setDuration(style.focusMs).start()
-        } else {
-            scaleX = s; scaleY = s
-        }
+        dev.tvlauncher.ui.Glass.focusScale(this, s, style.focusMs, style.full)
     }
 
     /** Focused rows are accent-lit glass: values and subtitles brighten, everything stays light ink. */

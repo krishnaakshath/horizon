@@ -72,7 +72,8 @@ class DiscoverPanel(
         val panel = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(px(PanelStyle.G3), px(PanelStyle.G2), px(PanelStyle.G3), px(PanelStyle.G2))
-            background = PanelStyle.surface(context, lite)
+            dev.tvlauncher.ui.Glass.frost(this, full = !lite, radiusDp = PanelStyle.CARD_RADIUS,
+                overContentScrim = (if (lite) 0xE6 else 0xB3) / 255f)
         }
         panel.addView(PanelHeaderView(context).apply {
             bind(PanelHeader(R.drawable.ic_disc_bag, "Get more apps", "Popular on TV. Installs open the Play Store."))

@@ -30,6 +30,7 @@ class HomeLook(context: Context, private val device: DeviceProfile) {
 
     /** Settings > Appearance > Glass style for this TV, applied to every glass surface. */
     private fun applyGlass() {
+        dev.tvlauncher.ui.GlassBackdrop.fullTier = device.effectsMode == dev.tvlauncher.device.EffectsMode.FULL
         dev.tvlauncher.ui.GlassBackdrop.setStyle(
             dev.tvlauncher.settings.GlassStyle.resolve(settings.glassStyle, device.effectsMode == dev.tvlauncher.device.EffectsMode.FULL))
     }

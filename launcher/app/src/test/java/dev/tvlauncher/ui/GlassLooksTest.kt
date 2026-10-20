@@ -5,7 +5,10 @@ import dev.tvlauncher.room.Palettes
 import dev.tvlauncher.room.RoomMode
 import dev.tvlauncher.settings.AppearanceSettings
 import dev.tvlauncher.settings.GlassStyle
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -113,5 +116,78 @@ class LensMathTest {
         assertTrue(src.contentEquals(dst))
         LensMath.remap(src, w, h, 2, 2, chroma = true, dst = dst)
         assertTrue(dst.all { (it ushr 24) == 0xFF })
+    }
+}
+
+class LensPipelineTest {
+    private val out = IntArray(6)
+
+    @Test fun crop_coversThePanel_inSampleCoordinates() {
+        // 1920x1080 backdrop, 1/8 sample 240x135; a 600x800 panel at (660, 140).
+        assertTrue(LensPlan.crop(660, 140, 600, 800, 72, 240, 135, 1920, 1080, out))
+        assertEquals(82, out[LensPlan.X]); assertEquals(17, out[LensPlan.Y])
+        assertEquals(76, out[LensPlan.W]); assertEquals(101, out[LensPlan.H])
+        assertEquals(9, out[LensPlan.BAND_X]); assertEquals(9, out[LensPlan.BAND_Y])
+        assertTrue(LensPlan.bytes(out) in 20_000..40_000)
+    }
+
+    @Test fun crop_clampsToTheSample_andBandToHalfTheCrop() {
+        assertTrue(LensPlan.crop(-100, -100, 4000, 4000, 2000, 240, 135, 1920, 1080, out))
+        assertEquals(0, out[LensPlan.X]); assertEquals(0, out[LensPlan.Y])
+        assertEquals(240, out[LensPlan.W]); assertEquals(135, out[LensPlan.H])
+        assertEquals(120, out[LensPlan.BAND_X]); assertEquals(67, out[LensPlan.BAND_Y])
+    }
+
+    @Test fun crop_fallsBack_whenNothingToLens() {
+        assertFalse(LensPlan.crop(0, 0, 0, 100, 8, 240, 135, 1920, 1080, out))
+        assertFalse(LensPlan.crop(0, 0, 100, 100, 8, 0, 0, 1920, 1080, out)) // no sample yet
+        assertFalse(LensPlan.crop(0, 0, 100, 100, 8, 240, 135, 0, 0, out)) // no backdrop size
+        assertFalse(LensPlan.crop(0, 0, 16, 16, 2, 240, 135, 1920, 1080, out)) // smaller than MIN_PX in the sample
+    }
+
+    @Test fun fourTypicalPanels_fitTheBudget() {
+        val panels = arrayOf(intArrayOf(1200, 800), intArrayOf(600, 800), intArrayOf(420, 120), intArrayOf(1400, 900))
+        var total = 0
+        val keys = HashSet<Long>()
+        for (p in panels) {
+            assertTrue(LensPlan.crop(100, 100, p[0], p[1], 48, 240, 135, 1920, 1080, out))
+            total += LensPlan.bytes(out)
+            keys += LensPlan.key(out)
+        }
+        assertEquals(4, keys.size)
+        assertTrue("lens cache $total B", total in 50_000..300_000)
+    }
+
+    @Test fun lru_keepsFour_evictsTheLeastRecent_clearEvictsAll() {
+        val evicted = ArrayList<String>()
+        val lru = LensLru<String>(LensPlan.MAX_ENTRIES) { evicted += it }
+        for (i in 1..4) lru.put(i.toLong(), "v$i")
+        assertEquals(4, lru.size)
+        assertEquals("v1", lru.get(1L)) // 1 is now most recent; 2 is the oldest
+        lru.put(5L, "v5")
+        assertEquals(listOf("v2"), evicted)
+        assertNull(lru.get(2L))
+        assertEquals("v5", lru.get(5L))
+        lru.put(5L, "v5b")
+        assertEquals(listOf("v2", "v5"), evicted)
+        lru.clear()
+        assertEquals(0, lru.size)
+        assertNull(lru.get(1L))
+        assertEquals(6, evicted.size)
+    }
+
+    @Test fun table_remap_matchesTheDirectRemap_andIsReusable() {
+        val w = 30; val h = 20
+        val src = IntArray(w * h) { (0xFF shl 24) or (it * 977 and 0xFFFFFF) }
+        val a = IntArray(w * h); val b = IntArray(w * h)
+        LensMath.remap(src, w, h, 6, 4, chroma = true, dst = a)
+        val t = LensMath.Table(w, h, 6, 4, true)
+        assertTrue(t.matches(w, h, 6, 4, true))
+        assertFalse(t.matches(w, h, 6, 4, false))
+        LensMath.remap(src, t, b)
+        assertArrayEquals(a, b)
+        // The rim is magnified (sampled from inside), the centre is the identity.
+        assertEquals(src[10 * w + 15], b[10 * w + 15] or (0xFF shl 24))
+        assertTrue(b.all { (it ushr 24) == 0xFF })
     }
 }
