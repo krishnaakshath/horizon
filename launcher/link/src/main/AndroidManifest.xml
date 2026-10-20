@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <!-- The phone page's server, Home Assistant, WebDAV and the release feed. The launcher itself has none. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- Same signer only: launcher <-> Link <-> Helper. Declared in all three so install order does not matter. -->
+    <permission
+        android:name="dev.tvlauncher.permission.LINK"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="dev.tvlauncher.permission.LINK" />
+
+    <queries>
+        <package android:name="dev.tvlauncher" />
+        <provider android:authorities="dev.tvlauncher.linkconfig" />
+        <!-- The launcher's controller settings (A/B swap, stick sensitivity), read-only. -->
+        <provider android:authorities="dev.tvlauncher.gamepad" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:theme="@style/LinkTheme">
+
+        <!-- Opened from the launcher's Settings > System > Phone remote (no launcher tile). -->
+        <activity
+            android:name=".LinkSettingsActivity"
+            android:exported="true"
+            android:permission="dev.tvlauncher.permission.LINK"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.link.action.SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".LinkService"
+            android:exported="false" />
+
+        <!-- Exported for the launcher only: the signature permission guards queries, and call() checks it too. -->
+        <provider
+            android:name=".LinkProvider"
+            android:authorities="dev.tvlauncher.link"
+            android:exported="true"
+            android:readPermission="dev.tvlauncher.permission.LINK"
+            android:writePermission="dev.tvlauncher.permission.LINK" />
+
+        <!-- Only the system sends these. -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -21,6 +21,8 @@ object Brand {
     const val STORE = "$SHORT Store"
     const val WEATHER = "$SHORT Weather"
     const val HELPER = "$SHORT Helper"
+    /** Phone remote, smart home and update check (the launcher itself stays offline). */
+    const val LINK = "$SHORT Link"
     /** Screensaver and notification-listener labels in the TV's own settings lists. */
     const val AMBIENT = "$SHORT Ambient"
     const val AMBIENT_NOTIFICATIONS = "$SHORT ambient notifications"
