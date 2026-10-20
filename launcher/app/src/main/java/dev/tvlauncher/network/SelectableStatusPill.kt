@@ -32,6 +32,9 @@ class SelectableStatusPill(context: Context, iconRes: Int, label: String? = null
         isClickable = true
         val hasLabel = !label.isNullOrEmpty()
         setPadding(context.dp(if (hasLabel) 12 else 9), context.dp(7), context.dp(if (hasLabel) 16 else 9), context.dp(7))
+        // A 40 dp focus target (TV remote guideline); the icon stays centred, the pill grows ~4 dp.
+        minimumHeight = context.dp(Theme.MIN_TARGET_DP)
+        if (!hasLabel) { minimumWidth = context.dp(Theme.MIN_TARGET_DP); gravity = Gravity.CENTER }
         iconView.setImageResource(iconRes)
         addView(iconView, LayoutParams(context.dp(22), context.dp(22)))
         if (hasLabel) {
