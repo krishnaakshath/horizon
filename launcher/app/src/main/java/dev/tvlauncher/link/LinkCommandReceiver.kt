@@ -49,8 +49,36 @@ object LinkCommands {
      * Helper has no key or text action (it cannot read other apps' screens, by design), so the
      * phone shows its calm "needs H02 Helper" note.
      */
-    fun outsideOutcome(key: LinkContract.Key?): Int =
-        if (key == LinkContract.Key.HOME) Outcome.LAUNCHER else Outcome.NEEDS_HELPER
+    fun outsideOutcome(key: LinkContract.Key?): Int = outsideOutcome(key, helperOn = false)
+
+    /** Back in another app goes through the Helper's existing global BACK action when it is on. */
+    fun outsideOutcome(key: LinkContract.Key?, helperOn: Boolean): Int = when {
+        key == LinkContract.Key.HOME -> Outcome.LAUNCHER
+        key == LinkContract.Key.BACK && helperOn -> Outcome.HELPER
+        else -> Outcome.NEEDS_HELPER
+    }
+
+    /** The phone's quick action names mapped to Spotlight items (Spotlight itself is null: it opens the overlay). */
+    fun quickItem(wire: String?): dev.tvlauncher.ui.QuickActions.Item? = when (wire) {
+        LinkContract.QUICK_INPUTS -> dev.tvlauncher.ui.QuickActions.Item.INPUTS
+        LinkContract.QUICK_SETTINGS -> dev.tvlauncher.ui.QuickActions.Item.SETTINGS
+        LinkContract.QUICK_AMBIENT -> dev.tvlauncher.ui.QuickActions.Item.AMBIENT
+        LinkContract.QUICK_FOCUS -> dev.tvlauncher.ui.QuickActions.Item.FOCUS
+        LinkContract.QUICK_BEDTIME -> dev.tvlauncher.ui.QuickActions.Item.BEDTIME
+        else -> null
+    }
+
+    fun quickAllowed(wire: String?): Boolean = wire != null && wire in LinkContract.QUICK_ITEMS
+
+    /**
+     * Which session the phone controls: the first playing one, else the first with any state
+     * (index into [states], or -1). States are PlaybackState codes (3 = playing, 6 = buffering).
+     */
+    fun pickSession(states: List<Int?>): Int {
+        val playing = states.indexOfFirst { it == 3 || it == 6 }
+        if (playing >= 0) return playing
+        return states.indexOfFirst { it != null && it != 0 }
+    }
 
     /** Packages the phone may not open (hidden TV firmware apps and our own add-ons). */
     fun launchAllowed(pkg: String?): Boolean =
@@ -78,14 +106,46 @@ class LinkCommandReceiver : BroadcastReceiver() {
             LinkContract.KIND_TEXT, LinkContract.KIND_ENTER -> text(LinkContract.cleanText(intent.getStringExtra(LinkContract.EXTRA_TEXT)), kind == LinkContract.KIND_ENTER)
             LinkContract.KIND_OPEN_URL -> openUrl(context, intent.getStringExtra(LinkContract.EXTRA_URL))
             LinkContract.KIND_LAUNCH -> launch(context, intent.getStringExtra(LinkContract.EXTRA_PACKAGE))
+            LinkContract.KIND_MEDIA -> LinkMedia.transport(context, intent.getStringExtra(LinkContract.EXTRA_ACTION))
+            LinkContract.KIND_NOW_PLAYING -> { setResultExtras(LinkMedia.nowPlaying(context)); Outcome.LAUNCHER }
+            LinkContract.KIND_POWER_MENU -> if (PowerActions.powerMenu(context)) Outcome.HELPER else Outcome.NEEDS_HELPER
+            LinkContract.KIND_QUICK -> quick(context, intent.getStringExtra(LinkContract.EXTRA_ITEM))
             else -> Outcome.FAILED
         }
     }
 
     private fun key(context: Context, key: LinkContract.Key): Int {
         if (key == LinkContract.Key.HOME) return goHome(context)
-        if (ForegroundTracker.resumed == null) return LinkCommands.outsideOutcome(key)
+        if (ForegroundTracker.resumed == null) {
+            val helperOn = PowerActions.helperEnabled(context)
+            val out = LinkCommands.outsideOutcome(key, helperOn)
+            if (out == Outcome.HELPER) return helperGlobal(context, "back")
+            return out
+        }
+        if (key == LinkContract.Key.OK_LONG) return if (onMain { a -> sendLongPress(a, key.keyCode); true }) Outcome.LAUNCHER else Outcome.NEEDS_HELPER
         return if (onMain { a -> sendKey(a, key.keyCode); true }) Outcome.LAUNCHER else Outcome.NEEDS_HELPER
+    }
+
+    /** The Helper's existing global actions (BACK only from here; HOME uses its own receiver). */
+    private fun helperGlobal(context: Context, key: String): Int = try {
+        context.sendBroadcast(Intent(LinkContract.ACTION_HELPER_INPUT).setPackage(LinkContract.HELPER_PACKAGE)
+            .putExtra(LinkContract.EXTRA_KEY, key))
+        Outcome.HELPER
+    } catch (e: RuntimeException) {
+        Outcome.NEEDS_HELPER
+    }
+
+    private fun quick(context: Context, item: String?): Int {
+        if (!LinkCommands.quickAllowed(item)) return Outcome.FAILED
+        return try {
+            context.startActivity(Intent(context, HomeActivity::class.java)
+                .setAction(LinkContract.ACTION_QUICK_HOME)
+                .putExtra(LinkContract.EXTRA_ITEM, item)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+            Outcome.LAUNCHER
+        } catch (e: RuntimeException) {
+            Outcome.FAILED
+        }
     }
 
     private fun goHome(context: Context): Int {
@@ -157,6 +217,19 @@ class LinkCommandReceiver : BroadcastReceiver() {
         val t = SystemClock.uptimeMillis()
         a.dispatchKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, code, 0))
         a.dispatchKeyEvent(KeyEvent(t, SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, code, 0))
+    }
+
+    /** Down, held past the long-press timeout (with a long-press repeat), then up. */
+    private fun sendLongPress(a: Activity, code: Int) {
+        val t = SystemClock.uptimeMillis()
+        a.dispatchKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, code, 0))
+        val hold = android.view.ViewConfiguration.getLongPressTimeout().toLong() + 150
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (a.isFinishing) return@postDelayed
+            val now = SystemClock.uptimeMillis()
+            a.dispatchKeyEvent(KeyEvent(t, now, KeyEvent.ACTION_DOWN, code, 1, 0, -1, 0, KeyEvent.FLAG_LONG_PRESS))
+            a.dispatchKeyEvent(KeyEvent(t, SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, code, 0))
+        }, hold)
     }
 
     /** Runs [f] on the main thread with the resumed activity; waits briefly for the answer. */

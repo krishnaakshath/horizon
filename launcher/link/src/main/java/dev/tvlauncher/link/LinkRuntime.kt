@@ -105,6 +105,31 @@ class AndroidBackend(private val context: Context) : LinkBackend {
         false
     }
 
+    override fun volumeLevel(): Triple<Int, Int, Boolean>? = try {
+        val a = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val muted = if (android.os.Build.VERSION.SDK_INT >= 23) a.isStreamMute(AudioManager.STREAM_MUSIC) else false
+        Triple(a.getStreamVolume(AudioManager.STREAM_MUSIC), a.getStreamMaxVolume(AudioManager.STREAM_MUSIC), muted)
+    } catch (e: Exception) {
+        null
+    }
+
+    override fun media(action: String): Int = Forwarder.media(context, action)
+    override fun powerMenu(): Int = Forwarder.powerMenu(context)
+    override fun quick(item: String): Int = Forwarder.quick(context, item)
+
+    override fun nowPlaying(): JSONObject {
+        val b = Forwarder.nowPlaying(context) ?: return JSONObject().put("available", false)
+        val o = JSONObject().put("available", true).put("access", b.getBoolean(LinkContract.NP_ACCESS, true))
+        b.getString(LinkContract.NP_TITLE)?.let { o.put("title", it) }
+        b.getString(LinkContract.NP_ARTIST)?.let { o.put("artist", it) }
+        b.getString(LinkContract.NP_APP)?.let { o.put("app", it) }
+        if (b.containsKey(LinkContract.NP_PLAYING)) {
+            o.put("playing", b.getBoolean(LinkContract.NP_PLAYING))
+                .put("position", b.getLong(LinkContract.NP_POSITION_MS)).put("duration", b.getLong(LinkContract.NP_DURATION_MS))
+        }
+        return o
+    }
+
     override fun apps(): List<Pair<String, String>> {
         val pm = context.packageManager
         val seen = LinkedHashMap<String, String>()

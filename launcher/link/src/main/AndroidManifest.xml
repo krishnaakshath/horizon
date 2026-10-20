@@ -62,6 +62,16 @@
             android:readPermission="dev.tvlauncher.permission.LINK"
             android:writePermission="dev.tvlauncher.permission.LINK" />
 
+        <!-- tvtool provision only: WRITE_SECURE_SETTINGS is held by the adb shell, not by ordinary apps. -->
+        <receiver
+            android:name=".ProvisionStartReceiver"
+            android:exported="true"
+            android:permission="android.permission.WRITE_SECURE_SETTINGS">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.link.action.PROVISION_START" />
+            </intent-filter>
+        </receiver>
+
         <!-- Only the system sends these. -->
         <receiver
             android:name=".BootReceiver"

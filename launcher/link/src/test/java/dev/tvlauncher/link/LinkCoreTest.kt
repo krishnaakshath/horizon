@@ -227,8 +227,22 @@ class LinkCoreTest {
 
     @Test fun phonePageIsSmallAndSelfContained() {
         val html = File("src/main/assets/phone.html").readText()
-        assertTrue(html.length < 40_000)
+        assertTrue(html.toByteArray().size < 150_000)
         assertFalse(html.contains("<script src")); assertFalse(html.contains("<link "))
         assertTrue(html.contains("X-H02-Link"))
+    }
+
+    @Test fun volumePercent_roundsAndReadsMutedAsZero() {
+        assertEquals(50, dev.tvlauncher.link.web.LinkApi.volumePercent(50, 100, false))
+        assertEquals(33, dev.tvlauncher.link.web.LinkApi.volumePercent(5, 15, false))
+        assertEquals(0, dev.tvlauncher.link.web.LinkApi.volumePercent(10, 15, true))
+        assertEquals(100, dev.tvlauncher.link.web.LinkApi.volumePercent(99, 15, false))
+        assertEquals(0, dev.tvlauncher.link.web.LinkApi.volumePercent(3, 0, false))
+    }
+
+    @Test fun phonePage_hasTheRemoteParts() {
+        val html = File("src/main/assets/phone.html").readText()
+        listOf("/api/media", "/api/nowplaying", "/api/quick", "/api/power", "ok_long", "\"del\"", "navigator.vibrate", "manifest")
+            .forEach { assertTrue(it, html.contains(it)) }
     }
 }

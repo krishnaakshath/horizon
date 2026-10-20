@@ -24,6 +24,13 @@ interface LinkBackend {
     fun openUrl(url: String): Int
     fun launch(pkg: String): Int
     fun volume(action: String): Boolean
+    /** Current music volume: level, max, muted (null when unreadable). */
+    fun volumeLevel(): Triple<Int, Int, Boolean>? = null
+    fun media(action: String): Int = LinkContract.Outcome.NONE
+    /** What is playing, as JSON for the phone (empty object when nothing). */
+    fun nowPlaying(): JSONObject = JSONObject()
+    fun powerMenu(): Int = LinkContract.Outcome.NONE
+    fun quick(item: String): Int = LinkContract.Outcome.NONE
     fun apps(): List<Pair<String, String>>
     fun helperOn(): Boolean
     fun haStatus(): JSONObject
@@ -102,8 +109,21 @@ class LinkApi(private val backend: LinkBackend, private val now: () -> Long = Sy
         }
         "/api/volume" -> {
             val a = body.optString("action")
-            if (a !in setOf("up", "down", "mute")) HttpResponse.error(400, "action")
-            else ok(JSONObject().put("done", backend.volume(a)))
+            if (a !in setOf("up", "down", "mute", "get")) HttpResponse.error(400, "action")
+            else {
+                val done = a == "get" || backend.volume(a)
+                ok(volumeJson(JSONObject().put("done", done)))
+            }
+        }
+        "/api/media" -> {
+            val a = body.optString("action")
+            if (a !in LinkContract.MEDIA_ACTIONS) HttpResponse.error(400, "action") else outcome(backend.media(a))
+        }
+        "/api/nowplaying" -> ok(JSONObject().put("np", backend.nowPlaying()).also { volumeJson(it) })
+        "/api/power" -> outcome(backend.powerMenu())
+        "/api/quick" -> {
+            val item = body.optString("item")
+            if (item !in LinkContract.QUICK_ITEMS) HttpResponse.error(400, "item") else outcome(backend.quick(item))
         }
         "/api/open" -> {
             val url = body.optString("url").trim().let { if (it.isNotEmpty() && !it.contains("://")) "https://$it" else it }
@@ -181,6 +201,14 @@ class LinkApi(private val backend: LinkBackend, private val now: () -> Long = Sy
         }
     }
 
+    private fun volumeJson(o: JSONObject): JSONObject {
+        backend.volumeLevel()?.let { (level, max, muted) ->
+            o.put("volume", JSONObject().put("level", level).put("max", max).put("muted", muted)
+                .put("percent", volumePercent(level, max, muted)))
+        }
+        return o
+    }
+
     private fun ok(o: JSONObject) = HttpResponse.json(200, o.put("ok", true).toString())
 
     private fun outcome(code: Int): HttpResponse =
@@ -195,6 +223,10 @@ class LinkApi(private val backend: LinkBackend, private val now: () -> Long = Sy
             LinkContract.ACTION_TOGGLE, LinkContract.ACTION_ACTIVATE, LinkContract.ACTION_TEMP_UP,
             LinkContract.ACTION_TEMP_DOWN, LinkContract.ACTION_PLAY_PAUSE,
         )
+
+        /** 0..100 for the phone's level bar; muted reads 0. */
+        fun volumePercent(level: Int, max: Int, muted: Boolean): Int =
+            if (muted || max <= 0) 0 else (level.coerceIn(0, max) * 100 + max / 2) / max
 
         fun maxBody(path: String): Int = if (path == "/api/backup/import") MAX_UPLOAD else MAX_BODY
 

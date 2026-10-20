@@ -510,6 +510,10 @@ class HomeActivity : Activity() {
         if (redirected) return
         if (intent?.action == SpotlightKeys.ACTION) {
             openSpotlight()
+        } else if (intent?.action == dev.tvlauncher.link.core.LinkContract.ACTION_QUICK_HOME) {
+            // Phone remote quick action (H02 Link): Spotlight, or one of its quick actions.
+            val item = dev.tvlauncher.link.LinkCommands.quickItem(intent.getStringExtra(dev.tvlauncher.link.core.LinkContract.EXTRA_ITEM))
+            if (item == null) openSpotlight() else onQuickAction(item)
         } else {
             launchOverlay.hide()
             if (switcher.onHomePress()) { // a quick second Home press: Recent apps

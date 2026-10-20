@@ -382,6 +382,14 @@
             android:name=".speed.SpeedJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
+        <!-- H02 Link's encrypted phone backup: the configuration document, our own signed apps only. -->
+        <provider
+            android:name=".link.LinkConfigProvider"
+            android:authorities="dev.tvlauncher.linkconfig"
+            android:exported="true"
+            android:readPermission="dev.tvlauncher.permission.LINK"
+            android:writePermission="dev.tvlauncher.permission.LINK" />
+
         <!-- Remote commands from H02 Link (phone remote); only our own signed apps may send them. -->
         <receiver
             android:name=".link.LinkCommandReceiver"

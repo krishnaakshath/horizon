@@ -68,3 +68,19 @@ class BootReceiver : BroadcastReceiver() {
         }
     }
 }
+
+/**
+ * `tvtool provision` switches the phone remote on: `adb shell am broadcast -a
+ * dev.tvlauncher.link.action.PROVISION_START -n dev.tvlauncher.link/.ProvisionStartReceiver`.
+ * Exported, but only senders holding WRITE_SECURE_SETTINGS (a signature|privileged permission the
+ * adb shell has and ordinary apps cannot get) reach it. The owner can switch it off again in
+ * Settings > System > Phone remote.
+ */
+class ProvisionStartReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != dev.tvlauncher.link.core.LinkContract.ACTION_PROVISION_START) return
+        LinkStore(context).enabled = true
+        LinkService.sync(context)
+        if (isOrderedBroadcast) resultCode = 1
+    }
+}

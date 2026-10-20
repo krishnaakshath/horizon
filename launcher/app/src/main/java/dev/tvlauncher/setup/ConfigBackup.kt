@@ -162,6 +162,16 @@ object ConfigBackupIo {
         return null
     }
 
+    /** The configuration document as text (H02 Link's encrypted phone backup), or null. */
+    fun exportText(context: Context): String? = try { ConfigBackup.encode(snapshot(context)) } catch (e: Exception) { null }
+
+    /** Applies a document from [exportText]; false when invalid. */
+    fun restoreText(context: Context, text: String): Boolean {
+        if (text.length > ConfigBackup.MAX_BYTES) return false
+        val stores = try { ConfigBackup.decode(text) } catch (e: Exception) { null } ?: return false
+        return apply(context, stores)
+    }
+
     /** Applies a valid file (each store replaced as a whole); false when invalid or unreadable. */
     fun restore(context: Context, file: File): Boolean {
         val stores = try {
@@ -170,6 +180,10 @@ object ConfigBackupIo {
         } catch (e: Exception) {
             null
         } ?: return false
+        return apply(context, stores)
+    }
+
+    private fun apply(context: Context, stores: Map<String, Map<String, Any>>): Boolean {
         return try {
             for ((name, values) in stores) {
                 val e = ProfileStores.raw(context, name).edit().clear()
