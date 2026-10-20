@@ -27,6 +27,7 @@ On screen it is called **H02**. Horizon is the project name.
 
 **Look**
 - Glass styles: frosted, clear, solid and a liquid-glass-inspired lens, with an adjustable glass amount.
+- Ready-made looks plus your own: corners, tint, accent, text size and tile icons, which can be saved to and loaded from look files.
 - Text stays readable on any wallpaper; a bright-room palette, text sizes and reduced motion are available.
 - Choice of start-up animations and app-launch transitions.
 
