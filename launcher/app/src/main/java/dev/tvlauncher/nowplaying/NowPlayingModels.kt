@@ -242,7 +242,11 @@ data class NowPlayingSettings(
     val showOnHome: Boolean = true,
     val showOnAmbient: Boolean = true,
     /** The home backdrop shows the playing item's art ([MediaBackdropPolicy]). */
-    val backdropFollows: Boolean = true
+    val backdropFollows: Boolean = true,
+    /** "Screensaver follows the music": Ambient turns into the playing song ([AmbientMusicPlan]). */
+    val ambientFollows: Boolean = true,
+    /** Backdrop and screensaver look ([NowPlayingStyle]); applies to Home and Ambient. */
+    val style: NowPlayingStyle = NowPlayingStyle.BLURRED
 ) {
     fun effective(accessGranted: Boolean): NowPlayingSettings =
         if (accessGranted) this else copy(nowPlayingEnabled = false)
@@ -253,12 +257,16 @@ data class NowPlayingSettings(
 
     fun followBackdrop(accessGranted: Boolean) = effective(accessGranted).nowPlayingEnabled && backdropFollows
 
+    fun followAmbient(accessGranted: Boolean) = effective(accessGranted).nowPlayingEnabled && ambientFollows
+
     fun toJson(): String = JSONObject()
         .put("version", 1)
         .put("enabled", nowPlayingEnabled)
         .put("showOnHome", showOnHome)
         .put("showOnAmbient", showOnAmbient)
         .put("backdropFollows", backdropFollows)
+        .put("ambientFollows", ambientFollows)
+        .put("style", style.wire)
         .toString()
 
     companion object {
@@ -268,7 +276,8 @@ data class NowPlayingSettings(
             val d = NowPlayingSettings()
             fun b(key: String, def: Boolean) = json.opt(key) as? Boolean ?: def
             return NowPlayingSettings(b("enabled", d.nowPlayingEnabled), b("showOnHome", d.showOnHome), b("showOnAmbient", d.showOnAmbient),
-                b("backdropFollows", d.backdropFollows))
+                b("backdropFollows", d.backdropFollows), b("ambientFollows", d.ambientFollows),
+                NowPlayingStyle.of(json.opt("style") as? String))
         }
     }
 }

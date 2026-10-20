@@ -24,12 +24,13 @@ object AmbientWidgetsSection : SettingsSection, SpecifiedPage {
     const val PHOTOS = "aw.photos"
     const val PHOTO_TIME = "aw.photoTime"
     const val ALBUM_ART = "aw.albumArt"
+    const val FOLLOW_MUSIC = "aw.followMusic"
     override val id = ID
     override val title = "Ambient widgets"
     override val iconRes = R.drawable.ic_widgets
     override val group = SettingsGroup.HOME
     override val description = "Calendar, photo frame and album art on the ambient screen."
-    override val spec = PageSpec(ID, listOf(CALENDAR, PHOTOS, PHOTO_TIME, ALBUM_ART))
+    override val spec = PageSpec(ID, listOf(CALENDAR, PHOTOS, PHOTO_TIME, ALBUM_ART, FOLLOW_MUSIC))
 
     fun register(registry: SettingsRegistry = SettingsRegistry.shared) = registry.register(this)
 
@@ -61,6 +62,15 @@ object AmbientWidgetsSection : SettingsSection, SpecifiedPage {
             store.save(store.load().copy(albumArt = on))
         }, subtitle = "Fills the screen with the cover. Needs Now Playing on ambient (Home screen > Now Playing)",
             iconRes = R.drawable.ic_qa_ambient)
+        // Same setting as Home screen > Now Playing > "Screensaver follows the music".
+        val np = dev.tvlauncher.discover.DiscoverStore(context)
+        page.row(FOLLOW_MUSIC, "Screensaver follows the music", RowKind.Toggle(np.loadNowPlaying().ambientFollows) { on ->
+            val cur = np.loadNowPlaying()
+            np.saveNowPlaying(dev.tvlauncher.nowplaying.AmbientMusicPlan.withMode(cur,
+                if (on) dev.tvlauncher.nowplaying.AmbientMusicPlan.Mode.FULL
+                else if (cur.showOnAmbient) dev.tvlauncher.nowplaying.AmbientMusicPlan.Mode.CARD
+                else dev.tvlauncher.nowplaying.AmbientMusicPlan.Mode.OFF))
+        }, subtitle = "While a song plays, the screensaver shows it: cover, title and progress", iconRes = R.drawable.ic_qa_ambient)
         return page
     }
 

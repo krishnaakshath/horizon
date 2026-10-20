@@ -261,7 +261,7 @@ class MediaBackdropTest {
         assertFalse(NowPlayingPageRows.toggle(d, NowPlayingPageRows.AMBIENT).showOnAmbient)
         assertFalse(NowPlayingPageRows.toggle(d, NowPlayingPageRows.ENABLED).nowPlayingEnabled)
         assertEquals(d, NowPlayingPageRows.toggle(d, NowPlayingPageRows.ACCESS))
-        for (k in NowPlayingPageRows.PRIMARY - NowPlayingPageRows.ACCESS) {
+        for (k in NowPlayingPageRows.TOGGLES + NowPlayingPageRows.AMBIENT) {
             assertEquals(!NowPlayingPageRows.isOn(d, k), NowPlayingPageRows.isOn(NowPlayingPageRows.toggle(d, k), k))
         }
         assertEquals(listOf(NowPlayingPageRows.ENABLED, NowPlayingPageRows.ACCESS), NowPlayingPageRows.rows(d.copy(nowPlayingEnabled = false)))

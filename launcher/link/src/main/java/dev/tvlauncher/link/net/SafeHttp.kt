@@ -12,7 +12,7 @@ import java.net.URL
  * [UrlPolicy] checked before every connection, short timeouts and a cap on every body read.
  */
 object SafeHttp {
-    class Response(val status: Int, val body: ByteArray) {
+    class Response(val status: Int, val body: ByteArray, val retryAfter: String? = null) {
         fun text(): String = String(body, Charsets.UTF_8)
     }
 
@@ -52,7 +52,7 @@ object SafeHttp {
             val status = c.responseCode
             val stream = try { if (status >= 400) c.errorStream else c.inputStream } catch (e: IOException) { null }
             val bytes = stream?.use { s -> readCapped(s, maxBytes) } ?: ByteArray(0)
-            return Response(status, bytes)
+            return Response(status, bytes, c.getHeaderField("Retry-After"))
         } finally {
             c.disconnect()
         }

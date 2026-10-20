@@ -44,6 +44,12 @@ interface LinkBackend {
     fun backupExport(passphrase: String): ByteArray?
     /** "ok", "passphrase", "file" or "launcher". */
     fun backupImport(file: ByteArray, passphrase: String): String
+    /** Optional Spotify artwork key: {configured, id (masked), state}. The secret is never returned. */
+    fun spotifyStatus(): JSONObject = JSONObject().put("configured", false)
+    /** Saves and tests; returns an SP_* state. */
+    fun spotifySet(id: String, secret: String): String = LinkContract.SP_NOT_CONFIGURED
+    fun spotifyTest(): String = LinkContract.SP_NOT_CONFIGURED
+    fun spotifyRemove() {}
 }
 
 /**
@@ -159,6 +165,20 @@ class LinkApi(private val backend: LinkBackend, private val now: () -> Long = Sy
             if (!dev.tvlauncher.link.ha.HaParser.isEntityId(id) || action !in HA_ACTIONS) HttpResponse.error(400, "action")
             else ok(JSONObject().put("done", backend.haAction(id, action)))
         }
+        "/api/spotify/status" -> ok(backend.spotifyStatus())
+        "/api/spotify/key" -> {
+            val id = body.optString("id").trim()
+            val secret = body.optString("secret").trim()
+            when {
+                !dev.tvlauncher.link.spotify.SpotifyCore.validCredential(id) ||
+                    !dev.tvlauncher.link.spotify.SpotifyCore.validCredential(secret) -> HttpResponse.error(400, "key")
+                !heavy.tryAcquire(who, now()) -> HttpResponse.error(429, "slow_down")
+                else -> ok(JSONObject().put("state", backend.spotifySet(id, secret)))
+            }
+        }
+        "/api/spotify/test" -> if (!heavy.tryAcquire(who, now())) HttpResponse.error(429, "slow_down")
+            else ok(JSONObject().put("state", backend.spotifyTest()))
+        "/api/spotify/forget" -> { backend.spotifyRemove(); ok(JSONObject()) }
         "/api/backup/export" -> {
             val pass = body.optString("passphrase")
             when {

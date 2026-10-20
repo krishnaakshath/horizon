@@ -72,6 +72,9 @@ class HomeNowPlaying(
             return hide()
         }
         val showCard = settings.showHome(granted)
+        media.style = settings.style
+        media.onCredit = { on -> card?.setCredit(on) }
+        if (settings.style == dev.tvlauncher.nowplaying.NowPlayingStyle.BANNER) dev.tvlauncher.nowplaying.SpotifyArtClient.refresh(activity)
         media.setEnabled(settings.followBackdrop(granted))
         val c = if (showCard) card ?: NowPlayingCard(activity, full = full, onOpen = { tracker?.openApp(activity) }) { action ->
             tracker?.send(action)

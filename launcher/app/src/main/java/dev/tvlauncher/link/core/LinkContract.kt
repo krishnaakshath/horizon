@@ -274,4 +274,52 @@ object LinkContract {
     /** Removes control characters (keeps newlines out too) and caps the length. */
     fun cleanText(s: String?): String =
         (s ?: "").filter { it == ' ' || !it.isISOControl() }.take(MAX_TEXT)
+
+    // ---- Optional Spotify artwork (:link holds the key; the launcher only asks for pictures).
+
+    const val PATH_SPOTIFY = "spotify"
+    const val PATH_ART = "art"
+    const val URI_SPOTIFY = "content://$AUTHORITY/$PATH_SPOTIFY"
+    /** content://dev.tvlauncher.link/art/<key>: a read-only file descriptor of the cached JPEG. */
+    const val URI_ART = "content://$AUTHORITY/$PATH_ART"
+    /** /spotify: one row. The client id is shown masked; the secret never leaves :link. */
+    const val COL_SP_CONFIGURED = "configured"
+    const val COL_SP_ID_HINT = "id_hint"
+    /** Last test or lookup result: one of SP_*. */
+    const val COL_SP_STATE = "state"
+    val SPOTIFY_COLUMNS = arrayOf(COL_SP_CONFIGURED, COL_SP_ID_HINT, COL_SP_STATE)
+    const val SP_UNKNOWN = "unknown"
+    const val SP_OK = "ok"
+    const val SP_INVALID = "invalid"
+    const val SP_OFFLINE = "offline"
+    const val SP_NOT_CONFIGURED = "not_configured"
+
+    /** arg = client id, [EXTRA_VALUE] = client secret; saves and tests. Result in [EXTRA_STATE]. */
+    const val METHOD_SPOTIFY_SET = "spotify_set"
+    const val METHOD_SPOTIFY_TEST = "spotify_test"
+    const val METHOD_SPOTIFY_REMOVE = "spotify_remove"
+    /**
+     * arg = [spotifyKey]; extras [EXTRA_TITLE], [EXTRA_ARTIST], [EXTRA_ALBUM], [EXTRA_ART_KIND]. Never blocks:
+     * [EXTRA_STATE] is [ART_READY] (open URI_ART/key), [ART_PENDING] (ask again shortly) or [ART_NONE].
+     */
+    const val METHOD_SPOTIFY_ART = "spotify_art"
+    const val EXTRA_TITLE = "title"
+    const val EXTRA_ARTIST = "artist"
+    const val EXTRA_ALBUM = "album"
+    const val EXTRA_ART_KIND = "art_kind"
+    const val ART_KIND_ALBUM = "album"
+    const val ART_KIND_ARTIST = "artist"
+    const val ART_READY = "ready"
+    const val ART_PENDING = "pending"
+    const val ART_NONE = "none"
+
+    /** Track identity for the artwork cache: 24 hex characters, same in :app and :link. */
+    fun spotifyKey(title: String?, artist: String?, album: String?, kind: String): String {
+        fun n(s: String?) = (s ?: "").trim().lowercase()
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+            .digest("${n(title)}\u0001${n(artist)}\u0001${n(album)}\u0001$kind".toByteArray(Charsets.UTF_8))
+        return md.take(12).joinToString("") { "%02x".format(it.toInt() and 0xff) }
+    }
+
+    fun isSpotifyKey(k: String?): Boolean = k != null && k.length == 24 && k.all { it in '0'..'9' || it in 'a'..'f' }
 }
