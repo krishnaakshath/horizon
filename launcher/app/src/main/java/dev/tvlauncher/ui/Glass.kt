@@ -85,8 +85,20 @@ object Glass {
 
     /** Focus scale interpolator: springy for Liquid Glass, calm otherwise. */
     fun focusInterpolator(full: Boolean): android.animation.TimeInterpolator =
-        if (GlassLooks.of(GlassBackdrop.style, full).spring) android.view.animation.OvershootInterpolator(1.6f)
-        else android.view.animation.DecelerateInterpolator()
+        if (GlassLooks.of(GlassBackdrop.style, full).spring && Motion.enabled) SPRINGY else CALM
+
+    private val SPRINGY = android.view.animation.OvershootInterpolator(1.6f)
+    private val CALM = android.view.animation.DecelerateInterpolator()
+
+    /**
+     * Focus scale of [view] to [scale] over [ms] with [focusInterpolator]: springy for Liquid
+     * Glass, calm otherwise; instant when [ms] is 0 or motion is off (reduced motion).
+     */
+    fun focusScale(view: View, scale: Float, ms: Long, full: Boolean) {
+        view.animate().cancel()
+        if (ms <= 0L || !Motion.enabled) { view.scaleX = scale; view.scaleY = scale; return }
+        view.animate().scaleX(scale).scaleY(scale).setDuration(ms).setInterpolator(focusInterpolator(full)).start()
+    }
 
     const val SPRING_MS = 300L
     const val SPRING_LITE_MS = 240L
@@ -148,10 +160,14 @@ object GlassBackdrop {
     var style: GlassStyle = GlassStyle.FROSTED
         private set
 
+    /** True on a FULL-tier TV (set with the style by Home and Settings): springy focus only there. */
+    @Volatile var fullTier = false
+
     /** Applies a glass style everywhere: every tracked glass view repaints in it. */
     fun setStyle(s: GlassStyle) {
         if (s == style) return
         style = s
+        clearLens()
         version++
         for (i in hosts.indices.reversed()) hosts.getOrNull(i)?.invalidate()
     }
@@ -184,6 +200,7 @@ object GlassBackdrop {
         System.arraycopy(s, 0, stops, 0, 3)
         scrimAlpha = scrim; width = w; height = h
         blur = null
+        clearLens()
         retint(null)
         return true
     }
@@ -192,6 +209,7 @@ object GlassBackdrop {
     fun setBlur(from: Any, bitmap: Bitmap, brightest: Int) {
         if (owner !== from) return
         blur = bitmap
+        clearLens()
         retint(brightest)
     }
 
@@ -200,7 +218,75 @@ object GlassBackdrop {
         if (owner !== from) return
         owner = null
         blur = null
+        clearLens()
         version++
+    }
+
+    // ---- Liquid Glass lens (FULL): per panel crop of [blur], remapped on [executor] ----
+
+    /** Bumped whenever a lens bitmap arrives or the cache is dropped: drawables re-query then. */
+    var lensGen = 0
+        private set
+    /** Lens bitmaps by crop ([LensPlan.key]); dropped (left to the GC, never recycle()d while a RenderNode may hold them) on style/backdrop change. */
+    private val lensCache = LensLru<Bitmap>(LensPlan.MAX_ENTRIES)
+    private val pending = LongArray(LensPlan.MAX_ENTRIES)
+    private var pendingCount = 0
+    private var lensEpoch = 0
+    /** Executor thread only: the last displacement table (reused while the crop size holds). */
+    private var table: LensMath.Table? = null
+
+    /**
+     * The lens bitmap for crop [c] ([LensPlan.crop]) of the current blur, or null while it is being
+     * built (the caller draws the plain sample meanwhile: no flicker, the lens fades in on arrival).
+     * Called only when a drawable's crop or [lensGen] changed, never per frame.
+     */
+    fun lens(c: IntArray, chroma: Boolean): Bitmap? {
+        val src = blur ?: return null
+        val key = LensPlan.key(c)
+        lensCache.get(key)?.let { return it }
+        for (i in 0 until pendingCount) if (pending[i] == key) return null
+        if (pendingCount >= pending.size) return null
+        pending[pendingCount++] = key
+        val crop = c.copyOf()
+        val epoch = lensEpoch
+        executor.execute {
+            val bmp = try { buildLens(src, crop, chroma) } catch (_: Throwable) { null }
+            main.post {
+                removePending(key)
+                if (bmp != null && epoch == lensEpoch && blur === src) {
+                    lensCache.put(key, bmp)
+                    lensGen++
+                    for (i in hosts.indices.reversed()) hosts.getOrNull(i)?.invalidate()
+                }
+            }
+        }
+        return null
+    }
+
+    private fun removePending(key: Long) {
+        for (i in 0 until pendingCount) if (pending[i] == key) {
+            pending[i] = pending[pendingCount - 1]; pendingCount--; return
+        }
+    }
+
+    /** Executor thread: crop the blur, remap it through the (cached) displacement table. */
+    private fun buildLens(src: Bitmap, c: IntArray, chroma: Boolean): Bitmap? {
+        val w = c[LensPlan.W]; val h = c[LensPlan.H]
+        if (src.isRecycled || c[LensPlan.X] + w > src.width || c[LensPlan.Y] + h > src.height) return null
+        val px = IntArray(w * h)
+        src.getPixels(px, 0, w, c[LensPlan.X], c[LensPlan.Y], w, h)
+        val bx = c[LensPlan.BAND_X]; val by = c[LensPlan.BAND_Y]
+        val t = table?.takeIf { it.matches(w, h, bx, by, chroma) } ?: LensMath.Table(w, h, bx, by, chroma).also { table = it }
+        val out = IntArray(w * h)
+        LensMath.remap(px, t, out)
+        return Bitmap.createBitmap(out, w, h, Bitmap.Config.ARGB_8888)
+    }
+
+    private fun clearLens() {
+        lensEpoch++
+        lensCache.clear()
+        pendingCount = 0
+        lensGen++
     }
 
     private fun retint(blurBrightest: Int?) {
@@ -271,6 +357,12 @@ class GlassDrawable(context: Context, val kind: Kind, radiusDp: Int, private val
     private var resolvedKey = -1
     private var shaderLook: GlassLook? = null
     private var boostFilter: ColorFilter? = null
+    private val crop = IntArray(6)
+    private var lensKey = Long.MIN_VALUE
+    private var lensGenSeen = -1
+    private var lensSrc: Bitmap? = null
+    private var lensBitmap: Bitmap? = null
+    private var lensShader: BitmapShader? = null
 
     /** Rebuilds look, colours and the bounds-dependent shaders when the sample or style changed. */
     private fun ensure() {
@@ -380,6 +472,7 @@ class GlassDrawable(context: Context, val kind: Kind, radiusDp: Int, private val
         base.alpha = a
         base.colorFilter = boostFilter
         if (l.sample == GlassLook.Sample.BLUR && bs != null && bmp != null && g.width > 0) {
+            if (l.lens && full && drawLens(canvas, r, g, bmp, dx, dy)) return
             matrix.setScale(g.width / bmp.width.toFloat(), g.height / bmp.height.toFloat())
             matrix.postTranslate(dx, dy)
             bs.setLocalMatrix(matrix)
@@ -397,6 +490,34 @@ class GlassDrawable(context: Context, val kind: Kind, radiusDp: Int, private val
         scrim.shader = ss
         scrim.alpha = a
         canvas.drawRoundRect(rect, r, r, scrim)
+    }
+
+    /**
+     * Liquid Glass: the lens-remapped crop of the blur under this card, when built (else false and
+     * the plain sample is drawn). The crop is re-resolved only when the card's crop or the lens
+     * cache changed; drawing reuses the shader, matrix and boost filter (no per-frame allocation).
+     */
+    private fun drawLens(canvas: Canvas, r: Float, g: GlassBackdrop, bmp: Bitmap, dx: Float, dy: Float): Boolean {
+        val band = GlassLooks.bandPx(bounds.width(), bounds.height(), density)
+        if (!LensPlan.crop(-dx.toInt() + bounds.left, -dy.toInt() + bounds.top, bounds.width(), bounds.height(), band,
+                bmp.width, bmp.height, g.width, g.height, crop)) return false
+        val key = LensPlan.key(crop)
+        if (key != lensKey || lensGenSeen != g.lensGen || lensSrc !== bmp) {
+            lensKey = key; lensGenSeen = g.lensGen; lensSrc = bmp
+            val lb = g.lens(crop, look.chroma)
+            if (lb !== lensBitmap) {
+                lensBitmap = lb
+                lensShader = lb?.let { BitmapShader(it, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) }
+            }
+        }
+        val ls = lensShader ?: return false
+        matrix.setTranslate(crop[LensPlan.X].toFloat(), crop[LensPlan.Y].toFloat())
+        matrix.postScale(g.width / bmp.width.toFloat(), g.height / bmp.height.toFloat())
+        matrix.postTranslate(dx, dy)
+        ls.setLocalMatrix(matrix)
+        base.shader = ls
+        canvas.drawRoundRect(rect, r, r, base)
+        return true
     }
 
     /**
@@ -513,9 +634,7 @@ class RoundButton(context: Context, iconRes: Int, title: String, onClick: () -> 
     override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
         applyFocus(gainFocus)
-        val s = if (gainFocus) 1.1f else 1f
-        animate().cancel()
-        animate().scaleX(s).scaleY(s).setDuration(Motion.ms(TileSpec.FOCUS_MS)).start()
+        Glass.focusScale(this, if (gainFocus) 1.1f else 1f, Motion.ms(TileSpec.FOCUS_MS), GlassBackdrop.fullTier)
     }
 
     override fun onDetachedFromWindow() {

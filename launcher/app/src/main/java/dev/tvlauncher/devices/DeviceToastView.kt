@@ -76,7 +76,7 @@ class DeviceToastView(context: Context, private val mode: EffectsMode) : FrameLa
             gravity = Gravity.CENTER_VERTICAL
             clipChildren = false
             clipToPadding = false
-            background = PanelStyle.surface(context, lite, radiusDp = 20)
+            dev.tvlauncher.ui.Glass.frost(this, full = !lite, radiusDp = 20, overContentScrim = 0f)
             setPadding(context.dp(PanelStyle.G2), context.dp(PanelStyle.G2), context.dp(PanelStyle.G3), context.dp(PanelStyle.G2))
             addView(medallion, LinearLayout.LayoutParams(iconSize, iconSize))
             addView(texts, LinearLayout.LayoutParams(-2, -2).apply { marginStart = context.dp(PanelStyle.G2) })

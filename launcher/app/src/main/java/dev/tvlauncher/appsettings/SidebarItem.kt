@@ -82,9 +82,7 @@ internal class SidebarItem(context: Context, private var style: SettingsStyle, v
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
         applyColors()
         val s = if (gainFocus) FOCUS_SCALE else 1f
-        animate().cancel()
-        if (style.focusMs > 0) animate().scaleX(s).scaleY(s).setDuration(style.focusMs).start()
-        else { scaleX = s; scaleY = s }
+        dev.tvlauncher.ui.Glass.focusScale(this, s, style.focusMs, style.full)
     }
 
     override fun hasOverlappingRendering() = false
@@ -144,9 +142,7 @@ internal class SidebarHeader(
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
         applyColors()
         val s = if (gainFocus) SidebarItem.FOCUS_SCALE else 1f
-        animate().cancel()
-        if (style.focusMs > 0) animate().scaleX(s).scaleY(s).setDuration(style.focusMs).start()
-        else { scaleX = s; scaleY = s }
+        dev.tvlauncher.ui.Glass.focusScale(this, s, style.focusMs, style.full)
     }
 
     override fun hasOverlappingRendering() = false

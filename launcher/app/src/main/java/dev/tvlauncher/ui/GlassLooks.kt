@@ -223,11 +223,26 @@ object LensMath {
      */
     fun remap(src: IntArray, w: Int, h: Int, bandX: Int, bandY: Int, chroma: Boolean, dst: IntArray) {
         if (w <= 0 || h <= 0) return
+        remap(src, Table(w, h, bandX, bandY, chroma), dst)
+    }
+
+    /** The precomputed displacement table of one crop size (built once, reused while the size holds). */
+    class Table(val w: Int, val h: Int, val bandX: Int, val bandY: Int, val chroma: Boolean) {
         val gx = lut(w, bandX); val gy = lut(h, bandY)
         val rx = if (chroma) lut(w, bandX, K + CHROMA) else gx
         val ry = if (chroma) lut(h, bandY, K + CHROMA) else gy
         val bx = if (chroma) lut(w, bandX, K - CHROMA) else gx
         val by = if (chroma) lut(h, bandY, K - CHROMA) else gy
+
+        fun matches(w: Int, h: Int, bandX: Int, bandY: Int, chroma: Boolean) =
+            this.w == w && this.h == h && this.bandX == bandX && this.bandY == bandY && this.chroma == chroma
+    }
+
+    /** Remaps [src] (t.w x t.h) into [dst] through [t]. Pure; no allocation. */
+    fun remap(src: IntArray, t: Table, dst: IntArray) {
+        val w = t.w; val h = t.h; val chroma = t.chroma
+        if (w <= 0 || h <= 0) return
+        val gx = t.gx; val gy = t.gy; val rx = t.rx; val ry = t.ry; val bx = t.bx; val by = t.by
         for (y in 0 until h) for (x in 0 until w) {
             val g = src[gy[y] * w + gx[x]]
             dst[y * w + x] = if (!chroma) g else {
@@ -236,5 +251,89 @@ object LensMath {
                 (0xFF shl 24) or (r and 0xFF0000) or (g and 0xFF00) or (b and 0xFF)
             }
         }
+    }
+}
+
+/**
+ * Where a Liquid Glass panel's lens bitmap comes from (pure): the panel's window rect mapped into
+ * the blurred backdrop sample (floor/ceil so the crop always covers the panel, clamped to the
+ * sample), with the rim band in sample pixels. Out = [x, y, w, h, bandX, bandY] (no allocation).
+ */
+object LensPlan {
+    /** Distinct panel sizes kept at once (about 30-80 KB each at 1080p, 1/8 scale). */
+    const val MAX_ENTRIES = 4
+    /** Smaller crops (in sample px) are not worth a lens: the plain sample is drawn. */
+    const val MIN_PX = 4
+    const val X = 0; const val Y = 1; const val W = 2; const val H = 3; const val BAND_X = 4; const val BAND_Y = 5
+
+    fun crop(left: Int, top: Int, w: Int, h: Int, bandPx: Int, sampleW: Int, sampleH: Int,
+             backdropW: Int, backdropH: Int, out: IntArray): Boolean {
+        if (w <= 0 || h <= 0 || sampleW <= 0 || sampleH <= 0 || backdropW <= 0 || backdropH <= 0) return false
+        val sx = sampleW.toFloat() / backdropW
+        val sy = sampleH.toFloat() / backdropH
+        val x0 = Math.floor((left * sx).toDouble()).toInt().coerceIn(0, sampleW - 1)
+        val y0 = Math.floor((top * sy).toDouble()).toInt().coerceIn(0, sampleH - 1)
+        val x1 = Math.ceil(((left + w) * sx).toDouble()).toInt().coerceIn(x0 + 1, sampleW)
+        val y1 = Math.ceil(((top + h) * sy).toDouble()).toInt().coerceIn(y0 + 1, sampleH)
+        val cw = x1 - x0
+        val ch = y1 - y0
+        if (cw < MIN_PX || ch < MIN_PX) return false
+        out[X] = x0; out[Y] = y0; out[W] = cw; out[H] = ch
+        out[BAND_X] = Math.round(bandPx * sx).coerceIn(1, cw / 2)
+        out[BAND_Y] = Math.round(bandPx * sy).coerceIn(1, ch / 2)
+        return true
+    }
+
+    /** One key per crop (x, y, w, h: 16 bits each; samples are at most a few hundred px). */
+    fun key(c: IntArray): Long =
+        ((c[X].toLong() and 0xFFFF) shl 48) or ((c[Y].toLong() and 0xFFFF) shl 32) or
+            ((c[W].toLong() and 0xFFFF) shl 16) or (c[H].toLong() and 0xFFFF)
+
+    /** Bytes of one ARGB_8888 lens bitmap for crop [c]. */
+    fun bytes(c: IntArray): Int = c[W] * c[H] * 4
+}
+
+/**
+ * A tiny least-recently-used cache keyed by primitive longs (no boxing on lookups): at most [max]
+ * entries; [onEvict] receives each value pushed out (or cleared). Main thread only.
+ */
+class LensLru<V : Any>(val max: Int, private val onEvict: (V) -> Unit = {}) {
+    private val keys = LongArray(max)
+    private val values = arrayOfNulls<Any>(max)
+    private val stamps = LongArray(max)
+    private var clock = 0L
+    var size = 0
+        private set
+
+    private fun indexOf(key: Long): Int {
+        for (i in 0 until size) if (keys[i] == key) return i
+        return -1
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun get(key: Long): V? {
+        val i = indexOf(key)
+        if (i < 0) return null
+        stamps[i] = ++clock
+        return values[i] as V
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun put(key: Long, value: V) {
+        var i = indexOf(key)
+        if (i < 0) {
+            if (size < max) i = size++ else {
+                i = 0
+                for (j in 1 until size) if (stamps[j] < stamps[i]) i = j
+                (values[i] as V?)?.let(onEvict)
+            }
+        } else if (values[i] !== value) (values[i] as V?)?.let(onEvict)
+        keys[i] = key; values[i] = value; stamps[i] = ++clock
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun clear() {
+        for (i in 0 until size) { (values[i] as V?)?.let(onEvict); values[i] = null }
+        size = 0
     }
 }

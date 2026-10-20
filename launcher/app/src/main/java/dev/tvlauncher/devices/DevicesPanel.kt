@@ -19,7 +19,7 @@ import dev.tvlauncher.ui.dp
  * [setDevices] with DeviceMonitor.devices() whenever it changes. TV-input rows switch to that
  * input on OK; a failure shows inline and is reported to [onSwitchResult].
  */
-class DevicesPanel(context: Context) : ScrollView(context) {
+class DevicesPanel(context: Context, full: Boolean = false) : ScrollView(context) {
     private val header = PanelHeaderView(context)
     private val list = PanelList(context)
     private var devices: List<ConnectedDevice> = emptyList()
@@ -33,7 +33,7 @@ class DevicesPanel(context: Context) : ScrollView(context) {
         isVerticalScrollBarEnabled = false
         overScrollMode = OVER_SCROLL_NEVER
         isFocusable = false
-        background = PanelStyle.surface(context, lite = false)
+        dev.tvlauncher.ui.Glass.frost(this, full, radiusDp = PanelStyle.CARD_RADIUS, overContentScrim = 0f)
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(context.dp(PanelStyle.G1), context.dp(PanelStyle.G2), context.dp(PanelStyle.G1), context.dp(PanelStyle.G1))
