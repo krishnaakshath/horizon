@@ -1,6 +1,6 @@
 # Launcher Helper
 
-H02 Helper: optional companion app for the Horizon launcher (`dev.tvlauncher.helper`). It provides:
+M02 Helper: optional companion app for the Mintaka launcher (`dev.tvlauncher.helper`). It provides:
 
 - Double-Back to leave the foreground app (the first Back passes through untouched; a second Back within the window, default 500 ms, sends you Home).
 - One user-chosen shortcut key that opens the launcher Spotlight (`dev.tvlauncher.action.SPOTLIGHT`).

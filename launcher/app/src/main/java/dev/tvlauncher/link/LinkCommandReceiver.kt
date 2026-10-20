@@ -47,7 +47,7 @@ object LinkCommands {
     /**
      * Keys and text while another app is in front: only Home is ours to do (see goHome); the
      * Helper has no key or text action (it cannot read other apps' screens, by design), so the
-     * phone shows its calm "needs H02 Helper" note.
+     * phone shows its calm "needs M02 Helper" note.
      */
     fun outsideOutcome(key: LinkContract.Key?): Int = outsideOutcome(key, helperOn = false)
 
@@ -87,7 +87,7 @@ object LinkCommands {
 }
 
 /**
- * Remote commands from H02 Link (ordered broadcast, sender must hold [LinkContract.PERMISSION]).
+ * Remote commands from M02 Link (ordered broadcast, sender must hold [LinkContract.PERMISSION]).
  * Our own screens in front: keys and text go to the focused view. Another app in front: Home
  * brings the home screen back (through the Helper's existing HOME action when it is on), links
  * and app launches work everywhere, other keys answer [Outcome.NEEDS_HELPER].

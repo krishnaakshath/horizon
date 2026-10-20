@@ -10,7 +10,7 @@ import dev.tvlauncher.link.core.LinkContract
 import dev.tvlauncher.setup.ConfigBackupIo
 
 /**
- * H02 Link's encrypted phone backup reads and writes the launcher's configuration document here
+ * M02 Link's encrypted phone backup reads and writes the launcher's configuration document here
  * (the same document as Settings > Backup, [ConfigBackupIo]). Exported for our own signed apps
  * only: the manifest's signature permission plus a check inside [call]. No rows to query.
  */

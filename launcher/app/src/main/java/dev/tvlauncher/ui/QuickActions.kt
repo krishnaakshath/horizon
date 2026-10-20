@@ -43,9 +43,9 @@ object QuickActions {
         BEDTIME("Bedtime mode"),
         /** Settings > Connections > Cast & AirPlay. */
         CAST("Cast & AirPlay"),
-        /** Settings > System > Phone remote (shown once H02 Link is installed). */
+        /** Settings > System > Phone remote (shown once M02 Link is installed). */
         PHONE_REMOTE("Phone remote"),
-        /** Settings > System > Smart home (shown once H02 Link is installed). */
+        /** Settings > System > Smart home (shown once M02 Link is installed). */
         SMART_HOME("Smart home")
     }
 
@@ -100,7 +100,7 @@ object QuickActions {
         Item.BROWSER -> if (BROWSER_PACKAGE in a.installedPackages) null else "Shown once Browser is installed"
         Item.GET_APPS -> if (GET_APPS_PACKAGE in a.installedPackages) null else "Shown once ${Brand.STORE} is installed"
         Item.SLEEP_TIMER -> if (a.sleepTimer) null else "The sleep timer isn't available"
-        Item.PHONE_REMOTE, Item.SMART_HOME -> if (LINK_PACKAGE in a.installedPackages) null else "Shown once H02 Link is installed"
+        Item.PHONE_REMOTE, Item.SMART_HOME -> if (LINK_PACKAGE in a.installedPackages) null else "Shown once M02 Link is installed"
         else -> null
     }
 

@@ -124,7 +124,7 @@ object RoutinesSection : SettingsSection, SpecifiedPage {
             }, subtitle = "Starts as weekdays at 07:00, open ambient", iconRes = R.drawable.ic_disc_plus)
         }
         if (android.os.Build.VERSION.SDK_INT >= 29 && !PowerOn.overlayAllowed(context)) {
-            page.note("To open ambient or an app while another app is in front, allow H02 to display over other apps " +
+            page.note("To open ambient or an app while another app is in front, allow M02 to display over other apps " +
                 "(Settings > TV & system > Power & sleep > Power on).")
         }
         return page

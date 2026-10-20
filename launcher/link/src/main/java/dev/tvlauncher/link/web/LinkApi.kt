@@ -59,7 +59,7 @@ interface LinkBackend {
  * 2. the Host header names this TV by a local IP literal (defeats DNS rebinding: a public name
  *    that resolves to the TV is refused) and the port is [LinkContract.PORT];
  * 3. a per-client rate limit;
- * 4. for the /api/ paths: POST with Content-Type application/json, the custom header X-H02-Link: 1 (a
+ * 4. for the /api/ paths: POST with Content-Type application/json, the custom header X-M02-Link: 1 (a
  *    cross-site form or image cannot send it, and a cross-site fetch with it needs a CORS
  *    preflight we never answer), Origin and Sec-Fetch-Site, when present, must be this origin;
  * 5. the pairing cookie (unless pairing is switched off), except for /api/hello and /api/pair,
@@ -268,7 +268,7 @@ class LinkApi(private val backend: LinkBackend, private val now: () -> Long = Sy
         /** Null when the request passes the cross-site checks, else the reason. */
         fun csrfProblem(req: HttpRequest): String? {
             if (req.method != "POST") return "method"
-            if (req.header("x-h02-link") != "1") return "header"
+            if (req.header("x-m02-link") != "1") return "header"
             val type = req.header("content-type")?.substringBefore(';')?.trim()?.lowercase()
             if (type != "application/json") return "type"
             val origin = req.header("origin")

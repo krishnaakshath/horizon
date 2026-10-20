@@ -125,8 +125,8 @@ class LookTest {
     }
 
     @Test fun presets_areDistinct_andComplete() {
-        assertEquals(listOf("Horizon", "Clear", "Cinema", "Bright room", "Classic"), LookPresets.ALL.map { it.name })
-        assertEquals(Look(), LookPresets.HORIZON.look)
+        assertEquals(listOf("Mintaka", "Clear", "Cinema", "Bright room", "Classic"), LookPresets.ALL.map { it.name })
+        assertEquals(Look(), LookPresets.MINTAKA.look)
         assertEquals(GlassStyle.SOLID, LookPresets.CLASSIC.look.glassStyle)
         assertTrue(LookPresets.CINEMA.look.amount < Look.DEFAULT_AMOUNT)
         assertEquals(LookPresets.ALL.size, LookPresets.ALL.map { it.look }.toSet().size)

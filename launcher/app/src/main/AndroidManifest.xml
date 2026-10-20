@@ -86,7 +86,7 @@
         android:name="dev.tvlauncher.permission.HELPER_ACTIONS"
         android:protectionLevel="signature" />
     <uses-permission android:name="dev.tvlauncher.permission.HELPER_ACTIONS" />
-    <!-- H02 Link (phone remote, smart home, update check): the launcher reads its status over a
+    <!-- M02 Link (phone remote, smart home, update check): the launcher reads its status over a
          provider and gets remote commands from it, same signer only. Declared in both apps so
          install order does not matter. The launcher itself still has no INTERNET permission. -->
     <permission
@@ -190,7 +190,7 @@
         <!-- Weather companion app (the launcher has no INTERNET permission). -->
         <package android:name="dev.tvlauncher.weather" />
         <provider android:authorities="dev.tvlauncher.weather" />
-        <!-- H02 Link companion (status provider, settings screen). -->
+        <!-- M02 Link companion (status provider, settings screen). -->
         <package android:name="dev.tvlauncher.link" />
         <provider android:authorities="dev.tvlauncher.link" />
         <!-- Discover: Play Store detail pages (market://, then the https page in a browser)
@@ -401,7 +401,7 @@
             android:name=".speed.SpeedJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
-        <!-- H02 Link's encrypted phone backup: the configuration document, our own signed apps only. -->
+        <!-- M02 Link's encrypted phone backup: the configuration document, our own signed apps only. -->
         <provider
             android:name=".link.LinkConfigProvider"
             android:authorities="dev.tvlauncher.linkconfig"
@@ -409,7 +409,7 @@
             android:readPermission="dev.tvlauncher.permission.LINK"
             android:writePermission="dev.tvlauncher.permission.LINK" />
 
-        <!-- Remote commands from H02 Link (phone remote); only our own signed apps may send them. -->
+        <!-- Remote commands from M02 Link (phone remote); only our own signed apps may send them. -->
         <receiver
             android:name=".link.LinkCommandReceiver"
             android:exported="true"

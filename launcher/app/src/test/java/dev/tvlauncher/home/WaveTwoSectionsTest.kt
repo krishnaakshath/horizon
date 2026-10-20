@@ -56,7 +56,7 @@ class WaveTwoSectionsTest {
 
     @Test fun screensaverText_isPlainWords_noCommandLine() {
         val t = WaveTwoSections.SCREENSAVER_NOTE
-        assertTrue(t.contains("H02 Ambient"))
+        assertTrue(t.contains("M02 Ambient"))
         assertFalse(t.lowercase().contains("adb"))
         assertFalse(t.contains("settings put"))
     }

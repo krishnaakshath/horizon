@@ -7,7 +7,7 @@ package dev.tvlauncher.store.core
  * when they look like real permission identifiers (`^[A-Za-z0-9_.]+$`). Anything else (e.g. a fake
  * "✓ checked: no sensitive capabilities" entry) is counted as "unrecognized" and never shown raw.
  * APK-supplied rows are drawn with a fixed neutral bullet in a dimmed style by the UI, so they can't pass for
- * H02 Store's own status lines.
+ * M02 Store's own status lines.
  */
 object ReviewModel {
 

@@ -30,7 +30,8 @@ object AboutSection : SettingsSection, SpecifiedPage {
         page.row("about.tv", "This TV", RowKind.Action(AboutText.ram(nav.profile.totalRamKb)) {
             nav.push("This TV") { c, n -> thisTv(c, n) }
         }, subtitle = "Memory, processor, effects and resolution", iconRes = R.drawable.ic_sc_device)
-        dev.tvlauncher.link.UpdateRow.add(page, context, nav) // only with H02 Link installed
+        dev.tvlauncher.link.UpdateRow.add(page, context, nav) // only with M02 Link installed
+        page.note(Brand.STORY)
         page.note("© ${Branding.COPYRIGHT_YEAR} ${Branding.COPYRIGHT_HOLDER}")
         page.note(Branding.DISCLAIMER)
         return page

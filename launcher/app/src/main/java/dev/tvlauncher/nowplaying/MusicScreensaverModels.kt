@@ -54,7 +54,7 @@ object AmbientMusicPlan {
 }
 
 /**
- * When the launcher asks H02 Link for a Spotify picture (pure). Only with a configured key, only for
+ * When the launcher asks M02 Link for a Spotify picture (pure). Only with a configured key, only for
  * the style that needs it (Artist banner), and only for a song with a title.
  */
 object SpotifyArtPolicy {

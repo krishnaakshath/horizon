@@ -8,12 +8,15 @@ package dev.tvlauncher.brand
  * deliberately not part of the brand: renaming them would reset every TV's saved state.
  */
 object Brand {
-    const val NAME = "Horizon"
-    const val SHORT = "H02"
+    // Mintaka is a star in Orion's belt. The product had another name before 1.0.1 (see CHANGELOG.md).
+    const val NAME = "Mintaka"
+    const val SHORT = "M02"
     /** The letter-spaced caption under the splash mark. */
-    const val CAPTION = "HORIZON"
+    const val CAPTION = "MINTAKA"
     /** One line under the name on the About page. */
     const val TAGLINE = "A calm, fast home for your TV."
+    /** Where the name comes from (About page, README). */
+    const val STORY = "Named after a star in Orion's belt."
     const val COPYRIGHT_HOLDER = "The $NAME contributors"
 
     // Companion apps: "<short> <role>", the same text as each module's app_name.
@@ -27,6 +30,6 @@ object Brand {
     const val AMBIENT = "$SHORT Ambient"
     const val AMBIENT_NOTIFICATIONS = "$SHORT ambient notifications"
 
-    /** "Horizon 1.4 (14)" for the About page. */
+    /** "Mintaka 1.4 (14)" for the About page. */
     fun versionLine(version: String): String = "$NAME $version"
 }

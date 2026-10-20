@@ -14,7 +14,7 @@ import dev.tvlauncher.ui.dp
 
 /**
  * Start-up style "Aurora sweep": a soft band of the accent and a neighbouring hue sweeps across the
- * screen once, the H02 mark resolving as it passes, then the home rises. The band is one static
+ * screen once, the M02 mark resolving as it passes, then the home rises. The band is one static
  * GradientDrawable moved by translationX (no per-frame allocation, no shader animation, no layer).
  */
 class AuroraSplash(

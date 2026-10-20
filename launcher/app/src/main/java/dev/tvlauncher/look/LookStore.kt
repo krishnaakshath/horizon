@@ -60,11 +60,13 @@ class LookStore(context: Context) {
     companion object {
         const val KEY_LOOK = "look_json"
         const val KEY_SAVED = "saved_looks"
-        const val FOLDER = "H02 Looks"
+        const val FOLDER = "M02 Looks"
+        /** Folder name before the Mintaka rename: still read, never written. */
+        const val LEGACY_FOLDER = "H02 Looks" // legacy name
     }
 }
 
-/** Look files on a USB stick or in Pictures/H02 Looks. Off the main thread; never throws. */
+/** Look files on a USB stick or in Pictures/M02 Looks. Off the main thread; never throws. */
 object LookFiles {
     /** Folders to write to / read from, most specific first: USB sticks, then this TV's Pictures. */
     @Suppress("DEPRECATION")
@@ -94,9 +96,10 @@ object LookFiles {
         return null
     }
 
-    /** Every readable look file (newest first), parsed and validated. */
+    /** Every readable look file (newest first), parsed and validated; also from the pre-rename folders. */
     fun list(context: Context): List<NamedLook> = try {
-        folders(context).flatMap { d -> (try { d.listFiles() } catch (e: Exception) { null })?.toList() ?: emptyList() }
+        folders(context).flatMap { d -> listOfNotNull(d, d.parentFile?.let { File(it, LookStore.LEGACY_FOLDER) }) }
+            .flatMap { d -> (try { d.listFiles() } catch (e: Exception) { null })?.toList() ?: emptyList() }
             .filter { it.isFile && it.name.endsWith(".json") && it.length() in 1..LookCodec.MAX_BYTES.toLong() }
             .sortedByDescending { it.lastModified() }
             .mapNotNull { f -> try { LookCodec.decode(f.readText())?.let { n -> if (n.name.isEmpty()) n.copy(name = f.nameWithoutExtension.take(LookCodec.MAX_NAME)) else n } } catch (e: Exception) { null } }

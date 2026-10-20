@@ -5,7 +5,7 @@ import android.graphics.Typeface
 
 /**
  * The wordmark face (Unbounded Medium, SIL OFL 1.1, subset to Latin letters, digits and a little
- * punctuation; see fonts/FONTS.md). Used for the "H02" / "HORIZON" marks only; every other text stays
+ * punctuation; see fonts/FONTS.md). Used for the "M02" / "MINTAKA" marks only; every other text stays
  * on the Inter UI faces. Loaded once; a missing or broken asset falls back to the system sans.
  */
 object BrandFont {

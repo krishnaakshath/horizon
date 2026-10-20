@@ -35,8 +35,8 @@ class LinkCoreTest {
     private fun hex(s: String) = s.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
     @Test fun brand() {
-        assertEquals("H02 Link", LinkBrand.APP_NAME)
-        assertTrue(File("src/main/res/values/strings.xml").readText().contains(">H02 Link<"))
+        assertEquals("M02 Link", LinkBrand.APP_NAME)
+        assertTrue(File("src/main/res/values/strings.xml").readText().contains(">M02 Link<"))
     }
 
     @Test fun pbkdf2_rfc7914Vectors() {
@@ -187,9 +187,9 @@ class LinkCoreTest {
         assertFalse(LinkApi.hostOk("192.168.1.38:80"))
         assertFalse(LinkApi.hostOk("8.8.8.8:8765"))
         fun r(h: Map<String, String>) = HttpRequest("POST", "/api/key", "", h, ByteArray(0))
-        val good = mapOf("host" to "192.168.1.38:8765", "x-h02-link" to "1", "content-type" to "application/json")
+        val good = mapOf("host" to "192.168.1.38:8765", "x-m02-link" to "1", "content-type" to "application/json")
         assertNull(LinkApi.csrfProblem(r(good)))
-        assertEquals("header", LinkApi.csrfProblem(r(good - "x-h02-link")))
+        assertEquals("header", LinkApi.csrfProblem(r(good - "x-m02-link")))
         assertEquals("type", LinkApi.csrfProblem(r(good + ("content-type" to "text/plain"))))
         assertEquals("origin", LinkApi.csrfProblem(r(good + ("origin" to "http://evil.example"))))
         assertNull(LinkApi.csrfProblem(r(good + ("origin" to "http://192.168.1.38:8765"))))
@@ -223,13 +223,18 @@ class LinkCoreTest {
         assertTrue(UpdateCheck.available(r, "0.1.0"))
         assertFalse(UpdateCheck.available(r.copy(prerelease = true), "0.1.0"))
         assertTrue(UpdateCheck.due(0, 5, false)); assertFalse(UpdateCheck.due(10, 20, false))
+        fun a(n: String) = UpdateCheck.Asset(n, "https://x/$n", 1, null)
+        val release = listOf("M02-browser-1.0.1.apk", "M02-helper-1.0.1.apk", "M02-app-1.0.1.apk", "M02-link-1.0.1.apk").map(::a)
+        assertEquals("M02-app-1.0.1.apk", UpdateCheck.pickApk(release)!!.name)
+        val legacy = listOf("H02-browser-1.0.0.apk", "H02-h02-1.0.0.apk", "H02-store-1.0.0.apk").map(::a)
+        assertEquals("H02-h02-1.0.0.apk", UpdateCheck.pickApk(legacy)!!.name)
     }
 
     @Test fun phonePageIsSmallAndSelfContained() {
         val html = File("src/main/assets/phone.html").readText()
         assertTrue(html.toByteArray().size < 150_000)
         assertFalse(html.contains("<script src")); assertFalse(html.contains("<link "))
-        assertTrue(html.contains("X-H02-Link"))
+        assertTrue(html.contains("X-M02-Link"))
     }
 
     @Test fun volumePercent_roundsAndReadsMutedAsZero() {

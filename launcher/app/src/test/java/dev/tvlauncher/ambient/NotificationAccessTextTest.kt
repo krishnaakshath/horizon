@@ -8,7 +8,7 @@ import org.junit.Test
 class NotificationAccessTextTest {
     @Test fun instructions_whenSettingsOpened_vsFallback_neverShowACommand() {
         val opened = NotificationAccessText.instructions(settingsOpened = true)
-        assertTrue(opened.contains("H02"))
+        assertTrue(opened.contains("M02"))
         val fallback = NotificationAccessText.instructions(settingsOpened = false)
         assertTrue(fallback.contains("setup helper"))
         for (t in listOf(opened, fallback)) {

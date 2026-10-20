@@ -11,8 +11,8 @@ import dev.tvlauncher.ui.Theme.style
 import dev.tvlauncher.ui.dp
 
 /**
- * Start-up style "Minimal fade": the H02 mark fades in with a slight settle (and, on FULL, the
- * letter-spaced HORIZON caption below), then the home rises. No glow, no shapes: the calmest style.
+ * Start-up style "Minimal fade": the M02 mark fades in with a slight settle (and, on FULL, the
+ * letter-spaced MINTAKA caption below), then the home rises. No glow, no shapes: the calmest style.
  */
 class MinimalSplash(
     context: Context,

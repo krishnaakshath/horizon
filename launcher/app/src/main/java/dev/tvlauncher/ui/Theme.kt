@@ -79,7 +79,7 @@ object Theme {
     val regular: Typeface get() = face(FontWeight.REGULAR) { sysRegular }
     /** Titles and the hero name. */
     val semibold: Typeface get() = face(FontWeight.SEMIBOLD) { sysMedium }
-    /** The brand wordmark face (splash "H02" / "HORIZON", About header) only; never body text. */
+    /** The brand wordmark face (splash "M02" / "MINTAKA", About header) only; never body text. */
     val brand: Typeface get() = fontContext?.let { dev.tvlauncher.brand.BrandFont.typeface(it) } ?: sysMedium
 
     fun TextView.style(sp: Float, face: Typeface, color: Int = TEXT) {

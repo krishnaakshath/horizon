@@ -2,7 +2,7 @@ package dev.tvlauncher.store.core
 
 import dev.tvlauncher.store.core.JsonTokenSource.Token
 
-/** One installable F-Droid app, reduced to what H02 Store needs (a compact catalog entry). */
+/** One installable F-Droid app, reduced to what M02 Store needs (a compact catalog entry). */
 data class FdroidApp(
     val packageName: String,
     val name: String,

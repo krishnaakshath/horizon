@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Brand short mark + role; mirrors dev.tvlauncher.brand.Brand.BROWSER in :app. -->
-    <string name="app_name" translatable="false">H02 Browser</string>
+    <string name="app_name" translatable="false">M02 Browser</string>
 </resources>

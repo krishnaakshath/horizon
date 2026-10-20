@@ -2,14 +2,14 @@ package dev.tvlauncher.splash
 
 import org.json.JSONObject
 
-/** What H02 shows while it starts (Settings > Appearance > Start-up and loading). */
+/** What M02 shows while it starts (Settings > Appearance > Start-up and loading). */
 enum class StartupStyle(val label: String) {
     SUNRISE("Sunrise"), MINIMAL("Minimal fade"), AURORA("Aurora sweep"), OFF("Off")
 }
 
 /** When the start-up animation plays. */
 enum class StartupWhen(val label: String) {
-    COLD_START("When H02 starts"), ALSO_WAKE("Also after standby")
+    COLD_START("When M02 starts"), ALSO_WAKE("Also after standby")
 }
 
 /** The small "still loading" motif. */
