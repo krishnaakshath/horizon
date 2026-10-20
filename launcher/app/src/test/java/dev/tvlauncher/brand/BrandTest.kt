@@ -19,7 +19,7 @@ class BrandTest {
         assertTrue(Branding.COPYRIGHT_HOLDER.contains(Brand.NAME))
         assertTrue(Brand.TAGLINE.isNotBlank() && !Brand.TAGLINE.contains('\n'))
         assertEquals("Horizon 1.0 (1)", Brand.versionLine("1.0 (1)"))
-        for (c in listOf(Brand.BROWSER, Brand.STORE, Brand.WEATHER, Brand.HELPER, Brand.AMBIENT)) {
+        for (c in listOf(Brand.BROWSER, Brand.STORE, Brand.WEATHER, Brand.HELPER, Brand.LINK, Brand.AMBIENT)) {
             assertTrue(c, c.startsWith(Brand.SHORT + " "))
         }
     }
@@ -45,13 +45,14 @@ class BrandStringsTest {
         assertEquals(Brand.STORE, appName("../store/src/main/res/values/styles.xml"))
         assertEquals(Brand.WEATHER, appName("../weather/src/main/res/values/strings.xml"))
         assertEquals(Brand.HELPER, appName("../helper/src/main/res/values/strings.xml"))
+        assertEquals(Brand.LINK, appName("../link/src/main/res/values/strings.xml"))
         val app = File("src/main/res/values/brand_strings.xml").readText()
         assertTrue(app.contains(">${Brand.AMBIENT}<"))
         assertTrue(app.contains(">${Brand.AMBIENT_NOTIFICATIONS}<"))
     }
 
     @Test fun manifestsUseTheStringResource() {
-        for (m in listOf("src/main", "../browser/src/main", "../store/src/main", "../weather/src/main", "../helper/src/main")) {
+        for (m in listOf("src/main", "../browser/src/main", "../store/src/main", "../weather/src/main", "../helper/src/main", "../link/src/main")) {
             val xml = File("$m/AndroidManifest.xml").readText()
             val app = Regex("""<application[^>]*""").find(xml)!!.value
             assertTrue(m, app.contains("android:label=\"@string/app_name\""))
@@ -68,7 +69,7 @@ class BrandStringsTest {
         val old = Regex("""TV Launcher|TV launcher|Launcher Helper|Launcher Weather|Get Apps""")
         val literal = Regex(""""(?:[^"\\]|\\.)*"""")
         val hits = ArrayList<String>()
-        for (m in listOf("src/main", "../helper/src/main", "../store/src/main", "../browser/src/main", "../weather/src/main")) {
+        for (m in listOf("src/main", "../helper/src/main", "../store/src/main", "../browser/src/main", "../weather/src/main", "../link/src/main")) {
             File(m).walkTopDown().filter { it.isFile && (it.extension == "kt" || it.extension == "xml") }.forEach { f ->
                 // XML comments (also multi-line ones) are not shown; blank them but keep line numbers.
                 val text = if (f.extension == "xml") f.readText().replace(Regex("<!--[\\s\\S]*?-->")) { c -> c.value.replace(Regex("[^\n]"), " ") }

@@ -83,6 +83,13 @@
         android:name="dev.tvlauncher.permission.HELPER_ACTIONS"
         android:protectionLevel="signature" />
     <uses-permission android:name="dev.tvlauncher.permission.HELPER_ACTIONS" />
+    <!-- H02 Link (phone remote, smart home, update check): the launcher reads its status over a
+         provider and gets remote commands from it, same signer only. Declared in both apps so
+         install order does not matter. The launcher itself still has no INTERNET permission. -->
+    <permission
+        android:name="dev.tvlauncher.permission.LINK"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="dev.tvlauncher.permission.LINK" />
 
     <queries>
         <intent>
@@ -180,6 +187,9 @@
         <!-- Weather companion app (the launcher has no INTERNET permission). -->
         <package android:name="dev.tvlauncher.weather" />
         <provider android:authorities="dev.tvlauncher.weather" />
+        <!-- H02 Link companion (status provider, settings screen). -->
+        <package android:name="dev.tvlauncher.link" />
+        <provider android:authorities="dev.tvlauncher.link" />
         <!-- Discover: Play Store detail pages (market://, then the https page in a browser)
              (the Get Apps companion is declared above). -->
         <intent>
@@ -372,5 +382,14 @@
             android:name=".speed.SpeedJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
+        <!-- Remote commands from H02 Link (phone remote); only our own signed apps may send them. -->
+        <receiver
+            android:name=".link.LinkCommandReceiver"
+            android:exported="true"
+            android:permission="dev.tvlauncher.permission.LINK">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.action.LINK_COMMAND" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

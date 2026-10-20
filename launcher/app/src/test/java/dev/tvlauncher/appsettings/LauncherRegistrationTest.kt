@@ -28,6 +28,7 @@ class LauncherRegistrationTest {
         SystemSections.registerAll(r)
         dev.tvlauncher.profiles.ProfilesSection.register(r)
         dev.tvlauncher.routines.RoutinesSection.register(r)
+        dev.tvlauncher.link.PhoneRemoteSection.register(r)
         return r
     }
 
@@ -67,5 +68,12 @@ class LauncherRegistrationTest {
             assertTrue("${s.spec.id}: ${s.spec.primaryRows.size} primary rows", s.spec.withinBudget)
         }
         assertTrue(PrivateDnsSection.PICKER_SPEC.withinBudget)
+    }
+
+    @Test fun phoneRemote_isRegisteredOnceInSystem() {
+        val sections = all().sections()
+        assertEquals(1, sections.count { it.id == dev.tvlauncher.link.PhoneRemoteSection.ID })
+        assertEquals(SettingsGroup.SYSTEM, sections.first { it.id == dev.tvlauncher.link.PhoneRemoteSection.ID }.group)
+        assertTrue(dev.tvlauncher.link.PhoneRemoteSection.spec.withinBudget)
     }
 }

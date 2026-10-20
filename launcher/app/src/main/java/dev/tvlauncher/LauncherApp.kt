@@ -105,5 +105,11 @@ class LauncherApp : Application(), dev.tvlauncher.profiles.ProfileStores.RawPref
         } catch (e: Throwable) {
             // No Profiles / Routines pages this run; Home keeps the active profile.
         }
+        try {
+            dev.tvlauncher.link.ForegroundTracker.install(this) // phone remote: which of our screens is in front
+            dev.tvlauncher.link.PhoneRemoteSection.register() // Settings > System > Phone remote
+        } catch (e: Throwable) {
+            // The phone remote answers "not available" and its page is missing this run.
+        }
     }
 }
