@@ -1,17 +1,40 @@
-.superpowers/
-scans/
+# Build outputs
 build/
 .gradle/
+.kotlin/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Local configuration
 local.properties
+
+# IDE and OS files
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Signing material
 *.jks
 *.keystore
-.idea/
-.DS_Store
-__pycache__/
-.pytest_cache/
-docs/superpowers/
+keystore.properties
+keystore-password*
 
-# Device-specific output of the provisioning tool (undo scripts, scans)
-tools/scans-out/
-scans-out/
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Device-specific output of the provisioning tool and layout audit
 scans/
+scans-out/
+tools/scans-out/
+audit-out/
+
+# Local planning notes
+.superpowers/
+docs/superpowers/
