@@ -15,8 +15,8 @@ enum class Corners(val label: String, val scale: Float) {
 /** Where the glass gets its colour. */
 enum class LookTint(val label: String) { ACCENT("Accent"), NEUTRAL("Neutral"), BACKDROP("Backdrop colour") }
 
-/** How app icons sit on home tiles. */
-enum class IconStyle(val label: String) { CARD("Rounded card"), CIRCLE("Circle"), BANNER("Banner only") }
+// Tile icon shape (rounded card, circle, banner) is a follow-up once TileView is free to read it;
+// until then a look carries no tile field, and an "iconStyle" key in older look files is ignored.
 
 /**
  * Everything Settings > Appearance > Look controls, as one value. [glassStyle] null = the TV's
@@ -29,8 +29,7 @@ data class Look(
     val corners: Corners = Corners.ROUND,
     val tint: LookTint = LookTint.BACKDROP,
     val accent: Int? = null,
-    val textSize: String? = null,
-    val iconStyle: IconStyle = IconStyle.CARD
+    val textSize: String? = null
 ) {
     companion object {
         const val DEFAULT_AMOUNT = 60
@@ -49,7 +48,7 @@ object LookPresets {
     val BRIGHT_ROOM = NamedLook("Bright room", Look(glassStyle = GlassStyle.FROSTED, amount = 35, corners = Corners.ROUND,
         tint = LookTint.ACCENT, accent = 0xFF4C8DFF.toInt()))
     val CLASSIC = NamedLook("Classic", Look(glassStyle = GlassStyle.SOLID, amount = 0, corners = Corners.SOFT,
-        tint = LookTint.NEUTRAL, iconStyle = IconStyle.CARD))
+        tint = LookTint.NEUTRAL))
 
     val ALL = listOf(HORIZON, CLEAR, CINEMA, BRIGHT_ROOM, CLASSIC)
 
@@ -81,7 +80,6 @@ object LookCodec {
         put("tint", look.tint.name)
         look.accent?.let { put("accent", it.toLong() and 0xFFFFFFFFL) }
         look.textSize?.let { put("textSize", it) }
-        put("iconStyle", look.iconStyle.name)
     }
 
     fun encode(look: Look, name: String? = null): String = toJson(look, name).toString()
@@ -105,8 +103,7 @@ object LookCodec {
                 corners = enumOrNull<Corners>(o, "corners") ?: d.corners,
                 tint = enumOrNull<LookTint>(o, "tint") ?: d.tint,
                 accent = (o.opt("accent") as? Number)?.toLong()?.takeIf { it in 0L..0xFFFFFFFFL }?.let { it.toInt() or 0xFF000000.toInt() },
-                textSize = (o.opt("textSize") as? String)?.takeIf { it in TEXT_SIZES },
-                iconStyle = enumOrNull<IconStyle>(o, "iconStyle") ?: d.iconStyle
+                textSize = (o.opt("textSize") as? String)?.takeIf { it in TEXT_SIZES }
             )
             NamedLook(cleanName(o.opt("name") as? String ?: ""), look)
         }

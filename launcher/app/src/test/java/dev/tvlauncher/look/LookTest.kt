@@ -85,13 +85,13 @@ class LookTest {
     }
 
     @Test fun codec_roundTrips_andValidates() {
-        val l = Look(GlassStyle.CLEAR, 35, Corners.PILL, LookTint.ACCENT, 0xFF22C3D6.toInt(), "L", IconStyle.CIRCLE)
+        val l = Look(GlassStyle.CLEAR, 35, Corners.PILL, LookTint.ACCENT, 0xFF22C3D6.toInt(), "L")
         val back = LookCodec.decode(LookCodec.encode(l, "Evening"))
         assertNotNull(back)
         assertEquals("Evening", back!!.name)
         assertEquals(l, back.look)
         val wild = JSONObject().put("kind", LookCodec.KIND).put("version", 1).put("amount", 900).put("corners", "BLOB")
-            .put("accent", 0x22C3D6).put("textSize", "HUGE").put("extra", "ignored").toString()
+            .put("accent", 0x22C3D6).put("textSize", "HUGE").put("extra", "ignored").put("iconStyle", "CIRCLE").toString()
         val w = LookCodec.decode(wild)!!.look
         assertEquals(100, w.amount)
         assertEquals(Corners.ROUND, w.corners)
@@ -105,6 +105,7 @@ class LookTest {
         assertNull(LookCodec.decode("""{"kind":"h02.look","version":1,"name":"${"x".repeat(9000)}"}"""))
         assertEquals(Look(), LookCodec.currentOf("garbage"))
         assertTrue(LookCodec.encode(l, "x".repeat(200)).length < LookCodec.MAX_BYTES)
+        assertFalse("no tile field until tiles read it", LookCodec.encode(l).contains("iconStyle"))
     }
 
     @Test fun savedLooks_limitAndNames() {

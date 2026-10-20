@@ -39,7 +39,7 @@ object LookPage {
     val SPEC = PageSpec(
         "look",
         listOf("look.presets", "look.glass", "look.amount", "look.corners", "look.tint", "look.accent", "look.text"),
-        listOf("look.icons", "look.mine", "look.export", "look.import")
+        listOf("look.mine", "look.export", "look.import")
     )
 
     fun build(context: Context, nav: SettingsNav): View {
@@ -72,7 +72,7 @@ object LookPage {
             store.update { it.copy(corners = corners[i]) }
             store.applyGlass()
             nav.appearanceChanged()
-        }, iconRes = R.drawable.ic_set_tiles)
+        }, subtitle = "Glass panels, cards and buttons. App tiles keep their shape.", iconRes = R.drawable.ic_set_tiles)
 
         val tints = LookTint.values().toList()
         page.row("look.tint", "Tint", RowKind.Choice(tints.map { it.label }, tints.indexOf(look.tint)) { i ->
@@ -91,11 +91,7 @@ object LookPage {
             (context as? Activity)?.let { a -> a.window.decorView.postDelayed({ a.recreate() }, 250) }
         }, iconRes = R.drawable.ic_sys_access)
 
-        page.advanced(nav, "look.advanced", "Tile icons, your looks and look files") { adv ->
-            val icons = IconStyle.values().toList()
-            adv.row("look.icons", "Icons on tiles", RowKind.Choice(icons.map { it.label }, icons.indexOf(look.iconStyle)) { i ->
-                store.update { it.copy(iconStyle = icons[i]) }
-            }, subtitle = "Apps without a banner", iconRes = R.drawable.ic_set_tiles)
+        page.advanced(nav, "look.advanced", "Your looks and look files") { adv ->
             adv.row("look.mine", "Your looks", RowKind.Action("${store.saved().size} of ${LookCodec.MAX_SAVED}") {
                 nav.push("Your looks") { c, n -> mine(c, n) }
             }, subtitle = "Save this look, use or delete a saved one", iconRes = R.drawable.ic_set_appearance)
@@ -115,7 +111,7 @@ object LookPage {
     /** True when [current] already shows preset [p] (glass and shape). */
     fun matches(p: Look, current: Look): Boolean =
         p.amount == current.amount && p.corners == current.corners && p.tint == current.tint &&
-            (p.glassStyle == null || p.glassStyle == current.glassStyle) && p.iconStyle == current.iconStyle
+            (p.glassStyle == null || p.glassStyle == current.glassStyle)
 
     /** Applies [look] in one step: saved, glass repainted, the screen re-tinted. */
     fun use(context: Context, nav: SettingsNav, look: Look) {
