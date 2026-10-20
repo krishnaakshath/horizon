@@ -80,6 +80,8 @@ class HomeActivity : Activity() {
     private lateinit var layout: HomeLayoutController
     /** Recent apps strip (double Home, Spotlight action, controller Y when chosen). */
     private lateinit var switcher: dev.tvlauncher.switcher.HomeSwitcher
+    /** Settings > Home layout > Home sections: extra rows around the Apps shelf (none for Classic). */
+    private lateinit var stack: dev.tvlauncher.homesections.SectionStack
     private val focusTick = Runnable { applyFocusMode() }
     /** The focused tile may show the quick-strip (bottom row of a multi-row style, strip turned on). */
     private var stripHere = true
@@ -177,7 +179,7 @@ class HomeActivity : Activity() {
             onFocused = { pos, app, tile -> onAppFocused(app); onTileFocusedForStrip(pos, tile, app); if (splash == null) watch?.onTileFocused(app.packageName) },
             onClick = ::launch,
             onLongPress = { app -> tileMenu.show(app, visiblePackages()); sounds.menuOpen() },
-            onDown = { onTileDown() },
+            onDown = { shelfDown() },
             onDpad = { if (stripHere) strip.onTileDpad() },
             onFooterClick = { modules.openDiscover() },
             onFooterFocused = ::onFooterFocused
@@ -189,6 +191,15 @@ class HomeActivity : Activity() {
             tileMenu.stripAction(action, app, visiblePackages())
         }
         content = HomeContent(this, topBar, heroBox, shelfBox, strip)
+        stack = dev.tvlauncher.homesections.SectionStack(this, { look.profile }, adapter, object : dev.tvlauncher.homesections.SectionStack.Host {
+            override fun focused(app: AppEntry) { strip.reset(); onAppFocused(app) }
+            override fun launch(app: AppEntry, from: View) = this@HomeActivity.launch(app, from)
+            override fun longPress(app: AppEntry) { tileMenu.show(app, visiblePackages()); sounds.menuOpen() }
+            override fun toShelf(column: Int): Boolean = focusShelfColumn(column)
+            override fun toTopBar(): Boolean = topBar.inputsButton.requestFocus()
+            override fun toSpotlight(): Boolean { openSpotlight(); return true }
+        })
+        content.setSectionSlots(stack.above, stack.below)
         root.addView(content, FrameLayout.LayoutParams(-1, -1))
         layout = HomeLayoutController(this, look, adapter, shelfBox, content, heroBox).also { it.applyInitial() }
         adapter.onNavKey = ::onShelfKey
@@ -333,11 +344,52 @@ class HomeActivity : Activity() {
 
     /** Arrow and page keys on a tile: two rows and the grid move focus themselves; the single row passes. */
     private fun onShelfKey(pos: Int, keyCode: Int): Boolean =
-        applyNav(layout.navKey(pos, keyCode)) || (keyCode == KeyEvent.KEYCODE_DPAD_UP && watch?.focusRow() == true)
+        applyNav(layout.navKey(pos, keyCode)) ||
+            (keyCode == KeyEvent.KEYCODE_DPAD_UP && stack.fromShelf(shelfColumn(pos), up = true)) ||
+            (keyCode == KeyEvent.KEYCODE_DPAD_UP && watch?.focusRow() == true)
+
+    /** DOWN off the shelf: the quick-strip when shown, else a Home sections row below, else Spotlight. */
+    private fun shelfDown(): Boolean {
+        if (!strip.isStripShown && stack.fromShelf(shelfColumn(shelf.focusedChild?.let { shelf.getChildAdapterPosition(it) } ?: 0), up = false)) return true
+        return onTileDown()
+    }
+
+    /** The on-screen column of shelf position [pos] (what UP/DOWN between sections keeps). */
+    private fun shelfColumn(pos: Int): Int {
+        val first = (shelf.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager)?.findFirstVisibleItemPosition() ?: 0
+        return (pos - maxOf(first, 0)).coerceAtLeast(0)
+    }
+
+    /** From a Home sections row back to the shelf at the same on-screen [column]. */
+    private fun focusShelfColumn(column: Int): Boolean {
+        if (shelfBox.visibility != View.VISIBLE || adapter.itemCount == 0) return false
+        val first = (shelf.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager)?.findFirstVisibleItemPosition() ?: 0
+        return focusPosition((maxOf(first, 0) + column).coerceIn(0, adapter.itemCount - 1))
+    }
+
+    /** Re-reads Home sections and rebuilds the extra rows; Apps off hides the main shelf. */
+    private fun applySections() {
+        val s = try { dev.tvlauncher.homesections.HomeSectionsPrefs(this).load() } catch (e: RuntimeException) { dev.tvlauncher.homesections.HomeSections.CLASSIC }
+        stack.apply(s, ::sectionApps)
+        val appsOn = s.enabled.any { it.type == dev.tvlauncher.homesections.SectionType.APPS } || !stack.hasRows
+        shelfBox.visibility = if (appsOn) View.VISIBLE else View.GONE
+    }
+
+    /** The apps of an app-row section, visible (not hidden) and installed. */
+    private fun sectionApps(sec: dev.tvlauncher.homesections.HomeSection): List<AppEntry> {
+        val byPkg = installed.filter { it.packageName !in hiddenPackages }.associateBy { it.packageName }
+        val pkgs = when (sec.type) {
+            dev.tvlauncher.homesections.SectionType.FAVORITES -> try { prefs.load().favorites } catch (e: RuntimeException) { emptyList() }
+            dev.tvlauncher.homesections.SectionType.RECENT -> try { switcher.store.log().map { it.pkg }.distinct() } catch (e: RuntimeException) { emptyList() }
+            dev.tvlauncher.homesections.SectionType.GROUP -> sec.apps
+            else -> emptyList()
+        }
+        return pkgs.mapNotNull { byPkg[it] }
+    }
 
     private fun applyNav(r: NavResult?): Boolean = when (r) {
         is NavResult.Move -> { if (stripHere) strip.onTileDpad(); focusPosition(r.position) }
-        NavResult.ExitDown -> onTileDown()
+        NavResult.ExitDown -> shelfDown()
         NavResult.Stay -> true
         NavResult.ExitUp, NavResult.Pass, null -> false
     }
@@ -418,6 +470,7 @@ class HomeActivity : Activity() {
         strip.reset()
         adapter.submit(apps, footer, favoriteCount)
         layout.listChanged()
+        if (stack.sections.isClassic) applySections() else stack.refresh(::sectionApps)
         spotlight.setApps(searchable, installed.mapTo(HashSet()) { it.packageName })
         watch?.setApps(installed.mapTo(HashSet()) { it.packageName }, hiddenPackages)
         shelfBox.loader.visibility = View.GONE
@@ -449,6 +502,7 @@ class HomeActivity : Activity() {
     }
 
     private fun focusTile(index: Int): Boolean {
+        if (shelfBox.visibility != View.VISIBLE) return stack.focusFirst()
         if (adapter.appCount == 0) return false
         return focusPosition(adapter.positionOf(index.coerceIn(0, adapter.appCount - 1)))
     }
@@ -586,6 +640,10 @@ class HomeActivity : Activity() {
             strip.reset()
             if (adapter.appCount > 0 && !firstLoad) focusTile(adapter.lastFocused)
         }
+        // Settings > Home layout > Home sections: extra rows rebuilt (Classic leaves the home untouched).
+        val wasClassic = stack.sections.isClassic
+        applySections()
+        if (!(wasClassic && stack.sections.isClassic) && !firstLoad) focusTile(adapter.lastFocused)
         // Settings > Home screen may have turned the "Get more apps" tile on or off.
         val footer = DiscoverTileSpec.shouldAppend(discoverStore.load(), editing = false)
         if (!firstLoad && footer != adapter.footer && adapter.appCount > 0) adapter.submit(adapter.getItems(), footer)

@@ -21,7 +21,7 @@ object HomeLayoutSection : SettingsSection, SpecifiedPage {
     override val iconRes = R.drawable.ic_set_home
     override val group = SettingsGroup.HOME
     override val description = "How the home screen is arranged and what it shows. Long-press OK on a tile for more."
-    override val spec = PageSpec(ID, listOf("home.style", "home.favorites", "home.hidden", "home.reset"))
+    override val spec = PageSpec(ID, listOf("home.style", "home.sections", "home.favorites", "home.hidden", "home.reset"))
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val page = SettingsPage(context, nav.style, spec)
@@ -31,6 +31,10 @@ object HomeLayoutSection : SettingsSection, SpecifiedPage {
         page.row("home.style", HomeLayoutStylePage.TITLE, RowKind.Action(style.label) {
             nav.push(HomeLayoutStylePage.TITLE) { c, n -> HomeLayoutStylePage.build(c, n) }
         }, subtitle = "Single row, two rows, grid and more, with a preview", iconRes = R.drawable.ic_set_tiles)
+        val sections = dev.tvlauncher.homesections.HomeSectionsPrefs(context.applicationContext).load()
+        page.row("home.sections", HomeSectionsPage.TITLE, RowKind.Action(HomeSectionsPage.presetLabel(sections)) {
+            nav.push(HomeSectionsPage.TITLE) { c, n -> HomeSectionsPage.build(c, n) }
+        }, subtitle = "Choose what the home shows and in what order", iconRes = R.drawable.ic_set_home)
         page.row("home.favorites", "Favorites", RowKind.Action(count(s.favorites.size)) {
             nav.push("Favorites") { c, n -> favoritesPage(c, n) }
         }, subtitle = "Sit first on the home row", iconRes = R.drawable.ic_set_star)

@@ -56,6 +56,7 @@ object ConfigBackupSection : SettingsSection, SpecifiedPage {
         r.room?.let { RoomPrefs(context).save(it) }
         r.layout?.let { dev.tvlauncher.homelayout.HomeLayoutPrefs(context).save(it) }
         r.motion?.let { dev.tvlauncher.splash.MotionStylePrefs(context).save(it) }
+        r.sections?.let { dev.tvlauncher.homesections.HomeSectionsPrefs(context).save(it) }
         return true
     }
 }

@@ -113,7 +113,7 @@ class ScenarioTest(unittest.TestCase):
     def test_shipped_scenarios_parse(self):
         d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scenarios')
         names = sorted(f for f in os.listdir(d) if f.endswith('.json'))
-        self.assertEqual(['home-big-hero.json', 'home-grid.json', 'home-minimal.json', 'home-two-rows.json',
+        self.assertEqual(['home-big-hero.json', 'home-everything.json', 'home-grid.json', 'home-media.json', 'home-minimal.json', 'home-two-rows.json',
                           'home.json', 'panels.json', 'settings.json', 'topbar.json'], names)
         scs = [ra.load_scenario(os.path.join(d, f)) for f in names]
         ra.check_unique_labels(scs)

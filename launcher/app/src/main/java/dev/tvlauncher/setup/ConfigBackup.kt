@@ -27,7 +27,8 @@ object ConfigBackup {
     val STORES = listOf(
         "launcher_settings", "appearance_settings", "home_extras", "room_settings",
         "wallpaper_settings", "sound_settings", "discover_settings", "home_layout", "ambient_widgets",
-        "motion_style" // Settings > Appearance > Start-up and loading (splash.MotionStylePrefs.STORE)
+        "motion_style", // Settings > Appearance > Start-up and loading (splash.MotionStylePrefs.STORE)
+        "home_sections" // Settings > Home layout > Home sections (homesections.HomeSectionsPrefs.FILE)
     )
 
     /**
