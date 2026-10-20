@@ -25,7 +25,7 @@ object AppearanceSection : SettingsSection, SpecifiedPage {
         ID,
         listOf(
             "appearance.accentMode", "appearance.swatch", "appearance.glass", "appearance.animation",
-            "appearance.clockFormat", "appearance.tileSize"
+            "appearance.startup", "appearance.clockFormat", "appearance.tileSize"
         ),
         listOf("appearance.showDate", "appearance.showStatus")
     )
@@ -74,6 +74,16 @@ object AppearanceSection : SettingsSection, SpecifiedPage {
                 nav.appearanceChanged()
             },
             subtitle = "Auto is ${AboutText.motion(device)} on this TV",
+            iconRes = R.drawable.ic_set_motion
+        )
+
+        val motionStyle = dev.tvlauncher.splash.MotionStylePrefs(context).load()
+        page.row(
+            "appearance.startup", dev.tvlauncher.splash.StartupLoadingPage.TITLE,
+            RowKind.Action(motionStyle.startup.label) {
+                nav.push(dev.tvlauncher.splash.StartupLoadingPage.TITLE) { c, n -> dev.tvlauncher.splash.StartupLoadingPage.build(c, n) }
+            },
+            subtitle = "Start-up animation, loading indicator and app launch",
             iconRes = R.drawable.ic_set_motion
         )
 

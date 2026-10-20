@@ -17,7 +17,12 @@ import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
+import dev.tvlauncher.launch.LaunchGeometry
 import dev.tvlauncher.launch.LaunchMotion
+import dev.tvlauncher.launch.LaunchWatch
+import dev.tvlauncher.launch.LoaderViews
+import dev.tvlauncher.splash.LaunchStyle
+import dev.tvlauncher.splash.LoaderStyle
 
 /**
  * Brief "opening…" feedback after a tile is clicked. Never focusable or clickable, so it cannot
@@ -29,7 +34,11 @@ import dev.tvlauncher.launch.LaunchMotion
  * the app's brand colour while its logo fades in, then `onCovered` hands over to the app.
  */
 class LaunchOverlay(context: Context) : FrameLayout(context) {
-    private val loader = HorizonLoader(context)
+    private var loader: View = HorizonLoader(context)
+    private var loaderStyle = LoaderStyle.SUN_LINE
+    /** The app-launch splash: loader after [LaunchWatch.LOADER_DELAY_MS], hard dismissal at 4 s. */
+    private val watch = LaunchWatch()
+    private val watchRunnable = Runnable { onWatchTick() }
     private val expand = ExpandView(context)
     private val logo = ImageView(context).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
     private val hideRunnable = Runnable { hide() }
@@ -54,6 +63,17 @@ class LaunchOverlay(context: Context) : FrameLayout(context) {
         visibility = View.GONE
     }
 
+    /** Settings > Appearance > Start-up and loading: which loader to show. */
+    fun setLoaderStyle(style: LoaderStyle) {
+        if (style == loaderStyle) return
+        loaderStyle = style
+        val i = indexOfChild(loader)
+        val lp = loader.layoutParams
+        removeView(loader)
+        loader = LoaderViews.create(context, style).also { it.visibility = loader.visibility }
+        addView(loader, i, lp)
+    }
+
     fun show() {
         stop()
         expand.visibility = View.GONE
@@ -72,7 +92,10 @@ class LaunchOverlay(context: Context) : FrameLayout(context) {
      * `accent`; `onCovered` runs once the screen is covered (start the app then). With a plan
      * that is not animated, falls back to [show] and calls `onCovered` at once.
      */
-    fun play(plan: LaunchMotion.Plan, accent: Int, art: TileArt<Drawable>?, from: Rect?, onCovered: () -> Unit) {
+    fun play(
+        plan: LaunchMotion.Plan, accent: Int, art: TileArt<Drawable>?, from: Rect?,
+        style: LaunchStyle = LaunchStyle.BRAND_EXPAND, onCovered: () -> Unit
+    ) {
         if (!plan.animated) {
             show()
             onCovered()
@@ -89,7 +112,8 @@ class LaunchOverlay(context: Context) : FrameLayout(context) {
         logo.alpha = 0f
         val here = IntArray(2).also { getLocationInWindow(it) }
         val start = from?.let { RectF(it) }?.apply { offset(-here[0].toFloat(), -here[1].toFloat()) }
-        expand.begin(BrandColors.blend(Theme.SURFACE, accent, plan.washStrength), start)
+        expand.begin(BrandColors.blend(Theme.SURFACE, accent, plan.washStrength), start, style)
+        watch.begin(android.os.SystemClock.uptimeMillis())
         expand.visibility = View.VISIBLE
         pending = onCovered
         val logoFrom = plan.logoDelayMs.toFloat() / plan.expandMs
@@ -108,15 +132,28 @@ class LaunchOverlay(context: Context) : FrameLayout(context) {
                     if (cancelled) return
                     val run = pending
                     pending = null
-                    // The app may take a while to draw: the loader under the logo says "still opening".
+                    // The app may take a while to draw: past LOADER_DELAY_MS the loader under the
+                    // logo says "still opening" (LaunchWatch); fast apps never show it.
                     setLoaderOffset(context.dp(LOGO_H_DP / 2 + 36))
-                    loader.visibility = View.VISIBLE
+                    act(watch.motionEnded(android.os.SystemClock.uptimeMillis()))
                     run?.invoke()
                 }
             })
             start()
         }
-        postDelayed(hideRunnable, plan.expandMs + TIMEOUT_AFTER_MOTION_MS)
+        postDelayed(hideRunnable, LaunchWatch.HARD_TIMEOUT_MS) // backstop: never a stuck overlay
+    }
+
+    private fun onWatchTick() = act(watch.tick(android.os.SystemClock.uptimeMillis()))
+
+    private fun act(a: LaunchWatch.Action) {
+        when (a) {
+            LaunchWatch.Action.SHOW_LOADER -> loader.visibility = View.VISIBLE
+            LaunchWatch.Action.DISMISS -> { hide(); return }
+            LaunchWatch.Action.NONE -> Unit
+        }
+        removeCallbacks(watchRunnable)
+        watch.nextAt()?.let { at -> postDelayed(watchRunnable, (at - android.os.SystemClock.uptimeMillis()).coerceAtLeast(0L)) }
     }
 
     private fun setLoaderOffset(px: Int) {
@@ -133,6 +170,8 @@ class LaunchOverlay(context: Context) : FrameLayout(context) {
 
     private fun stop() {
         removeCallbacks(hideRunnable)
+        removeCallbacks(watchRunnable)
+        watch.stop()
         animate().cancel()
         pending = null
         animator?.cancel()
@@ -148,41 +187,36 @@ class LaunchOverlay(context: Context) : FrameLayout(context) {
     /** The growing card: a rounded rectangle from the tile's bounds to the whole screen. */
     private class ExpandView(context: Context) : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val from = RectF()
-        private val centre = RectF()
+        private val from = FloatArray(4)
+        private var hasFrom = false
+        private val frame = FloatArray(LaunchGeometry.OUT_SIZE)
         private val now = RectF()
+        private var style = LaunchStyle.BRAND_EXPAND
         private val tileRadius = context.dp(Theme.RADIUS_TILE).toFloat()
         private var color = 0
         var progress = 0f
             set(v) { field = v; invalidate() }
 
-        fun begin(c: Int, start: RectF?) {
+        fun begin(c: Int, start: RectF?, s: LaunchStyle) {
             color = c
-            if (start != null) from.set(start) else from.setEmpty()
+            style = s
+            hasFrom = start != null && !start.isEmpty
+            if (start != null) { from[0] = start.left; from[1] = start.top; from[2] = start.right; from[3] = start.bottom }
             progress = 0f
         }
 
         override fun onDraw(canvas: Canvas) {
-            val w = width.toFloat()
-            val h = height.toFloat()
-            val s = if (from.isEmpty) centre.apply { set(w * 0.4f, h * 0.4f, w * 0.6f, h * 0.6f) } else from
-            val t = progress
-            now.set(s.left * (1 - t), s.top * (1 - t), s.right + (w - s.right) * t, s.bottom + (h - s.bottom) * t)
-            val r = tileRadius * (1 - t)
+            LaunchGeometry.frame(style, progress, if (hasFrom) from else null, width.toFloat(), height.toFloat(), frame)
+            now.set(frame[0], frame[1], frame[2], frame[3])
+            val r = tileRadius * frame[5]
             paint.color = color
-            paint.alpha = (START_ALPHA + (0xFF - START_ALPHA) * t).toInt()
+            paint.alpha = (0xFF * frame[4]).toInt()
             canvas.drawRoundRect(now, r, r, paint)
-        }
-
-        private companion object {
-            const val START_ALPHA = 0xD0
         }
     }
 
     private companion object {
         const val TIMEOUT_MS = 1200L
-        /** After the motion: long enough for a slow app to draw before home shows again. */
-        const val TIMEOUT_AFTER_MOTION_MS = 2500L
         const val SCRIM = 0x66000000
         const val LOGO_W_DP = 240
         const val LOGO_H_DP = 135
