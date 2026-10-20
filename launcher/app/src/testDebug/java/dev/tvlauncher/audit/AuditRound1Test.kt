@@ -36,6 +36,16 @@ class AuditRound1Test {
     }
 
     @Test
+    fun spotlightPanel_nearlyOpaque_noSeeThrough() {
+        // The real Spotlight card is 94% opaque: 6% of the tiles beneath leaks through, which is
+        // invisible on the TV (below glassLeakMax). Only a fill that lets a visible share through counts.
+        val f = audit(HomeFixture.build(panel = HomeFixture.Panel(bg = 0.94f)))
+        assertTrue(f.toString(), f.none { it.kind == Kind.SEE_THROUGH })
+        val leaky = audit(HomeFixture.build(panel = HomeFixture.Panel(bg = 0.80f)))
+        assertTrue(leaky.any { it.kind == Kind.SEE_THROUGH })
+    }
+
+    @Test
     fun spotlightPanel_opaque_noFinding() {
         val t = HomeFixture.build(panel = HomeFixture.Panel(bg = 1f))
         assertEquals(emptyList<Finding>(), audit(t))

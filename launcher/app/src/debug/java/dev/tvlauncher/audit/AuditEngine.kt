@@ -346,6 +346,8 @@ object AuditEngine {
                 if (x.w < min || x.h < min) continue
                 if (l.id in ancIds.getValue(u.id) || u.id in ancIds.getValue(l.id)) continue
                 if (!drawnAfter(u, l) || layered(u, l) || occluded(u, l, x)) continue
+                // Nearly opaque (e.g. a 0.94 card): what still shows through is below the glass leak limit.
+                if (1f - u.bgAlpha < c.glassLeakMax) continue
                 if (pairs.size >= c.maxPairs) {
                     notes += "TRUNCATED: see-through pair enumeration stopped at ${c.maxPairs} pairs"
                     break@outer
