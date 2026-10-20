@@ -217,8 +217,12 @@ object NowPlayingPageRows {
     const val BACKDROP = "np.backdrop"
     const val AMBIENT = "np.ambient"
     const val ACCESS = "np.access"
+    const val STYLE = "np.style"
+    const val SPOTIFY = "np.spotify"
 
-    val PRIMARY = listOf(ENABLED, MINI_PLAYER, BACKDROP, AMBIENT, ACCESS)
+    val PRIMARY = listOf(ENABLED, MINI_PLAYER, BACKDROP, AMBIENT, STYLE, SPOTIFY, ACCESS)
+    /** Plain on/off rows; [AMBIENT] is a three-way choice ([AmbientMusicPlan.Mode]), [STYLE] a choice, [SPOTIFY] a page. */
+    val TOGGLES = listOf(ENABLED, MINI_PLAYER, BACKDROP)
 
     const val LEAD = "Spotify, YouTube and other players show here while they play."
     const val ACCESS_TITLE = "Notification access"
@@ -233,7 +237,9 @@ object NowPlayingPageRows {
         ENABLED -> "Now Playing"
         MINI_PLAYER -> "Show mini player"
         BACKDROP -> "Backdrop follows what's playing"
-        AMBIENT -> "Show on Ambient"
+        AMBIENT -> "Screensaver follows the music"
+        STYLE -> "Style"
+        SPOTIFY -> "Spotify artwork"
         ACCESS -> ACCESS_TITLE
         else -> key
     }
@@ -242,7 +248,9 @@ object NowPlayingPageRows {
         ENABLED -> "Title, artist and art stay in memory only; never saved"
         MINI_PLAYER -> "Play, pause and skip on the home screen; OK opens the app"
         BACKDROP -> "The home background shows the album art or video picture"
-        AMBIENT -> "A large, calm card under the clock"
+        AMBIENT -> "Ambient shows the playing song: cover, title and progress"
+        STYLE -> "For the home backdrop and the screensaver"
+        SPOTIFY -> "Optional: your own Spotify key for artist banners"
         else -> null
     }
 

@@ -8,6 +8,10 @@ import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
 import android.os.Bundle
+import android.os.ParcelFileDescriptor
+import dev.tvlauncher.link.spotify.SpotifyArt
+import dev.tvlauncher.link.spotify.SpotifyCore
+import dev.tvlauncher.link.spotify.SpotifyKeyStore
 import dev.tvlauncher.link.core.LinkContract
 import dev.tvlauncher.link.ha.HaRepository
 import dev.tvlauncher.link.ha.HaUrls
@@ -18,7 +22,8 @@ import dev.tvlauncher.link.update.Updates
  * What the launcher (no INTERNET) may read and ask: phone-remote status, the smart-home
  * favourites and the update check. Guarded by the signature permission in the manifest
  * (readPermission) and again in [call], which the framework does not guard by itself.
- * Never exposes the Home Assistant token, WebDAV password or pairing tokens.
+ * Never exposes the Home Assistant token, WebDAV password, pairing tokens or the Spotify secret;
+ * the only file it serves is a cached Spotify picture ([openFile], read-only).
  */
 class LinkProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
@@ -69,8 +74,23 @@ class LinkProvider : ContentProvider() {
                     if (store.updateEnabled && store.updateAvailable) 1 else 0, store.updateCheckedMs, if (store.updateSha) 1 else 0,
                 ))
             }
+            LinkContract.PATH_SPOTIFY -> MatrixCursor(LinkContract.SPOTIFY_COLUMNS).apply {
+                val k = SpotifyKeyStore(c)
+                addRow(arrayOf<Any?>(if (k.configured) 1 else 0, k.idHint(),
+                    if (k.configured) k.state else LinkContract.SP_NOT_CONFIGURED))
+            }
             else -> null
         }
+    }
+
+    /** content://dev.tvlauncher.link/art/<key>: read-only, cached Spotify pictures only. */
+    override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor? {
+        enforce()
+        if (mode != "r") throw SecurityException("read-only")
+        val seg = uri.pathSegments
+        if (seg.size != 2 || seg[0] != LinkContract.PATH_ART) throw java.io.FileNotFoundException()
+        val f = SpotifyArt.file(ctx(), seg[1])?.takeIf { it.isFile } ?: throw java.io.FileNotFoundException()
+        return ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY)
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
@@ -97,6 +117,17 @@ class LinkProvider : ContentProvider() {
             }
             LinkContract.METHOD_HA_FORGET -> { HaRepository.forget(c); out.putBoolean(LinkContract.EXTRA_OK, true) }
             LinkContract.METHOD_UPDATE_CHECK -> out.putBoolean(LinkContract.EXTRA_OK, Updates.check(c, force = arg == "force"))
+            LinkContract.METHOD_SPOTIFY_SET ->
+                out.putString(LinkContract.EXTRA_STATE, SpotifyArt.save(c, arg?.trim().orEmpty(), extras?.getString(LinkContract.EXTRA_VALUE)?.trim().orEmpty()))
+            LinkContract.METHOD_SPOTIFY_TEST -> out.putString(LinkContract.EXTRA_STATE, SpotifyArt.test(c))
+            LinkContract.METHOD_SPOTIFY_REMOVE -> { SpotifyArt.remove(c); out.putBoolean(LinkContract.EXTRA_OK, true) }
+            LinkContract.METHOD_SPOTIFY_ART -> {
+                val kind = SpotifyCore.Kind.of(extras?.getString(LinkContract.EXTRA_ART_KIND)) ?: SpotifyCore.Kind.ALBUM
+                val key = arg.orEmpty()
+                out.putString(LinkContract.EXTRA_STATE, if (!SpotifyCore.validKey(key)) LinkContract.ART_NONE else SpotifyArt.request(
+                    c, key, extras?.getString(LinkContract.EXTRA_TITLE), extras?.getString(LinkContract.EXTRA_ARTIST),
+                    extras?.getString(LinkContract.EXTRA_ALBUM), kind))
+            }
             else -> return null
         }
         return out

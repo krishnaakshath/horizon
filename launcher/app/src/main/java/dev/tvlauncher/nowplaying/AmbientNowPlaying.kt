@@ -16,14 +16,18 @@ class AmbientNowPlaying(context: Context) {
     private var tracker: NowPlayingTracker? = null
     /** The art shown on the card (null when nothing plays); Ambient widgets' album-art mode reuses it. */
     var onArt: ((android.graphics.Bitmap?) -> Unit)? = null
+    /** "Screensaver follows the music": the full-screen song layer ([AmbientMusic]), fed by the same tracker. */
+    var music: AmbientMusic? = null
 
     private fun bind(n: NowPlaying?, art: android.graphics.Bitmap?) {
         card.bind(n, art)
         onArt?.invoke(if (n == null) null else art)
+        music?.update(n, art)
     }
 
     fun start() {
-        val run = DiscoverStore(app).loadNowPlaying().showAmbient(NowPlayingAccess.isGranted(app))
+        val follows = music?.start() == true
+        val run = DiscoverStore(app).loadNowPlaying().showAmbient(NowPlayingAccess.isGranted(app)) || follows
         if (!run) { bind(null, null); return }
         val t = tracker ?: NowPlayingTracker(
             app,
@@ -37,6 +41,7 @@ class AmbientNowPlaying(context: Context) {
     }
 
     fun stop() {
+        music?.stop()
         card.stop()
         tracker?.stop()
         bind(null, null)

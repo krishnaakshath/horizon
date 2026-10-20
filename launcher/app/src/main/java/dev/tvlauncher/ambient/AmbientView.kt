@@ -77,6 +77,8 @@ class AmbientView(
     private val nowPlaying = dev.tvlauncher.nowplaying.AmbientNowPlaying(context)
     /** Settings > Home screen > Ambient widgets: calendar, photo frame, album art. */
     private val widgets = dev.tvlauncher.ambient.widgets.AmbientWidgets(context, lite)
+    /** Screensaver follows the music: the playing song full screen (Settings > Home screen > Now Playing). */
+    private val music = dev.tvlauncher.nowplaying.AmbientMusic(context, lite)
 
     private var clockFormat = timeFormat(settings.clock24h)
     private val dateFormat = SimpleDateFormat(
@@ -115,6 +117,9 @@ class AmbientView(
         addView(wallpaper, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(widgets.backdrop, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         nowPlaying.onArt = { bmp -> widgets.setArt(bmp) }
+        addView(music.backdrop, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        nowPlaying.music = music
+        music.onActive = { on -> clockBlock.visibility = if (on) GONE else VISIBLE; widgets.calendar.alpha = if (on) 0f else 1f }
         addScrims()
         addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         dimOverlay.setBackgroundColor(0xFF000000.toInt())
@@ -246,6 +251,7 @@ class AmbientView(
         content.addView(netRow, lp(Gravity.TOP or Gravity.END))
         content.addView(widgets.calendar, lp(Gravity.TOP or Gravity.END).apply { topMargin += px(44f) })
         content.addView(chips, lp(chipsGravity))
+        content.addView(music.panel, lp(Gravity.CENTER_VERTICAL or Gravity.START))
     }
 
     // --- lifecycle ------------------------------------------------------------------------------

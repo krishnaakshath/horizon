@@ -258,6 +258,16 @@ border-radius:999px;padding:11px 18px;font-size:14px;opacity:0;transition:opacit
 <p class="note" id="haNote"></p>
 </div>
 
+<div class="card" id="spCard">
+<h2>Spotify artwork (optional)</h2>
+<p class="note" style="margin:0 0 10px">For the "Artist banner" style. Make a free app in Spotify's online dashboard and paste its Client ID and Client secret. They stay on the TV, in H02 Link only.</p>
+<p class="note" id="spState" style="margin:0 0 10px"></p>
+<input id="spId" placeholder="Client ID" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Spotify Client ID">
+<input id="spSecret" placeholder="Client secret" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Spotify Client secret">
+<button id="spSave" style="width:100%">Save key</button>
+<div class="g2"><button id="spTest">Test key</button><button id="spForget">Remove key</button></div>
+</div>
+
 <div class="card">
 <h2>Backup</h2>
 <p class="note" style="margin:0 0 10px">Save your home screen, apps order and settings to this phone, locked with a passphrase you choose.</p>
@@ -465,6 +475,14 @@ $("powerBtn").onclick=function(){buzz(20);api("/api/power").then(function(r){
 
 /* ---------- smart home ---------- */
 var haText={ok:"",not_configured:"Connect Home Assistant to control lights and scenes here and on the TV.",unreachable:"Can't reach Home Assistant right now.",auth:"Home Assistant didn't accept the token.",loading:"Loading…"};
+var spText={ok:"Key works",invalid:"Spotify refused this key",offline:"Can't reach Spotify right now",not_configured:"No key yet",unknown:"Saved, not tested yet"};
+function loadSpotify(){api("/api/spotify/status").then(function(r){if(!r.ok)return;
+  $("spState").textContent=r.configured?("Key "+(r.id||"")+" · "+(spText[r.state]||"")):"No key yet: covers come from the music app"})}
+$("spSave").onclick=function(){var i=$("spId").value.trim(),k=$("spSecret").value.trim();if(!i||!k){toast("Paste both the Client ID and the secret");return}
+  toast("Checking the key…");api("/api/spotify/key",{id:i,secret:k}).then(function(r){$("spSecret").value="";
+  if(r.ok){$("spId").value="";toast(spText[r.state]||"Saved")}else toast(r.error==="key"?"That doesn't look like a Spotify key":"Try again in a minute");loadSpotify()})};
+$("spTest").onclick=function(){api("/api/spotify/test").then(function(r){toast(r.ok?(spText[r.state]||""):"Try again in a minute");loadSpotify()})};
+$("spForget").onclick=function(){api("/api/spotify/forget").then(function(){toast("Spotify key removed");loadSpotify()})};
 function loadHome(){api("/api/ha/status").then(function(r){if(!r.ok)return;
   var good=r.configured&&r.state==="ok";
   $("haSetup").classList.toggle("hidden",good);$("haPick").classList.toggle("hidden",!good);$("haForget").classList.toggle("hidden",!r.configured);
@@ -509,7 +527,7 @@ var tab="remote";
 function go(t){tab=t;all("[data-tab]").forEach(function(s){s.classList.toggle("hidden",s.dataset.tab!==t)});
   all("[data-go]").forEach(function(b){b.setAttribute("aria-selected",b.dataset.go===t)});
   try{localStorage.setItem("h02tab",t)}catch(e){}
-  if(t==="media"||t==="remote")poll();if(t==="apps"&&!apps.length)loadApps();if(t==="more")loadHome();window.scrollTo(0,0)}
+  if(t==="media"||t==="remote")poll();if(t==="apps"&&!apps.length)loadApps();if(t==="more"){loadHome();loadSpotify()}window.scrollTo(0,0)}
 all("[data-go]").forEach(function(b){b.onclick=function(){buzz(6);go(b.dataset.go)}});
 try{var saved=localStorage.getItem("h02tab");if(saved&&document.querySelector('[data-tab="'+saved+'"]'))go(saved)}catch(e){}
 

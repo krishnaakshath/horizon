@@ -95,6 +95,7 @@ class NowPlayingCard(
         ellipsize = TextUtils.TruncateAt.END
     }
     private val progress = ProgressLine(context)
+    private val credit = android.widget.TextView(context)
     private val prev = RoundButton(context, R.drawable.ic_np_prev, "Previous") { onAction(TransportAction.PREV) }
     private val playPause = RoundButton(context, R.drawable.ic_np_pause, "Pause") { onAction(TransportAction.PLAY_PAUSE) }
     private val next = RoundButton(context, R.drawable.ic_np_next, "Next") { onAction(TransportAction.NEXT) }
@@ -142,6 +143,11 @@ class NowPlayingCard(
         line2.addView(subtitle, LayoutParams(0, -2, 1f))
         texts.addView(line2, LayoutParams(-1, -2).apply { topMargin = px(if (ambient) 4 else 2) })
         if (!ambient) texts.addView(progress, LayoutParams(-1, px(3)).apply { topMargin = px(8) })
+        credit.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 10f)
+        credit.setTextColor(dev.tvlauncher.ui.Theme.TEXT_2)
+        credit.text = SpotifyArtPolicy.CREDIT
+        credit.visibility = GONE
+        texts.addView(credit, LayoutParams(-2, -2).apply { topMargin = px(4) })
         openTarget.addView(texts, LayoutParams(0, -2, 1f).apply { leftMargin = px(if (ambient) 18 else 12) })
         addView(openTarget, LayoutParams(0, -2, 1f))
         if (!ambient) {
@@ -166,6 +172,9 @@ class NowPlayingCard(
         openRing.setColor(if (focused) 0x2EFFFFFF else 0x00000000)
         openRing.setStroke(px(2), if (focused) dev.tvlauncher.room.RoomTheme.palette.focusRingColor else 0)
     }
+
+    /** "Artwork: Spotify" under the progress thread while the backdrop shows a Spotify picture. */
+    fun setCredit(on: Boolean) { credit.visibility = if (on) VISIBLE else GONE }
 
     /** True while the card is showing an item. */
     val isShowing: Boolean get() = visibility == VISIBLE

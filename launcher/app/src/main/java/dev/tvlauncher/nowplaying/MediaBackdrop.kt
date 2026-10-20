@@ -60,9 +60,18 @@ class MediaBackdrop(
     // A field: RoomTheme holds listeners weakly.
     private val roomListener = RoomTheme.Listener { _, _, settled -> if (settled) rerenderForRoom() }
 
+    /** Settings > Home screen > Now Playing > Style. */
+    var style: NowPlayingStyle = NowPlayingStyle.BLURRED
+    /** True while a Spotify picture is shown (the host shows "Artwork: Spotify"). */
+    var onCredit: (Boolean) -> Unit = {}
+    private var spotifyFor: NowPlaying? = null
+    private var spotifyShown = false
+
     init {
         backdrop.mediaFadeMs = fadeMs
     }
+
+    private fun setCredit(on: Boolean) { if (on != spotifyShown) { spotifyShown = on; onCredit(on) } }
 
     /** Settings and access, re-read in onStart. Off = brand colours only, picture dropped. */
     fun setEnabled(on: Boolean) {
@@ -90,7 +99,23 @@ class MediaBackdrop(
             return
         }
         main.removeCallbacks(dropPicture)
+        val newTrack = AmbientMusicPlan.isNewTrack(spotifyFor, n)
+        if (newTrack) { spotifyFor = n; setCredit(false) }
         source = art
+        if (SpotifyArtPolicy.wanted(style, SpotifyArtClient.knownConfigured(), n)) {
+            if (newTrack) {
+                if (art !== renderedSource) render(art)
+                SpotifyArtClient.request(backdrop.context, n, style) { bmp ->
+                    if (bmp != null && enabled && !AmbientMusicPlan.isNewTrack(spotifyFor, n)) {
+                        source = bmp
+                        render(bmp, sharp = true)
+                        setCredit(true)
+                    }
+                }
+            }
+            evaluate()
+            return
+        }
         if (art !== renderedSource) render(art)
         evaluate()
     }
@@ -121,6 +146,9 @@ class MediaBackdrop(
         renderedSource = null
         renderedTarget = -1.0
         hasPicture = false
+        spotifyFor = null
+        setCredit(false)
+        SpotifyArtClient.cancel()
         backdrop.setMedia(null, null, animate = false)
     }
 
@@ -139,21 +167,23 @@ class MediaBackdrop(
     private fun rerenderForRoom() {
         val s = source ?: return
         if (!enabled || Math.abs(target() - renderedTarget) < 1e-6) return
-        render(s)
+        render(s, sharp = spotifyShown)
     }
 
-    private fun render(src: Bitmap) {
+    private fun render(src: Bitmap, sharp: Boolean = style == NowPlayingStyle.COVER) {
+        val blur = full && !sharp
         val dm = backdrop.resources.displayMetrics
         val w = if (backdrop.width > 0) backdrop.width else dm.widthPixels
         val h = if (backdrop.height > 0) backdrop.height else dm.heightPixels
-        val (sw, sh) = MediaArtMath.size(w, h, full)
+        val (sw, sh) = MediaArtMath.size(w, h, blur)
+        val washOnly = style == NowPlayingStyle.WASH
         val target = target()
         val t = ++token
         renderedSource = src
         renderedTarget = target
         try {
             GlassBackdrop.executor.execute {
-                val out = try { process(src, sw, sh, target, full) } catch (e: Throwable) { null }
+                val out = try { if (washOnly) wash(src, sw, sh, target) else process(src, sw, sh, target, blur) } catch (e: Throwable) { null }
                 main.post {
                     if (t != token || !enabled) { out?.first?.recycle(); return@post }
                     if (out == null) {
@@ -174,6 +204,22 @@ class MediaBackdrop(
     companion object {
         /** How long the previous track's picture stays while the next one's art loads. */
         const val ART_GRACE_MS = 1_500L
+
+        /** Worker, "Colour wash only": the art's dominant colour as a soft gradient over the base, contrast-clamped. */
+        fun wash(src: Bitmap, sw: Int, sh: Int, target: Double): Pair<Bitmap, IntArray>? {
+            if (src.isRecycled || src.width <= 0 || src.height <= 0) return null
+            val readable = if (Build.VERSION.SDK_INT >= 26 && src.config == Bitmap.Config.HARDWARE) {
+                src.copy(Bitmap.Config.ARGB_8888, false) ?: return null
+            } else src
+            val small = Bitmap.createScaledBitmap(readable, 16, 16, true)
+            val all = IntArray(256).also { small.getPixels(it, 0, 16, 0, 0, 16, 16) }
+            if (small !== readable) small.recycle()
+            if (readable !== src) readable.recycle()
+            val px = IntArray(sw * sh) { Theme.BASE }
+            MediaArtMath.accentWash(px, sw, sh, BrandColors.backdropAccent(BrandColors.dominantColor(all)))
+            MediaArtMath.clampContrast(px, target)
+            return Bitmap.createBitmap(px, sw, sh, Bitmap.Config.ARGB_8888) to MediaArtMath.stops(px, sw, sh)
+        }
 
         /** Worker: cover-scale, blur (FULL) or wash (LITE), darken, clamp contrast. Null on any failure. */
         fun process(src: Bitmap, sw: Int, sh: Int, target: Double, full: Boolean): Pair<Bitmap, IntArray>? {

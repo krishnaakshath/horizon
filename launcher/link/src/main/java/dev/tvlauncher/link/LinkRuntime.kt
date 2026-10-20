@@ -159,6 +159,15 @@ class AndroidBackend(private val context: Context) : LinkBackend {
     override fun haConfigure(url: String, token: String?): String = HaRepository.configure(context, url, token)
     override fun haForget() = HaRepository.forget(context)
 
+    override fun spotifyStatus(): JSONObject {
+        val k = dev.tvlauncher.link.spotify.SpotifyKeyStore(context)
+        return JSONObject().put("configured", k.configured).put("id", k.idHint())
+            .put("state", if (k.configured) k.state else LinkContract.SP_NOT_CONFIGURED)
+    }
+    override fun spotifySet(id: String, secret: String): String = dev.tvlauncher.link.spotify.SpotifyArt.save(context, id, secret)
+    override fun spotifyTest(): String = dev.tvlauncher.link.spotify.SpotifyArt.test(context)
+    override fun spotifyRemove() = dev.tvlauncher.link.spotify.SpotifyArt.remove(context)
+
     override fun haEntities(): JSONArray? {
         if (HaRepository.refresh(context) != LinkContract.HA_OK) return null
         val favs = store.haFavourites.toSet()
