@@ -2,6 +2,7 @@ package dev.tvlauncher.debug
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DebugTriggersTest {
@@ -19,6 +20,18 @@ class DebugTriggersTest {
         assertEquals(DebugTriggers.Command.Trip(1), DebugTriggers.decide(DebugTriggers.TRIP, true, -5))
         assertEquals(DebugTriggers.Command.Trip(10), DebugTriggers.decide(DebugTriggers.TRIP, true, 99))
         assertEquals(DebugTriggers.Command.Trip(5), DebugTriggers.decide(DebugTriggers.TRIP, true, 5))
+    }
+
+    @Test
+    fun openSettings_needsAPlainSectionId() {
+        val open = DebugTriggers.OPEN_SETTINGS
+        assertTrue(DebugTriggers.knows(open))
+        assertEquals(DebugTriggers.Command.OpenSettings("home_layout"),
+            DebugTriggers.decide(open, true, null, DebugTriggers.parseSection("home_layout")))
+        assertNull(DebugTriggers.decide(open, false, null, "home_layout"))
+        assertNull(DebugTriggers.decide(open, true, null, null))
+        for (bad in listOf("", "Home", "home layout", "../x", "a;b", 5, "x".repeat(41)))
+            assertNull(bad.toString(), DebugTriggers.parseSection(bad))
     }
 
     @Test

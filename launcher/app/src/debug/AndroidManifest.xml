@@ -10,6 +10,7 @@
                 <action android:name="dev.tvlauncher.debug.TRIP_SAFE_MODE" />
                 <action android:name="dev.tvlauncher.debug.RESET_SAFE_MODE" />
                 <action android:name="dev.tvlauncher.debug.CRASH_HOME" />
+                <action android:name="dev.tvlauncher.debug.OPEN_SETTINGS" />
             </intent-filter>
         </receiver>
         <!-- Debug builds only: layout auditor (see dev.tvlauncher.audit.AuditReceiver). -->

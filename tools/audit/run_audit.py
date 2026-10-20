@@ -63,13 +63,85 @@ ADB_TIMEOUT_S = 20
 MAX_SCENARIO_BYTES = 256 * 1024
 DEFAULT_MAX_SECONDS = 900
 
-STEP_KINDS = ('key', 'audit', 'screenshot', 'dump_tree')
+STEP_KINDS = ('key', 'audit', 'screenshot', 'dump_tree', 'settings')
 STEP_EXTRAS = {'wait', 'repeat', 'note'}
 TOP_KEYS = {'package', 'start', 'steps', 'restart', 'description'}
 
 
 class ScenarioError(ValueError):
     pass
+
+
+# --- Settings safety -------------------------------------------------------------------------------
+# A scenario drives the owner's real TV. Settings reopens on the LAST page with other groups folded,
+# so blind key presses after opening it from the top bar once landed on Volume (LEFT/RIGHT moved the
+# volume) and on Routines (OK switched Bedtime on). Rules, checked when a scenario is loaded:
+#  - Settings is opened only with a {"settings": "<page>"} step (HOME, then the debug OPEN_SETTINGS
+#    broadcast), and only on a page from SETTINGS_LANDING: pages whose first row is navigation, never a
+#    live control. Opening it from the top-bar pill (RIGHT x5+ then OK) is refused.
+#  - Inside Settings, OK is accepted only on home_layout's first row (RIGHT then OK opens Layout style).
+#  - On Layout style, LEFT/RIGHT may step the Style row (the first row) until UP/DOWN moves focus away;
+#    after that only UP/DOWN/BACK/HOME. In any other page content, LEFT/RIGHT/OK are refused.
+SETTINGS_LANDING = frozenset({'home_layout'})
+SECTION_RE = re.compile(r'^[a-z][a-z0-9_]{0,39}$')
+OK_KEYS = frozenset({'DPAD_CENTER', 'ENTER'})
+# Pages that hold live controls (volume, sleep, power, bedtime, sound): never a landing page.
+LIVE_PAGE_HINTS = ('volume', 'sound', 'audio', 'power', 'sleep', 'bedtime', 'routine', 'timer', 'reset')
+OPEN_SETTINGS_ACTION = 'dev.tvlauncher.debug.OPEN_SETTINGS'
+DEBUG_RECEIVER = 'dev.tvlauncher.debug.DebugReceiver'
+
+
+def check_safety(steps: list) -> list[str]:
+    """Problems that could change a real TV setting (empty when the scenario is safe)."""
+    problems: list[str] = []
+    where = 'home'        # home | sidebar | page | style | style_moved
+    page = None
+    prev = None           # previous key step
+    keys_in_page = 0
+    for i, st in enumerate(steps):
+        n = f'step {i + 1}'
+        if st.kind == 'settings':
+            if st.value not in SETTINGS_LANDING:
+                problems.append(f'{n}: settings page {st.value!r} is not a safe landing page {sorted(SETTINGS_LANDING)}')
+            where, page, prev = 'sidebar', st.value, None
+            continue
+        if st.kind != 'key':
+            continue
+        k = st.value
+        if k == 'HOME':
+            where, page = 'home', None
+        elif where == 'home':
+            if k in OK_KEYS and prev is not None and prev.value == 'DPAD_RIGHT' and prev.repeat >= 5:
+                problems.append(f'{n}: OK on the top-bar Settings pill; open Settings with a "settings" step')
+        elif where == 'sidebar':
+            if k == 'DPAD_RIGHT':
+                where = 'page'
+                keys_in_page = 0
+            elif k in OK_KEYS:
+                problems.append(f'{n}: OK in the Settings sidebar (folds/unfolds groups; focus becomes unknown)')
+        elif where == 'page':
+            if k in OK_KEYS:
+                if page == 'home_layout' and keys_in_page == 0:
+                    where = 'style'
+                else:
+                    problems.append(f'{n}: OK inside a Settings page (only home_layout RIGHT, OK is allowed)')
+            elif k in ('DPAD_LEFT', 'DPAD_RIGHT') and keys_in_page > 0:
+                problems.append(f'{n}: {k} on a Settings row could change its value')
+            elif k == 'DPAD_LEFT':
+                where = 'sidebar'
+            keys_in_page += 1
+        elif where in ('style', 'style_moved'):
+            if k in OK_KEYS:
+                problems.append(f'{n}: OK on the Layout style page')
+            elif k in ('DPAD_UP', 'DPAD_DOWN', 'PAGE_UP', 'PAGE_DOWN'):
+                where = 'style_moved'
+            elif k in ('DPAD_LEFT', 'DPAD_RIGHT') and where == 'style_moved':
+                problems.append(f'{n}: {k} after leaving the Style row could change another layout setting')
+            elif k == 'BACK':
+                where = 'page'
+                keys_in_page = 1
+        prev = st
+    return problems
 
 
 def valid_host(host: str) -> bool:
@@ -168,11 +240,19 @@ def parse_scenario(obj: object, name: str = 'scenario') -> Scenario:
         kind = kinds[0]
         if kind == 'key':
             steps.append(Step('key', normalize_key(s['key']), wait, repeat))
+        elif kind == 'settings':
+            sec = s['settings']
+            if not isinstance(sec, str) or not SECTION_RE.fullmatch(sec):
+                raise ScenarioError(f'{where}: invalid settings page {sec!r}')
+            steps.append(Step('settings', sec, wait))
         else:
             label = s[kind]
             if not valid_label(label):
                 raise ScenarioError(f'{where}: invalid {kind} label {label!r} (use [A-Za-z0-9_.-], 1-40 chars)')
             steps.append(Step(kind, label, wait))
+    problems = check_safety(steps)
+    if problems:
+        raise ScenarioError('unsafe for a real TV: ' + '; '.join(problems))
     return Scenario(name, pkg, action, category, restart, steps)
 
 
@@ -385,13 +465,25 @@ class Driver:
                     self.adb.shell('input', 'keyevent', f'KEYCODE_{st.value}')
                 self.sleep(st.wait)
                 continue
-            if st.kind == 'audit':
+            if st.kind == 'settings':
+                self.open_settings(sc.package, st.value)
+            elif st.kind == 'audit':
                 self.rows.append(self.audit(sc.package, st.value))
             elif st.kind == 'dump_tree':
                 self.audit(sc.package, st.value, tree=True)
             elif st.kind == 'screenshot':
                 self.screenshot(st.value)
             self.sleep(st.wait)
+
+    def open_settings(self, pkg: str, section: str) -> None:
+        """HOME (clears a Settings left open above home), then Settings on [section] via the debug receiver."""
+        if not (PKG_RE.fullmatch(pkg) and SECTION_RE.fullmatch(section) and section in SETTINGS_LANDING):
+            raise ValueError('unsafe settings arguments')
+        self.adb.shell('input', 'keyevent', 'KEYCODE_HOME')
+        self.sleep(2.0)
+        self.adb.shell('am', 'broadcast', '-a', OPEN_SETTINGS_ACTION, '-n', f'{pkg}/{DEBUG_RECEIVER}',
+                       '--es', 'section', section)
+        self.sleep(START_WAIT_S)
 
     def audit(self, pkg: str, label: str, tree: bool = False) -> dict:
         nonce = self.nonce()

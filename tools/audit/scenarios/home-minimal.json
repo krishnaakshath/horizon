@@ -1,5 +1,5 @@
 {
-  "description": "Settings > Home layout > Layout style: Minimal. Audit the clock and one row with no hero text; then back to Single row.",
+  "description": "Opens Settings on Home layout (debug OPEN_SETTINGS, never a remembered page), sets Style to Minimal, audits the home screen, then sets Single row again.",
   "package": "dev.tvlauncher",
   "restart": false,
   "start": {
@@ -11,43 +11,19 @@
       "wait": 2
     },
     {
-      "key": "DPAD_UP",
-      "repeat": 5,
+      "settings": "home_layout",
       "wait": 1,
-      "note": "from any shelf row up into the top bar"
-    },
-    {
-      "key": "DPAD_RIGHT",
-      "repeat": 6,
-      "wait": 1,
-      "note": "clamps on the rightmost pill (Settings)"
-    },
-    {
-      "key": "DPAD_CENTER",
-      "wait": 3,
-      "note": "Settings opens on Home > Appearance"
-    },
-    {
-      "key": "DPAD_UP",
-      "repeat": 10,
-      "wait": 1,
-      "note": "top of the sidebar: the Home group header"
-    },
-    {
-      "key": "DPAD_DOWN",
-      "repeat": 2,
-      "wait": 1.5,
-      "note": "Appearance, then Home layout"
+      "note": "HOME, then Settings opened on Home layout (debug OPEN_SETTINGS): a known page"
     },
     {
       "key": "DPAD_RIGHT",
       "wait": 1,
-      "note": "into the page: the Layout style row"
+      "note": "into the page: focus on the first row, Layout style"
     },
     {
       "key": "DPAD_CENTER",
       "wait": 2,
-      "note": "opens Layout style; focus on Style"
+      "note": "opens Layout style; focus on its first row, Style"
     },
     {
       "audit": "home-minimal-settings"
@@ -90,58 +66,30 @@
       "audit": "home-minimal-tile-4"
     },
     {
-      "key": "DPAD_UP",
-      "repeat": 5,
+      "settings": "home_layout",
       "wait": 1,
-      "note": "from any shelf row up into the top bar"
-    },
-    {
-      "key": "DPAD_RIGHT",
-      "repeat": 6,
-      "wait": 1,
-      "note": "clamps on the rightmost pill (Settings)"
-    },
-    {
-      "key": "DPAD_CENTER",
-      "wait": 3,
-      "note": "Settings opens on Home > Appearance"
-    },
-    {
-      "key": "DPAD_UP",
-      "repeat": 10,
-      "wait": 1,
-      "note": "top of the sidebar: the Home group header"
-    },
-    {
-      "key": "DPAD_DOWN",
-      "repeat": 2,
-      "wait": 1.5,
-      "note": "Appearance, then Home layout"
+      "note": "HOME, then Settings opened on Home layout (debug OPEN_SETTINGS): a known page"
     },
     {
       "key": "DPAD_RIGHT",
       "wait": 1,
-      "note": "into the page: the Layout style row"
+      "note": "into the page: focus on the first row, Layout style"
     },
     {
       "key": "DPAD_CENTER",
       "wait": 2,
-      "note": "opens Layout style; focus on Style"
+      "note": "opens Layout style; focus on its first row, Style"
     },
     {
       "key": "DPAD_LEFT",
       "repeat": 4,
       "wait": 1,
-      "note": "Style stops at Single row"
+      "note": "restore: Style back to Single row (the default)"
     },
     {
       "key": "HOME",
       "wait": 4,
-      "note": "home relays itself out (200 ms fade)"
-    },
-    {
-      "key": "DPAD_DOWN",
-      "wait": 1
+      "note": "home relays itself out as Single row"
     }
   ]
 }
