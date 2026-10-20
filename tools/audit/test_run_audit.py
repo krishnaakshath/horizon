@@ -148,14 +148,28 @@ class SafetyTest(unittest.TestCase):
 
     def test_ok_or_value_keys_inside_settings_refused(self):
         self.bad([{'settings': 'home_layout'}, {'key': 'DPAD_CENTER'}])                      # sidebar OK
-        self.bad([{'settings': 'home_layout'}, {'key': 'DPAD_RIGHT'}, {'key': 'DPAD_DOWN'},
+        self.bad([{'settings': 'home_layout'}, {'key': 'DPAD_RIGHT'}, {'key': 'DPAD_DOWN', 'repeat': 2},
                   {'key': 'DPAD_CENTER'}])                                                     # OK on a lower row
+        self.bad([{'settings': 'home_layout'}, {'key': 'DPAD_RIGHT'}, {'key': 'DPAD_DOWN'}, {'key': 'DPAD_DOWN'},
+                  {'key': 'DPAD_CENTER'}])
         self.bad([{'settings': 'home_layout'}, {'key': 'DPAD_RIGHT'}, {'key': 'DPAD_DOWN'},
                   {'key': 'DPAD_RIGHT'}])                                                      # stepping a value
         self.bad([{'settings': 'home_layout'}, {'key': 'DPAD_RIGHT'}, {'key': 'DPAD_CENTER'},
                   {'key': 'DPAD_DOWN'}, {'key': 'DPAD_LEFT'}])                                 # tile size, not style
         self.bad([{'settings': 'home_layout'}, {'key': 'DPAD_RIGHT'}, {'key': 'DPAD_CENTER'},
                   {'key': 'DPAD_CENTER'}])
+
+    def test_home_sections_preset_and_list(self):
+        ok = [{'settings': 'home_layout'}, {'key': 'DPAD_RIGHT'}, {'key': 'DPAD_DOWN'}, {'key': 'DPAD_CENTER'},
+              {'key': 'DPAD_LEFT', 'repeat': 5}, {'key': 'DPAD_RIGHT', 'repeat': 3}, {'key': 'DPAD_DOWN'},
+              {'key': 'DPAD_CENTER'}, {'audit': 'x'}, {'key': 'BACK'}, {'key': 'HOME'}]
+        self.assertEqual('settings', ra.parse_scenario(scen(ok)).steps[0].kind)
+        opened = ok[:4]
+        self.bad(opened + [{'key': 'DPAD_CENTER'}])                                          # OK on Preset
+        self.bad(opened + [{'key': 'DPAD_DOWN'}, {'key': 'DPAD_RIGHT'}])                     # stepping Sections' value
+        self.bad(opened + [{'key': 'DPAD_DOWN', 'repeat': 2}, {'key': 'DPAD_CENTER'}])       # OK below Sections
+        self.bad(opened + [{'key': 'DPAD_DOWN'}, {'key': 'DPAD_CENTER'}, {'key': 'DPAD_CENTER'}])  # toggles a section
+        self.bad(opened + [{'key': 'DPAD_DOWN'}, {'key': 'DPAD_CENTER'}, {'key': 'DPAD_RIGHT'}])
 
     def test_layout_style_steps_allowed(self):
         sc = ra.parse_scenario(scen([{'settings': 'home_layout'}, {'key': 'DPAD_RIGHT'}, {'key': 'DPAD_CENTER'},
@@ -174,7 +188,10 @@ class SafetyTest(unittest.TestCase):
                 # Layout scenarios set Style back to Single row: the last Settings visit steps LEFT to the start.
                 last = max(i for i, s in enumerate(sc.steps) if s.kind == 'settings')
                 tail = [(s.value, s.repeat) for s in sc.steps[last:] if s.kind == 'key']
-                self.assertEqual([('DPAD_RIGHT', 1), ('DPAD_CENTER', 1), ('DPAD_LEFT', 5), ('HOME', 1)], tail, f)
+                # Home sections scenarios set Preset back to Classic the same way.
+                self.assertIn(tail, ([('DPAD_RIGHT', 1), ('DPAD_CENTER', 1), ('DPAD_LEFT', 5), ('HOME', 1)],
+                                     [('DPAD_RIGHT', 1), ('DPAD_DOWN', 1), ('DPAD_CENTER', 1), ('DPAD_LEFT', 5),
+                                      ('HOME', 1)]), f)
 
     def test_driver_opens_settings_after_home(self):
         calls = []

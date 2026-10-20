@@ -1,5 +1,5 @@
 {
-  "description": "Settings > Home layout > Home sections: the Favorites + Recent preset. Audit the settings page and its preview, the stacked home, UP/DOWN between sections keeping the column and a page jump; then back to Classic.",
+  "description": "Opens Settings on Home layout (debug OPEN_SETTINGS, never a remembered page) > Home sections: the Favorites + Recent preset. Audit the settings page and its preview, the stacked home, UP/DOWN between sections keeping the column and a page jump; then back to Classic.",
   "package": "dev.tvlauncher",
   "restart": false,
   "start": {
@@ -11,33 +11,9 @@
       "wait": 2
     },
     {
-      "key": "DPAD_UP",
-      "repeat": 6,
+      "settings": "home_layout",
       "wait": 1,
-      "note": "from any section row up into the top bar"
-    },
-    {
-      "key": "DPAD_RIGHT",
-      "repeat": 6,
-      "wait": 1,
-      "note": "clamps on the rightmost pill (Settings)"
-    },
-    {
-      "key": "DPAD_CENTER",
-      "wait": 3,
-      "note": "Settings opens on Home > Appearance"
-    },
-    {
-      "key": "DPAD_UP",
-      "repeat": 10,
-      "wait": 1,
-      "note": "top of the sidebar: the Home group header"
-    },
-    {
-      "key": "DPAD_DOWN",
-      "repeat": 2,
-      "wait": 1.5,
-      "note": "Appearance, then Home layout"
+      "note": "HOME, then Settings opened on Home layout (debug OPEN_SETTINGS): a known page"
     },
     {
       "key": "DPAD_RIGHT",
@@ -130,33 +106,9 @@
       "audit": "home-favorites-recent-page"
     },
     {
-      "key": "DPAD_UP",
-      "repeat": 6,
+      "settings": "home_layout",
       "wait": 1,
-      "note": "from any section row up into the top bar"
-    },
-    {
-      "key": "DPAD_RIGHT",
-      "repeat": 6,
-      "wait": 1,
-      "note": "clamps on the rightmost pill (Settings)"
-    },
-    {
-      "key": "DPAD_CENTER",
-      "wait": 3,
-      "note": "Settings opens on Home > Appearance"
-    },
-    {
-      "key": "DPAD_UP",
-      "repeat": 10,
-      "wait": 1,
-      "note": "top of the sidebar: the Home group header"
-    },
-    {
-      "key": "DPAD_DOWN",
-      "repeat": 2,
-      "wait": 1.5,
-      "note": "Appearance, then Home layout"
+      "note": "HOME, then Settings opened on Home layout (debug OPEN_SETTINGS): a known page"
     },
     {
       "key": "DPAD_RIGHT",

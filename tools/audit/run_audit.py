@@ -79,9 +79,13 @@ class ScenarioError(ValueError):
 #  - Settings is opened only with a {"settings": "<page>"} step (HOME, then the debug OPEN_SETTINGS
 #    broadcast), and only on a page from SETTINGS_LANDING: pages whose first row is navigation, never a
 #    live control. Opening it from the top-bar pill (RIGHT x5+ then OK) is refused.
-#  - Inside Settings, OK is accepted only on home_layout's first row (RIGHT then OK opens Layout style).
+#  - Inside Settings, OK is accepted only on home_layout's first row (RIGHT then OK opens Layout style)
+#    and on its second row (RIGHT, DOWN, OK opens Home sections).
 #  - On Layout style, LEFT/RIGHT may step the Style row (the first row) until UP/DOWN moves focus away;
 #    after that only UP/DOWN/BACK/HOME. In any other page content, LEFT/RIGHT/OK are refused.
+#  - On Home sections, LEFT/RIGHT may step the Preset row (the first row) until UP/DOWN moves focus;
+#    one DOWN reaches "Sections", whose OK opens the list of sections, where only UP/DOWN/BACK/HOME
+#    are accepted (OK there would switch a section on or off).
 SETTINGS_LANDING = frozenset({'home_layout'})
 SECTION_RE = re.compile(r'^[a-z][a-z0-9_]{0,39}$')
 OK_KEYS = frozenset({'DPAD_CENTER', 'ENTER'})
@@ -94,10 +98,12 @@ DEBUG_RECEIVER = 'dev.tvlauncher.debug.DebugReceiver'
 def check_safety(steps: list) -> list[str]:
     """Problems that could change a real TV setting (empty when the scenario is safe)."""
     problems: list[str] = []
-    where = 'home'        # home | sidebar | page | style | style_moved
+    where = 'home'        # home | sidebar | page | style | style_moved | sections | sections_list
     page = None
     prev = None           # previous key step
     keys_in_page = 0
+    page_keys: list[str] = []
+    sections_moves = 0    # net DOWN presses on Home sections (0 = Preset, 1 = Sections)
     for i, st in enumerate(steps):
         n = f'step {i + 1}'
         if st.kind == 'settings':
@@ -117,19 +123,44 @@ def check_safety(steps: list) -> list[str]:
             if k == 'DPAD_RIGHT':
                 where = 'page'
                 keys_in_page = 0
+                page_keys = []
             elif k in OK_KEYS:
                 problems.append(f'{n}: OK in the Settings sidebar (folds/unfolds groups; focus becomes unknown)')
         elif where == 'page':
             if k in OK_KEYS:
                 if page == 'home_layout' and keys_in_page == 0:
                     where = 'style'
+                elif page == 'home_layout' and page_keys == ['DPAD_DOWN'] and st.repeat == 1 and prev.repeat == 1:
+                    where, sections_moves = 'sections', 0
                 else:
-                    problems.append(f'{n}: OK inside a Settings page (only home_layout RIGHT, OK is allowed)')
+                    problems.append(f'{n}: OK inside a Settings page (only home_layout RIGHT, OK or RIGHT, DOWN, OK)')
             elif k in ('DPAD_LEFT', 'DPAD_RIGHT') and keys_in_page > 0:
                 problems.append(f'{n}: {k} on a Settings row could change its value')
             elif k == 'DPAD_LEFT':
                 where = 'sidebar'
             keys_in_page += 1
+            page_keys.append(k)
+        elif where == 'sections':
+            if k in OK_KEYS:
+                if sections_moves == 1:
+                    where = 'sections_list'
+                else:
+                    problems.append(f'{n}: OK on Home sections is only allowed on the Sections row')
+            elif k in ('DPAD_UP', 'DPAD_DOWN'):
+                sections_moves += st.repeat if k == 'DPAD_DOWN' else -st.repeat
+            elif k in ('PAGE_UP', 'PAGE_DOWN'):
+                sections_moves = 99
+            elif k in ('DPAD_LEFT', 'DPAD_RIGHT') and sections_moves != 0:
+                problems.append(f'{n}: {k} after leaving the Preset row could change another setting')
+            elif k == 'BACK':
+                where = 'page'
+                keys_in_page = 2
+                page_keys = ['DPAD_DOWN', 'BACK']
+        elif where == 'sections_list':
+            if k in OK_KEYS or k in ('DPAD_LEFT', 'DPAD_RIGHT'):
+                problems.append(f'{n}: {k} in the list of sections would switch a section on or off')
+            elif k == 'BACK':
+                where = 'sections'
         elif where in ('style', 'style_moved'):
             if k in OK_KEYS:
                 problems.append(f'{n}: OK on the Layout style page')
