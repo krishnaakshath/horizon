@@ -1,35 +1,43 @@
 package dev.tvlauncher.browser
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
 class BrowserBrandTest {
-    private val pathChars = Regex("^[MmLlHhVvAaCcSsQqZz0-9 ,.\\-]+$")
+    private val res = File("src/main/res")
+    private fun read(p: String) = File(res, p).readText()
 
-    @Test fun pathData_isWellFormed() {
-        (BrowserBrand.MARK_PATHS + BrowserBrand.WORDMARK_PATHS.values).forEach {
-            assertTrue(it, it.isNotBlank() && pathChars.matches(it) && it.trimStart().startsWith("M"))
+    @Test fun name_followsTheFamily() {
+        assertEquals("H02 Browser", BrowserBrand.NAME)
+        assertEquals(0xFF, BrowserBrand.ACCENT ushr 24)
+        val strings = read("values/strings.xml")
+        assertTrue(strings.contains(">H02 Browser<"))
+    }
+
+    @Test fun xmlAssets_areTheGeneratedH02Art() {
+        for (a in BrowserBrand.ASSETS) {
+            val xml = read(a)
+            assertTrue(a, xml.contains("Unbounded Medium") || a.endsWith("ic_launcher_bg.xml"))
+            assertTrue(a, xml.contains("companion_art.py"))
+            assertFalse(a, xml.contains("Orbit"))
         }
+        // Glass card plus the violet sunrise on the banner.
+        val banner = read("drawable/banner_browser.xml")
+        assertTrue(banner.contains("#38FFFFFF") && banner.contains("#FF8B5CF6"))
+        assertTrue(read("mipmap-anydpi-v26/ic_launcher.xml").contains("adaptive-icon"))
     }
 
-    @Test fun wordmark_spellsBrowser() {
-        assertEquals("Browser", BrowserBrand.WORDMARK.joinToString("") { it.first.toString() })
+    @Test fun reveal_targetsNamedPartsOfTheBase() {
+        val base = read("drawable/brand_mark_anim_base.xml")
+        val reveal = read("drawable/brand_mark_reveal.xml")
+        Regex("""<target android:name="([^"]+)"""").findAll(reveal).map { it.groupValues[1] }.toList().also { assertTrue(it.isNotEmpty()) }
+            .forEach { assertTrue(it, base.contains("android:name=\"$it\"")) }
     }
 
-    @Test fun gradient_isThreeOpaqueColors() {
-        assertEquals(3, BrowserBrand.GRADIENT.size)
-        BrowserBrand.GRADIENT.forEach { assertEquals(0xFF, it ushr 24) }
-    }
-
-    @Test fun xmlAssets_useTheBrandPaths() {
-        val res = File("src/main/res")
-        val mark = File(res, "drawable/brand_mark.xml").readText()
-        BrowserBrand.MARK_PATHS.forEach { assertTrue("mark missing $it", mark.contains(it)) }
-        val banner = File(res, "drawable/banner_browser.xml").readText()
-        BrowserBrand.MARK_PATHS.forEach { assertTrue("banner missing $it", banner.contains(it)) }
-        BrowserBrand.WORDMARK_PATHS.values.forEach { assertTrue("banner wordmark", banner.contains(it)) }
-        assertTrue(File(res, "mipmap-anydpi-v26/ic_launcher.xml").readText().contains("adaptive-icon"))
+    @Test fun customCursor_isKept() {
+        assertTrue(File(res, "drawable/ic_cursor.xml").isFile)
     }
 }

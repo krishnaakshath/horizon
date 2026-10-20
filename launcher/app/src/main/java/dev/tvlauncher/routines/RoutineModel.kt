@@ -10,7 +10,8 @@ sealed class RoutineAction {
 
     enum class Kind(val label: String, val needsScreen: Boolean) {
         AMBIENT("Open ambient (clock and weather)", true),
-        BEDTIME("Bedtime mode", false),
+        BEDTIME("Bedtime mode on", false),
+        BEDTIME_OFF("Bedtime mode off", false),
         ROOM("Room lighting", false),
         PROFILE("Switch profile", false),
         LAUNCH("Open an app", true),
@@ -20,6 +21,7 @@ sealed class RoutineAction {
 
     object Ambient : RoutineAction() { override val kind = Kind.AMBIENT }
     object BedtimeOn : RoutineAction() { override val kind = Kind.BEDTIME }
+    object BedtimeOff : RoutineAction() { override val kind = Kind.BEDTIME_OFF }
     /** [choice]: a room lighting choice name (AUTO, CINEMA, EVENING, STANDARD, BRIGHT). */
     data class Room(val choice: String) : RoutineAction() { override val kind = Kind.ROOM }
     data class Profile(val id: String) : RoutineAction() { override val kind = Kind.PROFILE }
@@ -194,6 +196,7 @@ object RoutineModel {
         return when (a.optString("kind")) {
             "AMBIENT" -> RoutineAction.Ambient
             "BEDTIME" -> RoutineAction.BedtimeOn
+            "BEDTIME_OFF" -> RoutineAction.BedtimeOff
             "ROOM" -> a.optString("choice").takeIf { it in ROOM_CHOICES }?.let { RoutineAction.Room(it) }
             "PROFILE" -> a.optString("id").takeIf { dev.tvlauncher.profiles.ProfileModel.isValidId(it) }?.let { RoutineAction.Profile(it) }
             "LAUNCH" -> a.optString("pkg").takeIf { PKG.matches(it) }?.let { RoutineAction.Launch(it, a.optString("label").take(60)) }

@@ -4,7 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
 
-/** An app installed through Get Apps, and where it came from (so "Check update" can re-query the source). */
+/** An app installed through H02 Store, and where it came from (so "Check update" can re-query the source). */
 data class InstalledRecord(
     val packageName: String,
     val label: String,

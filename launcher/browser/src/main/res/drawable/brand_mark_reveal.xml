@@ -1,27 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Cold-start reveal of the H02 Browser mark: the sunrise scales up and the letters fade in (about 520 ms). -->
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:drawable="@drawable/brand_mark_anim_base">
-    <target android:name="outer">
-        <aapt:attr name="android:animation">
-            <objectAnimator android:propertyName="trimPathEnd" android:valueFrom="0" android:valueTo="1"
-                android:duration="420" android:interpolator="@android:interpolator/fast_out_slow_in"/>
-        </aapt:attr>
-    </target>
-    <target android:name="inner">
-        <aapt:attr name="android:animation">
-            <objectAnimator android:propertyName="trimPathEnd" android:valueFrom="0" android:valueTo="1"
-                android:startOffset="120" android:duration="360" android:interpolator="@android:interpolator/fast_out_slow_in"/>
-        </aapt:attr>
-    </target>
-    <target android:name="dotg">
+    <target android:name="mark">
         <aapt:attr name="android:animation">
             <set>
-                <objectAnimator android:propertyName="scaleX" android:valueFrom="0" android:valueTo="1"
-                    android:startOffset="300" android:duration="260" android:interpolator="@android:interpolator/overshoot"/>
-                <objectAnimator android:propertyName="scaleY" android:valueFrom="0" android:valueTo="1"
-                    android:startOffset="300" android:duration="260" android:interpolator="@android:interpolator/overshoot"/>
+                <objectAnimator android:propertyName="scaleX" android:valueFrom="0.82" android:valueTo="1"
+                    android:duration="420" android:interpolator="@android:interpolator/fast_out_slow_in"/>
+                <objectAnimator android:propertyName="scaleY" android:valueFrom="0.82" android:valueTo="1"
+                    android:duration="420" android:interpolator="@android:interpolator/fast_out_slow_in"/>
             </set>
+        </aapt:attr>
+    </target>
+    <target android:name="letters">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="fillAlpha" android:valueFrom="0" android:valueTo="1"
+                android:startOffset="160" android:duration="360" android:interpolator="@android:interpolator/fast_out_slow_in"/>
         </aapt:attr>
     </target>
 </animated-vector>
