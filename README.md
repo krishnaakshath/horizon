@@ -16,8 +16,10 @@ On screen it is called **H02**; Horizon is the project name.
 |---|---|---|
 | ![Start-up animation with the H02 mark](docs/screenshots/01-startup.png) | ![Home screen with the app row, clock and weather](docs/screenshots/02-home.png) | ![Spotlight search over the home screen](docs/screenshots/03-spotlight.png) |
 | Start-up | Home | Spotlight |
-| ![Inputs panel](docs/screenshots/04-inputs-panel.png) | ![Settings page for TV and system](docs/screenshots/05-settings-tv-and-system.png) | ![Settings sidebar](docs/screenshots/06-settings-sidebar.png) |
-| Inputs panel | TV and system settings | Settings |
+| ![Inputs panel](docs/screenshots/04-inputs-panel.png) | ![Appearance settings](docs/screenshots/05-settings-appearance.png) | ![The Look page with the Glass amount slider](docs/screenshots/06-settings-look.png) |
+| Inputs panel | Appearance | Look and glass amount |
+| ![Start-up and loading choices](docs/screenshots/07-settings-startup.png) | ![Home layout and home sections](docs/screenshots/08-home-layout.png) | |
+| Start-up and loading | Home layout | |
 
 ## Features
 
