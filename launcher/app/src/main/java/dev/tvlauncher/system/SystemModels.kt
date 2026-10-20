@@ -153,7 +153,7 @@ object SystemText {
     fun linkSpeed(mbps: Int) = if (mbps > 0) "$mbps Mbps" else "Unknown"
 
     /** Volume as "7 of 15" style words for a stepper. */
-    fun volume(level: Int, max: Int) = if (max <= 0) "$level" else "${(level * 100 + max / 2) / max} %"
+    fun volume(level: Int, max: Int) = if (max <= 0) "$level" else "${(level * 100 + max / 2) / max}%"
 
     /** Internet check wording from NetworkCapabilities flags. */
     fun internet(hasNetwork: Boolean, validated: Boolean, captive: Boolean) = when {

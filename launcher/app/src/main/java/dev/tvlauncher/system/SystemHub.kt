@@ -227,7 +227,7 @@ object SystemHubSection : SettingsSection, SpecifiedPage {
         }, iconRes = R.drawable.ic_sys_usb)
         nav.background({ internal() }) { (t, f) ->
             used.setValue(SystemText.usedOf(t - f, t)); free.setValue(SystemText.bytes(f))
-            used.setSubtitle("${SystemText.percent(t - f, t)} % used")
+            used.setSubtitle("${SystemText.percent(t - f, t)}% used")
         }
         return page
     }

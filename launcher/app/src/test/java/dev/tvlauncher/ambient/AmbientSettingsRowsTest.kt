@@ -55,7 +55,7 @@ class AmbientSettingsRowsTest {
 
     @Test fun values_render() {
         val r = rows(WallpaperSettings(dimPercent = 30, clock24h = false, idleMinutes = 15, source = WallpaperSource.BuiltIn("nebula")))
-        assertEquals("30 %", r.getValue("dim").value)
+        assertEquals("30%", r.getValue("dim").value)
         assertEquals("Off", r.getValue("clock24h").value)
         assertEquals("15 min", r.getValue("idleMinutes").value)
         assertEquals("Nebula", r.getValue("wallpaper").value)

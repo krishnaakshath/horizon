@@ -177,7 +177,7 @@ object WallpaperPage {
             }, iconRes = R.drawable.ic_set_clock)
         intervalRow.visibility = if (isSlideshow(s.source)) View.VISIBLE else View.GONE
         page.row("wallpaper.dim", "Dim wallpaper",
-            RowKind.Stepper(s.dimPercent / 10, 0, WallpaperSettings.MAX_DIM / 10, { "${it * 10} %" }, bar = true) { v ->
+            RowKind.Stepper(s.dimPercent / 10, 0, WallpaperSettings.MAX_DIM / 10, { "${it * 10}%" }, bar = true) { v ->
                 s = store.load().copy(dimPercent = v * 10).normalized()
                 store.save(s)
             }, iconRes = R.drawable.ic_set_eye)
