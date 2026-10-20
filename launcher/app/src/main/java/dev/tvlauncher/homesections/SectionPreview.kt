@@ -21,7 +21,7 @@ object SectionPreview {
         out += Block(Part.TOP_BAR, SIDE, TOP, 1f - SIDE, TOP + BAR_H)
         out += Block(Part.HERO, SIDE, TOP + BAR_H + 0.03f, 0.45f, TOP + BAR_H + 0.03f + HERO_H * 0.5f)
         var y = TOP + BAR_H + HERO_H + 0.04f
-        val list = s.enabled
+        val list = s.enabled.filter { it.type.drawn }
         list.forEachIndexed { i, sec ->
             val faded = y >= FOLD
             val titleH = if (sec.showTitle) 0.03f else 0f

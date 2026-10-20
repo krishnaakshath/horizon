@@ -3,7 +3,11 @@ package dev.tvlauncher.homesections
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** What one block of the home screen shows (Settings > Home layout > Home sections). */
+/**
+ * What one block of the home screen shows (Settings > Home layout > Home sections). Only types
+ * with [drawn] are drawn on Home today, listed in Settings and used by presets; the rest stay in
+ * the model and JSON for later and always load turned off.
+ */
 enum class SectionType(val label: String, val appRow: Boolean) {
     APPS("All apps", true),
     FAVORITES("Favorites", true),
@@ -15,7 +19,9 @@ enum class SectionType(val label: String, val appRow: Boolean) {
     QUICK_ACTIONS("Quick actions", false),
     GROUP("Group", true),
     DISCOVER("Get more apps", false),
-    CLOCK("Clock and date", false)
+    CLOCK("Clock and date", false);
+
+    val drawn: Boolean get() = appRow
 }
 
 /** How a section lays out its items. */
@@ -52,7 +58,9 @@ data class HomeSection(
 
 /** The named starting points the Home sections page offers. */
 enum class SectionPreset(val label: String) {
-    CLASSIC("Classic"), FAVORITES_APPS("Favorites + Apps"), MEDIA("Media"), EVERYTHING("Everything"), MINIMAL("Minimal")
+    CLASSIC("Classic"), FAVORITES_APPS("Favorites + Apps"), FAVORITES_RECENT("Favorites + Recent"),
+    /** Favorites, Recent apps, Apps and every custom group. */
+    EVERYTHING("Everything")
 }
 
 /**
@@ -125,7 +133,8 @@ data class HomeSections(val sections: List<HomeSection>, val preset: SectionPres
 
     /** Which preset these sections match (by enabled types and order), or null for a custom mix. */
     fun matchingPreset(): SectionPreset? = SectionPreset.values().firstOrNull { p ->
-        presetTypes(p) == enabled.map { it.type }
+        presetTypes(p) == enabled.filter { it.type != SectionType.GROUP }.map { it.type } &&
+            (if (p == SectionPreset.EVERYTHING) groups.all { it.enabled } else groups.none { it.enabled })
     }
 
     /** Ensures every built-in exists once, groups are valid and capped, and something is on. */
@@ -142,7 +151,9 @@ data class HomeSections(val sections: List<HomeSection>, val preset: SectionPres
                 out += clamp(s).copy(name = n, apps = cleanApps(s.apps))
             } else {
                 if (s.id != s.type.name) continue
-                out += clamp(s).copy(name = "", apps = emptyList())
+                // A type Home does not draw yet loads turned off (forward-compatible JSON).
+                val base = if (s.type == SectionType.APPS) HomeSection(s.id, s.type, enabled = s.enabled) else clamp(s)
+                out += base.copy(name = "", apps = emptyList(), enabled = s.enabled && s.type.drawn)
             }
         }
         for (t in SectionType.values()) {
@@ -184,23 +195,18 @@ data class HomeSections(val sections: List<HomeSection>, val preset: SectionPres
         fun presetTypes(p: SectionPreset): List<SectionType> = when (p) {
             SectionPreset.CLASSIC -> listOf(SectionType.APPS)
             SectionPreset.FAVORITES_APPS -> listOf(SectionType.FAVORITES, SectionType.APPS)
-            SectionPreset.MEDIA -> listOf(SectionType.CONTINUE, SectionType.APPS, SectionType.NOW_PLAYING)
-            SectionPreset.EVERYTHING -> listOf(
-                SectionType.CLOCK, SectionType.FAVORITES, SectionType.APPS, SectionType.CONTINUE, SectionType.RECENT,
-                SectionType.NOW_PLAYING, SectionType.WEATHER, SectionType.SMART_HOME, SectionType.QUICK_ACTIONS,
-                SectionType.DISCOVER
-            )
-            SectionPreset.MINIMAL -> listOf(SectionType.CLOCK, SectionType.APPS)
+            SectionPreset.FAVORITES_RECENT -> listOf(SectionType.FAVORITES, SectionType.RECENT, SectionType.APPS)
+            SectionPreset.EVERYTHING -> listOf(SectionType.FAVORITES, SectionType.RECENT, SectionType.APPS)
         }
 
-        /** [p] applied to built-ins; [keepGroups] (disabled) stay at the end so a preset never deletes them. */
+        /** [p] applied to built-ins; [keepGroups] stay at the end (on for Everything, else off) so a preset never deletes them. */
         fun preset(p: SectionPreset, keepGroups: List<HomeSection> = emptyList()): HomeSections {
             val on = presetTypes(p)
             val first = on.map { HomeSection(it.name, it, enabled = true) }
             val rest = SectionType.values().filter { it != SectionType.GROUP && it !in on }.map { HomeSection(it.name, it) }
-            val compact = p == SectionPreset.MINIMAL
-            val list = (first + rest).map { if (compact && it.type == SectionType.APPS) it.copy(style = SectionStyle.COMPACT) else it }
-            return HomeSections(list + keepGroups.map { it.copy(enabled = false) }, p).normalized()
+            val list = first + rest
+            val on2 = p == SectionPreset.EVERYTHING
+            return HomeSections(list + keepGroups.map { it.copy(enabled = on2) }, p).normalized()
         }
 
         fun cleanName(raw: String?): String? {

@@ -27,16 +27,38 @@ class HomeSectionsTest {
             val s = HomeSections.preset(p)
             val types = s.sections.map { it.type }
             for (t in SectionType.values()) if (t != SectionType.GROUP) assertEquals(1, types.count { it == t })
-            assertEquals(p, s.matchingPreset())
+            if (p != SectionPreset.EVERYTHING) assertEquals(p, s.matchingPreset())
             assertEquals(HomeSections.presetTypes(p), s.enabled.map { it.type })
+            assertTrue(s.enabled.all { it.type.drawn }) // presets use only sections Home draws
         }
+        val g = c.addGroup("Kids")!!
+        assertEquals(SectionPreset.EVERYTHING, HomeSections.preset(SectionPreset.EVERYTHING, g.groups).matchingPreset())
     }
 
-    @Test fun media_preset_order() {
-        val m = HomeSections.preset(SectionPreset.MEDIA)
-        assertEquals(listOf(SectionType.CONTINUE, SectionType.APPS, SectionType.NOW_PLAYING), m.enabled.map { it.type })
-        assertEquals(SectionType.CONTINUE, m.focusRow.type)
+    @Test fun favoritesRecent_preset_order() {
+        val m = HomeSections.preset(SectionPreset.FAVORITES_RECENT)
+        assertEquals(listOf(SectionType.FAVORITES, SectionType.RECENT, SectionType.APPS), m.enabled.map { it.type })
+        assertEquals(SectionType.FAVORITES, m.focusRow.type)
         assertFalse(m.isClassic)
+    }
+
+    @Test fun undrawnTypes_loadTurnedOff_andCannotBeEnabled() {
+        val json = """{"version":1,"preset":"MEDIA","sections":[
+            {"id":"CONTINUE","type":"CONTINUE","enabled":true},{"id":"APPS","type":"APPS","enabled":true},
+            {"id":"NOW_PLAYING","type":"NOW_PLAYING","enabled":true},{"id":"CLOCK","type":"CLOCK","enabled":true}]}"""
+        val s = HomeSections.fromJson(json)
+        assertTrue(s.isClassic)
+        assertNull(s.preset)
+        assertTrue(s.byId("CONTINUE") != null) // kept in the model for later
+        for (t in SectionType.values()) if (!t.drawn) assertFalse(c.setEnabled(t.name, true).byId(t.name)!!.enabled)
+        // Only Apps on, every undrawn type off: still Classic.
+        assertTrue(c.setEnabled("WEATHER", true).isClassic)
+    }
+
+    @Test fun appsSection_ignoresStyleFields() {
+        val s = c.setStyle("APPS", SectionStyle.GRID).setMaxItems("APPS", 3)
+        assertEquals(SectionStyle.ROW, s.byId("APPS")!!.style)
+        assertEquals(HomeSection.DEFAULT_MAX, s.byId("APPS")!!.maxItems)
     }
 
     @Test fun enableDisable_neverEmpty() {
@@ -75,16 +97,17 @@ class HomeSectionsTest {
         assertEquals(s, s.deleteGroup("APPS")) // built-ins cannot be deleted
     }
 
-    @Test fun preset_keepsGroupsOff() {
+    @Test fun preset_keepsGroups_onOnlyForEverything() {
         val s = c.addGroup("Music")!!
         val p = HomeSections.preset(SectionPreset.EVERYTHING, s.groups)
         assertEquals(1, p.groups.size)
-        assertFalse(p.groups[0].enabled)
+        assertTrue(p.groups[0].enabled)
+        assertFalse(HomeSections.preset(SectionPreset.FAVORITES_RECENT, s.groups).groups[0].enabled)
     }
 
     @Test fun json_roundTrip() {
         val s = HomeSections.preset(SectionPreset.EVERYTHING).addGroup("Kids", listOf("com.x"))!!
-            .setStyle("APPS", SectionStyle.GRID).setSize("RECENT", SectionSize.L).setShowTitle("FAVORITES", false)
+            .setStyle("FAVORITES", SectionStyle.GRID).setSize("RECENT", SectionSize.L).setShowTitle("FAVORITES", false)
             .setMaxItems("RECENT", 7).move("group.1", -3)
         assertEquals(s, HomeSections.fromJson(s.toJson()))
     }
@@ -97,15 +120,18 @@ class HomeSectionsTest {
         for (b in bad) assertTrue(b.take(20), HomeSections.fromJson(b).isClassic)
         val weird = """{"version":1,"sections":[
             {"id":"APPS","type":"APPS","enabled":"yes","max":100000,"style":"HUGE","size":7},
+            {"id":"RECENT","type":"RECENT","enabled":true,"max":100000,"style":"HUGE","size":7},
             {"id":"APPS","type":"APPS","enabled":true},
             {"id":"FAKE","type":"WEATHER","enabled":true},
             {"id":"group.1","type":"GROUP","enabled":true,"name":"","apps":["a"]},
             {"id":"group.2","type":"GROUP","enabled":true,"name":"Ok\u0000Name that is far far too long for a row","apps":["../x","com.ok",3]},
             {"id":"x","type":"GROUP","enabled":true,"name":"Bad id"}]}"""
         val s = HomeSections.fromJson(weird)
-        val apps = s.byId("APPS")!!
-        assertEquals(HomeSection.MAX_MAX, apps.maxItems)
-        assertEquals(SectionStyle.ROW, apps.style)
+        val recent = s.byId("RECENT")!!
+        assertEquals(HomeSection.MAX_MAX, recent.maxItems)
+        assertEquals(SectionStyle.ROW, recent.style)
+        assertFalse(s.byId("APPS")!!.enabled) // "yes" is not a boolean: off (Recent keeps the home non-empty)
+
         assertFalse(s.byId("WEATHER")!!.enabled) // a mismatched id is dropped, the built-in re-added off
         assertEquals(1, s.groups.size)
         assertEquals(HomeSections.MAX_NAME, s.groups[0].name.length)
@@ -114,7 +140,7 @@ class HomeSectionsTest {
     }
 
     @Test fun settingsBackup_carriesSections() {
-        val s = HomeSections.preset(SectionPreset.MEDIA)
+        val s = HomeSections.preset(SectionPreset.FAVORITES_RECENT)
         val text = SettingsBackup.toText(dev.tvlauncher.settings.LauncherSettings(), sections = s)
         assertEquals(s.enabled, SettingsBackup.parseRestored(text)!!.sections!!.enabled)
         assertNull(SettingsBackup.parseRestored(SettingsBackup.toText(dev.tvlauncher.settings.LauncherSettings()))!!.sections)
@@ -129,7 +155,7 @@ class HomeSectionsTest {
         assertTrue(HomeSectionsPage.spec.withinBudget)
         assertTrue(HomeSectionsPage.detailSpec.withinBudget)
         assertEquals("Classic", HomeSectionsPage.presetLabel(c))
-        assertEquals("Custom", HomeSectionsPage.presetLabel(c.toggle("WEATHER")))
+        assertEquals("Custom", HomeSectionsPage.presetLabel(c.toggle("RECENT")))
     }
 
     // --- focus traversal ---------------------------------------------------------------------
@@ -156,7 +182,7 @@ class HomeSectionsTest {
     }
 
     @Test fun lite720_showsAtMostTwoSections_withinSafeArea() {
-        val all = HomeSections.preset(SectionPreset.EVERYTHING)
+        val all = HomeSections.preset(SectionPreset.EVERYTHING, c.addGroup("A")!!.addGroup("B")!!.groups)
         for (screen in listOf(ScreenDp.TV, ScreenDp.MDPI_720, ScreenDp.XHDPI_4K)) {
             for (lite in listOf(true, false)) {
                 for (scale in listOf(0.85f, 1f, 1.2f)) {
@@ -172,7 +198,7 @@ class HomeSectionsTest {
     }
 
     @Test fun paging_coversEveryRow() {
-        val rows = HomeSections.preset(SectionPreset.EVERYTHING).enabled
+        val rows = HomeSections.preset(SectionPreset.EVERYTHING, c.addGroup("A")!!.addGroup("B")!!.groups).enabled
         var start = 0
         var pages = 0
         while (start < rows.size) {
@@ -189,5 +215,8 @@ class HomeSectionsTest {
             assertTrue(b.left >= 0f && b.right <= 1f && b.top >= 0f && b.bottom <= 1f && b.left < b.right)
         }
         assertEquals(1, SectionPreview.blocks(c).count { it.part == SectionPreview.Part.TILE_FOCUSED })
+        assertEquals(0, SectionPreview.blocks(HomeSections.fromJson(
+            """{"version":1,"sections":[{"id":"CLOCK","type":"CLOCK","enabled":true},{"id":"APPS","type":"APPS","enabled":true}]}"""
+        )).count { it.part == SectionPreview.Part.CARD })
     }
 }

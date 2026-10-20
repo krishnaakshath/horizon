@@ -1,5 +1,5 @@
 {
-  "description": "Settings > Home layout > Home sections: the Media preset. Audit the settings page and its preview, the stacked home, UP/DOWN between sections keeping the column and a page jump; then back to Classic.",
+  "description": "Settings > Home layout > Home sections: the Favorites + Recent preset. Audit the settings page and its preview, the stacked home, UP/DOWN between sections keeping the column and a page jump; then back to Classic.",
   "package": "dev.tvlauncher",
   "restart": false,
   "start": {
@@ -64,13 +64,13 @@
       "key": "DPAD_RIGHT",
       "repeat": 2,
       "wait": 1.5,
-      "note": "the Media preset; the preview follows"
+      "note": "the Favorites + Recent preset; the preview follows"
     },
     {
-      "audit": "home-media-settings"
+      "audit": "home-favorites-recent-settings"
     },
     {
-      "screenshot": "home-media-settings"
+      "screenshot": "home-favorites-recent-settings"
     },
     {
       "key": "DPAD_DOWN",
@@ -83,7 +83,7 @@
       "note": "the list of sections"
     },
     {
-      "audit": "home-media-list"
+      "audit": "home-favorites-recent-list"
     },
     {
       "key": "BACK",
@@ -95,10 +95,10 @@
       "note": "home rebuilds its section rows"
     },
     {
-      "audit": "home-media-start"
+      "audit": "home-favorites-recent-start"
     },
     {
-      "screenshot": "home-media-start"
+      "screenshot": "home-favorites-recent-start"
     },
     {
       "key": "DPAD_UP",
@@ -106,7 +106,7 @@
       "note": "the section above Apps, same column"
     },
     {
-      "audit": "home-media-up"
+      "audit": "home-favorites-recent-up"
     },
     {
       "key": "DPAD_RIGHT",
@@ -119,7 +119,7 @@
       "note": "back to Apps at the nearest column"
     },
     {
-      "audit": "home-media-down"
+      "audit": "home-favorites-recent-down"
     },
     {
       "key": "PAGE_DOWN",
@@ -127,7 +127,7 @@
       "note": "L1/R1 page jump on the Apps shelf"
     },
     {
-      "audit": "home-media-page"
+      "audit": "home-favorites-recent-page"
     },
     {
       "key": "DPAD_UP",
@@ -185,7 +185,7 @@
       "note": "back on Classic: the single row"
     },
     {
-      "audit": "home-media-classic"
+      "audit": "home-favorites-recent-classic"
     }
   ]
 }

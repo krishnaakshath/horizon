@@ -49,7 +49,7 @@ object HomeSectionsPage {
     fun presetLabel(s: HomeSections): String = s.matchingPreset()?.label ?: "Custom"
 
     /** The value beside a section row, e.g. "Row, Medium". */
-    fun summary(s: HomeSection): String = if (!s.type.appRow) s.style.label else "${s.style.label}, ${s.size.label}"
+    fun summary(s: HomeSection): String = "${s.style.label}, ${s.size.label}"
 
     fun build(context: Context, nav: SettingsNav): View {
         val prefs = HomeSectionsPrefs(context.applicationContext)
@@ -117,7 +117,7 @@ object HomeSectionsPage {
             moving = null
             nav.refresh()
         }, subtitle = if (moveMode) "OK picks a section, up and down move it, OK drops it" else "Change the order", iconRes = R.drawable.ic_set_tune)
-        for (sec in s.sections) {
+        for (sec in s.sections.filter { it.type.drawn }) {
             val carried = moving == sec.id
             val row = page.row("sections.${sec.id}", sec.title,
                 if (moveMode) RowKind.Action(if (carried) "Moving" else null, chevron = false) {
@@ -131,6 +131,7 @@ object HomeSectionsPage {
                 subtitle = when {
                     carried -> "Up and down to move, OK to drop"
                     moveMode -> if (sec.enabled) "Shown" else "Hidden"
+                    sec.type == SectionType.APPS -> "Its look is set in Layout style"
                     else -> summary(sec) + ". Right for options"
                 },
                 iconRes = iconOf(sec.type))
@@ -142,7 +143,7 @@ object HomeSectionsPage {
                         nav.refresh()
                         true
                     }
-                    !moveMode && code == KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    !moveMode && code == KeyEvent.KEYCODE_DPAD_RIGHT && sec.type != SectionType.APPS -> {
                         nav.push(sec.title) { c, n -> detailPage(c, n, sec.id) }
                         true
                     }
@@ -155,7 +156,7 @@ object HomeSectionsPage {
     }
 
     private fun iconOf(t: SectionType): Int = when (t) {
-        SectionType.APPS -> R.drawable.ic_set_tiles
+        SectionType.APPS -> R.drawable.ic_set_home
         SectionType.FAVORITES, SectionType.GROUP -> R.drawable.ic_set_star
         SectionType.RECENT, SectionType.CLOCK -> R.drawable.ic_set_clock
         SectionType.CONTINUE, SectionType.NOW_PLAYING -> R.drawable.ic_set_motion
