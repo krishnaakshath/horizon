@@ -9,21 +9,18 @@ Nothing yet.
 
 ## [1.0.1]
 
-The product is now called **Mintaka** (named after a star in Orion's belt), with the on-screen mark **M02**.
-
 ### Changed
-- New name: Mintaka, short mark M02. App names are M02, M02 Browser, M02 Store, M02 Weather, M02 Helper and M02 Link;
-  the screensaver and notification-access entries are M02 Ambient and M02 ambient notifications.
-- The splash, icon and banners show "M02" with a letter-spaced "MINTAKA" caption. Weather, Helper and Link get TV
-  banners in the same look as Store and Browser.
-- Setup says "Welcome to M02" and "M02 is ready"; safe mode is "M02 safe mode"; the About page names Mintaka and
-  where the name comes from. The default look preset is called Mintaka.
-- The phone page is "M02 Remote". Release files are named `M02-<module>-<version>.apk`.
+- App names are H02, H02 Browser, H02 Store, H02 Weather, H02 Helper and H02 Link; the screensaver and
+  notification-access entries are H02 Ambient and H02 ambient notifications. All of them come from one place
+  (`Brand.kt`), and a test keeps every module's app name in step.
+- Weather, Helper and Link get TV banners in the same look as Store and Browser (the H02 mark over a sunrise).
+- The phone page is "H02 Remote". Release files are named `H02-<module>-<version>.apk`; the launcher is
+  `H02-app-<version>.apk`.
 - Every module is version 1.0.1 (version code 2), set once in `launcher/gradle.properties`.
 - Package names, settings and provider ids are unchanged, so 1.0.1 installs over 1.0.0 and keeps every setting
   (with the same signing key).
-- Look files are saved in "M02 Looks"; looks in the old folder are still listed. Provisioning and Link's update check
-  still recognise APK files from 1.0.0, and Link still restores backups made by 1.0.0.
+- Look files are saved in "H02 Looks". Provisioning and Link's update check still recognise the 1.0.0 file name
+  `H02-h02-1.0.0.apk`, and Link restores backups made by 1.0.0.
 - Settings > Appearance: "Glass style" became the Look page (looks, glass style, glass amount, corners, tint, accent
   colour, text size), and "Start-up and loading" is its own page.
 - Settings > Home screen > Now Playing: "Show on Ambient" became "Screensaver follows the music" (Full screen, Small
@@ -36,8 +33,8 @@ The product is now called **Mintaka** (named after a star in Orion's belt), with
 - Now Playing backdrop styles for Home and the screensaver: Cover, Blurred cover (default), Colour wash only and
   Artist banner. Text contrast stays at 4.5:1 or better in every style.
 - Optional Spotify artwork: with your own free Spotify app key (entered on the TV or from the phone page, kept only in
-  M02 Link and never backed up), Link fetches the artist picture for the Artist banner style.
-- Look engine: presets (Mintaka, Clear, Cinema, Bright room, Classic), glass amount 0-100 %, corners, tint and accent
+  H02 Link and never backed up), Link fetches the artist picture for the Artist banner style.
+- Look engine: presets (Horizon, Clear, Cinema, Bright room, Classic), glass amount 0-100 %, corners, tint and accent
   colour, a live preview, and your own looks that can be copied to and loaded from look files (USB stick or Pictures).
 - Liquid-glass lens on FULL devices: glass panels bend and slightly colour-fringe what is behind them; LITE devices
   keep flat glass. Focus on top-bar pills, Settings entries and rows springs a little.
@@ -51,10 +48,10 @@ The product is now called **Mintaka** (named after a star in Orion's belt), with
   duration and a preview.
 - Cast & AirPlay page (Settings > Connections): the TV name, whether Chromecast is ready, whether the TV has an AirPlay
   input, and how to cast from each kind of device. An AirPlay input, when the TV has one, also shows in the Inputs panel.
-- Phone remote (M02 Link) as an installable web app: D-pad, trackpad, live typing, media controls with progress,
-  volume, an app grid, quick actions, power menu (with the Helper), sending links to M02 Browser, Home Assistant
+- Phone remote (H02 Link) as an installable web app: D-pad, trackpad, live typing, media controls with progress,
+  volume, an app grid, quick actions, power menu (with the Helper), sending links to H02 Browser, Home Assistant
   favourites and an encrypted backup and restore. Pair with a QR code and PIN from Settings > System > Phone remote.
-- Settings > System > Smart home (through M02 Link) and an optional update check under About (off by default).
+- Settings > System > Smart home (through H02 Link) and an optional update check under About (off by default).
 - Provisioning stops with a clear message when Play Protect holds an install; docs/PROVISIONING.md has a
   Troubleshooting section.
 
@@ -78,7 +75,7 @@ The product is now called **Mintaka** (named after a star in Orion's belt), with
   Back needs the Helper, and the D-pad, OK and typing do not reach other apps.
 - Home sections draws Apps, Favorites, Recent apps and custom groups only. Continue watching, Now playing, Weather,
   Smart home, Quick actions, Get more apps and Clock are not drawn yet and cannot be switched on.
-- Spotify pictures need M02 Link, your own key and a network connection; otherwise the cover is used.
+- Spotify pictures need H02 Link, your own key and a network connection; otherwise the cover is used.
 - The launcher does not receive AirPlay; it shows what the TV offers. The TV tested so far has no AirPlay input.
 - A fresh install of the launcher can be held by Play Protect (it targets Android 9 for the Wi-Fi controls); choose
   Install anyway on the TV. Updates are not held.
@@ -87,7 +84,7 @@ The product is now called **Mintaka** (named after a star in Orion's belt), with
 
 ## [1.0.0]
 
-First public release, as Horizon (renamed Mintaka): a fast, glassy home screen for Android TV, built on a 1 GB TCL TV.
+First public release: a fast, glassy home screen for Android TV, built on a 1 GB TCL TV.
 
 ### Added
 - Home with five layouts, brand-colour backdrops, clock, weather and quick controls.
@@ -105,6 +102,6 @@ First public release, as Horizon (renamed Mintaka): a fast, glassy home screen f
 - Some TVs stop the Helper in the background; its extras may pause there.
 - The phone remote cannot press keys inside other apps without the Helper.
 
-[Unreleased]: https://github.com/krishnaakshath/mintaka/compare/v1.0.1...HEAD
-[1.0.1]: https://github.com/krishnaakshath/mintaka/compare/v1.0.0...v1.0.1
-[1.0.0]: https://github.com/krishnaakshath/mintaka/releases/tag/v1.0.0
+[Unreleased]: https://github.com/krishnaakshath/horizon/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/krishnaakshath/horizon/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/krishnaakshath/horizon/releases/tag/v1.0.0

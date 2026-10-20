@@ -1,20 +1,20 @@
-# Mintaka
+# Horizon
 
 A fast, minimal, glassy home screen for Android TV. Built and tested on a 1 GB TCL TV, so it stays smooth on weak
 hardware and looks better on strong hardware.
 
-Named after a star in Orion's belt. On screen it is called **M02**; Mintaka is the project name.
+On screen it is called **H02**; Horizon is the project name.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform: Android TV](https://img.shields.io/badge/platform-Android%20TV-3ddc84.svg)](#requirements)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Android%20Views-7f52ff.svg)](#tech-stack)
 [![Version](https://img.shields.io/badge/version-1.0.1-4c8dff.svg)](CHANGELOG.md)
-[![Release](https://img.shields.io/github/v/release/krishnaakshath/mintaka)](../../releases/latest)
-[![CI](https://github.com/krishnaakshath/mintaka/actions/workflows/ci.yml/badge.svg)](https://github.com/krishnaakshath/mintaka/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/krishnaakshath/horizon)](../../releases/latest)
+[![CI](https://github.com/krishnaakshath/horizon/actions/workflows/ci.yml/badge.svg)](https://github.com/krishnaakshath/horizon/actions/workflows/ci.yml)
 
 | | | |
 |---|---|---|
-| ![Start-up animation with the M02 mark](docs/screenshots/01-startup.png) | ![Home screen with the app row, clock and weather](docs/screenshots/02-home.png) | ![Spotlight search over the home screen](docs/screenshots/03-spotlight.png) |
+| ![Start-up animation with the H02 mark](docs/screenshots/01-startup.png) | ![Home screen with the app row, clock and weather](docs/screenshots/02-home.png) | ![Spotlight search over the home screen](docs/screenshots/03-spotlight.png) |
 | Start-up | Home | Spotlight |
 | ![Inputs panel](docs/screenshots/04-inputs-panel.png) | ![Settings page for TV and system](docs/screenshots/05-settings-tv-and-system.png) | ![Settings sidebar](docs/screenshots/06-settings-sidebar.png) |
 | Inputs panel | TV and system settings | Settings |
@@ -48,12 +48,12 @@ Named after a star in Orion's belt. On screen it is called **M02**; Mintaka is t
 - Now Playing: the cover art becomes the backdrop and a mini player stays on Home. Backdrop styles: cover, blurred
   cover, colour wash and artist banner.
 - The screensaver follows the music: while a song plays it shows the cover, title, artist and progress.
-- Optional Spotify artist pictures through M02 Link, with your own free Spotify app key (it stays on the TV).
+- Optional Spotify artist pictures through H02 Link, with your own free Spotify app key (it stays on the TV).
 - Room lighting that follows sunrise and sunset.
 
 **Phone remote**
 - Pair a phone by QR code and use it as a trackpad, keyboard and media remote from a web page (a PWA, nothing to
-  install from a store). It also sends links to M02 Browser, runs smart-home favourites and saves an encrypted backup.
+  install from a store). It also sends links to H02 Browser, runs smart-home favourites and saves an encrypted backup.
 
 **Controllers**
 - Game controllers and the TV remote work everywhere in the launcher.
@@ -117,17 +117,17 @@ More detail: [docs/](docs/README.md).
 ### A. Quick: install the APKs
 
 1. Download the APKs from the [latest release](../../releases/latest). Release files are named
-   `M02-<module>-<version>.apk`.
+   `H02-<module>-<version>.apk`.
 2. Connect and install. The launcher (`app`) is required; the companions are optional.
 
 ```
 adb connect <tv-ip>:5555
-adb install -r M02-app-1.0.1.apk
-adb install -r M02-browser-1.0.1.apk   # optional
-adb install -r M02-store-1.0.1.apk     # optional
-adb install -r M02-weather-1.0.1.apk   # optional
-adb install -r M02-helper-1.0.1.apk    # optional
-adb install -r M02-link-1.0.1.apk      # optional
+adb install -r H02-app-1.0.1.apk
+adb install -r H02-browser-1.0.1.apk   # optional
+adb install -r H02-store-1.0.1.apk     # optional
+adb install -r H02-weather-1.0.1.apk   # optional
+adb install -r H02-helper-1.0.1.apk    # optional
+adb install -r H02-link-1.0.1.apk      # optional
 ```
 
 Check the files against `SHA256SUMS.txt` from the release. Version 1.0.1 installs over 1.0.0 and keeps your settings:
@@ -135,7 +135,7 @@ package names did not change (the APKs must be signed with the same key).
 
 ### B. Provisioning tool (recommended for a full setup)
 
-`tvtool provision` installs the APKs, grants permissions, turns on the Helper and can make Mintaka the Home app. It is
+`tvtool provision` installs the APKs, grants permissions, turns on the Helper and can make Horizon the Home app. It is
 a dry run unless you add `--apply`, and it writes an undo script before changing anything.
 
 ```
@@ -153,19 +153,19 @@ launcher (it is never uninstalled). See [docs/PROVISIONING.md](docs/PROVISIONING
 JDK 17 and the Android SDK are required. The Gradle wrapper is included.
 
 ```
-git clone https://github.com/krishnaakshath/mintaka.git
-cd mintaka/launcher
+git clone https://github.com/krishnaakshath/horizon.git
+cd horizon/launcher
 echo "sdk.dir=/path/to/Android/sdk" > local.properties
 ./gradlew testDebugUnitTest assembleDebug
 ```
 
 Debug APKs appear in each module's `build/outputs/apk/debug/`. Release builds need your own keystore, and all modules
 must be signed with the same key. The version of every module is set once, in `launcher/gradle.properties`. Gradle
-names the outputs `<module>-release.apk`; they are published as `M02-<module>-<version>.apk`.
+names the outputs `<module>-release.apk`; they are published as `H02-<module>-<version>.apk`.
 
 ## First run
 
-1. Press Home. If Mintaka is not yet the default Home app, choose it when Android asks, or use provisioning.
+1. Press Home. If Horizon is not yet the default Home app, choose it when Android asks, or use provisioning.
 2. The setup flow walks through language, network, time and place, apps, look and feel, and permissions, all with the
    remote. It can also restore a setup saved on a USB stick.
 3. Settings pages that need a one-time permission say so and explain how to grant it.
@@ -175,26 +175,25 @@ names the outputs `<module>-release.apk`; they are published as `M02-<module>-<v
 
 | | |
 |---|---|
-| Name | **Mintaka**, named after a star in Orion's belt |
-| On-screen mark | **M02**; companions are M02 Browser, M02 Store, M02 Weather, M02 Helper and M02 Link |
-| Splash | "M02" with a letter-spaced "MINTAKA" caption over a horizon line and a rising sun |
+| Name | **Horizon** |
+| On-screen mark | **H02**; companions are H02 Browser, H02 Store, H02 Weather, H02 Helper and H02 Link |
+| Splash | "H02" with a letter-spaced "HORIZON" caption over a horizon line and a rising sun |
 | Mark face | Unbounded Medium (SIL OFL 1.1), a small subset bundled for the splash only |
 | Icons and banners | Vector paths drawn from the same letters by `launcher/fonts/brand_art.py` and `companion_art.py` |
 | Source of truth | `launcher/app/src/main/java/dev/tvlauncher/brand/Brand.kt`; `BrandStringsTest` keeps every app name in step |
 
 Package names (`dev.tvlauncher.*`) are internal ids and do not follow the brand, so updates keep each TV's settings.
-Version 1.0.0 was released under an earlier name; see the [changelog](CHANGELOG.md).
 
 ## Companion apps
 
 | App | Package | Needs internet | Permissions (summary) |
 |---|---|---|---|
-| M02 (launcher) | `dev.tvlauncher` | No | Wi-Fi/Bluetooth state and control, location (for scans), calendar (widget), notification access (optional), overlay, boot, package removal requests |
-| M02 Helper | `dev.tvlauncher.helper` | No | Accessibility service (foreground app name and key presses only; does not read screen content) |
-| M02 Browser | `dev.tvlauncher.browser` | Yes | Internet, network state |
-| M02 Store | `dev.tvlauncher.store` | Yes | Internet, network state, install and remove packages (system confirmation each time) |
-| M02 Weather | `dev.tvlauncher.weather` | Yes | Internet, network state, boot (scheduled refresh) |
-| M02 Link | `dev.tvlauncher.link` | Local network only | Internet (local server), network state, boot, foreground service |
+| H02 (launcher) | `dev.tvlauncher` | No | Wi-Fi/Bluetooth state and control, location (for scans), calendar (widget), notification access (optional), overlay, boot, package removal requests |
+| H02 Helper | `dev.tvlauncher.helper` | No | Accessibility service (foreground app name and key presses only; does not read screen content) |
+| H02 Browser | `dev.tvlauncher.browser` | Yes | Internet, network state |
+| H02 Store | `dev.tvlauncher.store` | Yes | Internet, network state, install and remove packages (system confirmation each time) |
+| H02 Weather | `dev.tvlauncher.weather` | Yes | Internet, network state, boot (scheduled refresh) |
+| H02 Link | `dev.tvlauncher.link` | Local network only | Internet (local server), network state, boot, foreground service |
 
 ## Privacy
 
@@ -208,11 +207,11 @@ Version 1.0.0 was released under an earlier name; see the [changelog](CHANGELOG.
 
 ## Compatibility and known limits
 
-These mostly come from the TV's firmware, not from Mintaka.
+These mostly come from the TV's firmware, not from Horizon.
 
 - The firmware keeps the volume keys and its volume pop-up, so apps cannot replace them.
 - Some TVs stop background accessibility services. The Helper's extras (double-Back, controller Guide button from
-  other apps) may pause on those TVs. Everything inside Mintaka is unaffected.
+  other apps) may pause on those TVs. Everything inside Horizon is unaffected.
 - Picture and sound processing menus, system updates and factory reset belong to the TV and stay there.
 - Apps only see what other apps publish. Continue watching and the cover-art backdrop depend on that.
 - The phone remote works fully on Home and in Settings. In other apps, Home, volume, media keys and app launching
@@ -220,11 +219,11 @@ These mostly come from the TV's firmware, not from Mintaka.
 - The Helper may be paused by the TV's memory manager; provisioning reports it, and launcher features keep working.
 - Home sections draws Apps, Favorites, Recent apps and your groups. Other section types (Continue watching, Now playing,
   Weather, Smart home, Quick actions, Clock) are not drawn yet and cannot be switched on.
-- Spotify artist pictures need M02 Link, your own Spotify app key and a network connection; otherwise the cover is used.
+- Spotify artist pictures need H02 Link, your own Spotify app key and a network connection; otherwise the cover is used.
 - AirPlay depends on the TV: the launcher does not receive AirPlay itself (see [docs/AIRPLAY.md](docs/AIRPLAY.md)).
 - A fresh install of the launcher can be held by Play Protect on some TVs (it targets Android 9 for the Wi-Fi
   controls); choose Install anyway. See [docs/PROVISIONING.md](docs/PROVISIONING.md).
-- Enterprise (802.1X) Wi-Fi is not supported; networks saved by the TV cannot always be forgotten from Mintaka.
+- Enterprise (802.1X) Wi-Fi is not supported; networks saved by the TV cannot always be forgotten from Horizon.
 - Real-device testing so far is one TV model. Other devices should work but are less proven; please report problems.
 
 See [docs/SYSTEM_SETTINGS.md](docs/SYSTEM_SETTINGS.md) and [docs/OS_PARITY.md](docs/OS_PARITY.md).
@@ -249,7 +248,7 @@ Fonts are under the SIL Open Font License; sources and hashes are in [launcher/f
 
 ## Not affiliated
 
-Mintaka is an independent project. It is not made by, endorsed by or connected to TCL, Google, Apple, Netflix, Spotify
+Horizon is an independent project. It is not made by, endorsed by or connected to TCL, Google, Apple, Netflix, Spotify
 or any other company or service named in the code or screenshots. All names and logos belong to their owners.
-"Mintaka" is the name of a star and is used by other products and companies. This project makes no trademark claim to
-"Mintaka" or "M02"; check the names before any commercial use.
+The name Horizon is used by other products (for example Meta Horizon and Liberty Global's Horizon TV platform); no
+trademark is claimed to "Horizon" or "H02". Check before commercial use.
