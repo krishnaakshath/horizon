@@ -13,8 +13,8 @@ android {
         // enableNetwork, removeNetwork, reconnect) working on Android 10/11, so Wi-Fi is run from
         // the launcher instead of the TV's settings. See lint.xml and docs/SYSTEM_SETTINGS.md.
         targetSdk = 28
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = providers.gradleProperty("mintaka.versionCode").get().toInt()
+        versionName = providers.gradleProperty("mintaka.versionName").get()
     }
 
     buildTypes {

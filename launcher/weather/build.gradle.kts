@@ -10,8 +10,8 @@ android {
         applicationId = "dev.tvlauncher.weather"
         minSdk = 24
         targetSdk = 30
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = providers.gradleProperty("mintaka.versionCode").get().toInt()
+        versionName = providers.gradleProperty("mintaka.versionName").get()
     }
 
     buildTypes {
