@@ -19,17 +19,17 @@ with the remote (language, network, time and place, apps, look and feel, permiss
 ```
 cd tools
 # 1. See what would change (nothing is changed):
-python3 -m tvtool provision --host 192.168.1.50 --apks ../launcher-apks
+python3 -m tvtool provision --host <tv-ip> --apks ../launcher-apks
 
 # 2. Make the changes:
-python3 -m tvtool provision --host 192.168.1.50 --apks ../launcher-apks --apply
+python3 -m tvtool provision --host <tv-ip> --apks ../launcher-apks --apply
 
 # 3. Optional: also turn off the TV's stock launcher, so the Home key opens H02
 #    on TVs where the stock launcher is hard-wired to Home:
-python3 -m tvtool provision --host 192.168.1.50 --apks ../launcher-apks --apply --take-over-home
+python3 -m tvtool provision --host <tv-ip> --apks ../launcher-apks --apply --take-over-home
 
 # Only the power-on self-test (nothing else changes when everything is in place):
-python3 -m tvtool provision --host 192.168.1.50 --self-test --apply
+python3 -m tvtool provision --host <tv-ip> --self-test --apply
 ```
 
 `--skip-self-test` leaves the power-on self-test out of the plan.
@@ -91,7 +91,7 @@ switches the TV does not have, the Helper not being bound after the retry, and t
 ## Undo
 
 ```
-python3 -m tvtool rollback --host 192.168.1.50 --script scans-out/provision_undo_32S5403AF_20261020-101500.sh
+python3 -m tvtool rollback --host <tv-ip> --script scans-out/provision_undo_32S5403AF_20261020-101500.sh
 # or, from a shell with adb:
 sh scans-out/provision_undo_32S5403AF_20261020-101500.sh
 ```

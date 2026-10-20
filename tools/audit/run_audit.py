@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Drive the launcher's debug-only layout auditor on a TV over adb and collect a report.
 
-    python3 -I tools/audit/run_audit.py --host 192.168.1.38 \
+    python3 -I tools/audit/run_audit.py --host <tv-ip> \
         --scenario tools/audit/scenarios/home.json --out ./audit-out
 
 Python 3 standard library only. Every adb call is an argv list with a timeout (never a shell
