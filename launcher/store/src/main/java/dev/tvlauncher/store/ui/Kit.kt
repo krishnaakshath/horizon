@@ -18,7 +18,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
-/** Visual system for Get Apps: premium dark glass without blur (LITE-friendly), D-pad focus states. */
+/** Visual system for H02 Store: premium dark glass without blur (LITE-friendly), D-pad focus states. */
 object Kit {
     const val BASE = 0xFF0B0D12.toInt()
     const val SURFACE = 0xFF151922.toInt()

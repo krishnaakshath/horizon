@@ -66,7 +66,7 @@ class BrandStringsTest {
 
     /** No user-facing literal or resource in any module still says the old product name. */
     @Test fun noOldProductNameOnScreen() {
-        val old = Regex("""TV Launcher|TV launcher|Launcher Helper|Launcher Weather|Get Apps""")
+        val old = Regex("""TV Launcher|TV launcher|Launcher Helper|Launcher Weather|Get Apps|\bOrbit\b""")
         val literal = Regex(""""(?:[^"\\]|\\.)*"""")
         val hits = ArrayList<String>()
         for (m in listOf("src/main", "../helper/src/main", "../store/src/main", "../browser/src/main", "../weather/src/main", "../link/src/main")) {
@@ -83,6 +83,26 @@ class BrandStringsTest {
             }
         }
         assertEquals(emptyList<String>(), hits)
+    }
+}
+
+/** H02 Store and H02 Browser artwork is the generated H02 look (fonts/companion_art.py), never the old marks. */
+class CompanionArtTest {
+    @Test fun storeAndBrowserDrawTheH02Mark() {
+        val art = listOf(
+            "../store/src/main/res/drawable/banner.xml", "../store/src/main/res/drawable/ic_launcher_foreground.xml",
+            "../store/src/main/res/drawable/wordmark.xml", "../store/src/main/res/drawable/ic_launcher_legacy.xml",
+            "../browser/src/main/res/drawable/banner_browser.xml", "../browser/src/main/res/drawable/brand_mark.xml",
+            "../browser/src/main/res/drawable/brand_wordmark.xml", "../browser/src/main/res/drawable/ic_launcher_fg.xml",
+            "../browser/src/main/res/mipmap-anydpi/ic_launcher.xml"
+        )
+        for (f in art) {
+            val xml = File(f).readText()
+            assertTrue(f, xml.contains("companion_art.py") && xml.contains("Unbounded Medium"))
+            assertFalse(f, Regex("Get Apps|Orbit").containsMatchIn(xml))
+        }
+        assertTrue(File("../fonts/companion_art.py").readText().contains("\"H02 Store\""))
+        assertTrue(File("../fonts/companion_art.py").readText().contains("\"H02 Browser\""))
     }
 }
 

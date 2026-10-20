@@ -9,7 +9,7 @@ import android.widget.LinearLayout
 import dev.tvlauncher.browser.Perf
 import dev.tvlauncher.browser.R
 
-/** Cold-start mark reveal: orbit draws itself, satellite pops, wordmark rises (<= 600 ms; LITE 350 ms). */
+/** Cold-start mark reveal: the H02 sunrise scales up, its letters fade in, the wordmark rises (<= 600 ms; LITE 350 ms). */
 class SplashOverlay(context: Context) : FrameLayout(context) {
     init {
         setBackgroundColor(Theme.BASE)

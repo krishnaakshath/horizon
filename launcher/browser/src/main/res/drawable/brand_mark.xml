@@ -1,19 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Browser logomark "Orbit" (original geometry; see BrowserBrand). -->
+<!-- H02 Browser mark (splash, start page, tabs): glass disc, H02 over a sunrise.
+     Original artwork in the H02 look. Letters are outlines of Unbounded Medium (SIL OFL 1.1) converted
+     to paths: no font is loaded. Regenerate with fonts/companion_art.py. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
-    android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
-    <group android:name="mark" android:pivotX="24" android:pivotY="24">
-        <path android:name="outer" android:pathData="M37.86,16 A16,16 0 1,1 16,10.14" android:strokeWidth="5" android:strokeLineCap="round" android:fillColor="#00000000">
-            <aapt:attr name="android:strokeColor">
-                <gradient android:type="linear" android:startX="8" android:startY="40" android:endX="40" android:endY="8">
-                    <item android:offset="0" android:color="#FF5B8CFF"/>
-                    <item android:offset="0.55" android:color="#FF8B5CF6"/>
-                    <item android:offset="1" android:color="#FF22D3EE"/>
-                </gradient>
-            </aapt:attr>
-        </path>
-        <path android:name="inner" android:pathData="M20,30.93 A8,8 0 0,1 28,17.07" android:strokeWidth="4" android:strokeLineCap="round" android:fillColor="#00000000" android:strokeColor="#FFF5F7FA" android:strokeAlpha="0.92"/>
-        <path android:name="dot" android:pathData="M28.14,8.55 m-3.5,0 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0" android:fillColor="#FF22D3EE"/>
-    </group>
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path android:pathData="M24,2H24A22,22 0,0 1 46,24V24A22,22 0,0 1 24,46H24A22,22 0,0 1 2,24V24A22,22 0,0 1 24,2Z" android:strokeColor="#38FFFFFF" android:strokeWidth="0.8">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="2" android:startY="2" android:endX="2" android:endY="46">
+                <item android:offset="0" android:color="#2EFFFFFF" />
+                <item android:offset="0.45" android:color="#14FFFFFF" />
+                <item android:offset="1" android:color="#0AFFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M10,31A14,14 0,0 1 38,31Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="24" android:centerY="31" android:gradientRadius="14"
+                android:startColor="#668B5CF6" android:endColor="#008B5CF6" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M20.5,31A3.5,3.5 0,0 1 27.5,31Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="24" android:centerY="29.77" android:gradientRadius="3.85"
+                android:startColor="#FFB7CAED" android:endColor="#FF8B5CF6" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M9,30.55H39V31.45H9Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="9" android:startY="31" android:endX="39" android:endY="31">
+                <item android:offset="0" android:color="#00F5F7FA" />
+                <item android:offset="0.5" android:color="#D9F5F7FA" />
+                <item android:offset="1" android:color="#00F5F7FA" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#FFF5F7FA" android:pathData="M8.22 17.5H10.38V27H8.22ZM15.82 17.5H17.98V27H15.82ZM9.4 21.25H16.77V23.14H9.4Z M24.72 27.19Q23.12 27.19 21.96 26.58Q20.8 25.96 20.17 24.85Q19.54 23.73 19.54 22.25Q19.54 20.77 20.17 19.65Q20.8 18.54 21.96 17.92Q23.12 17.31 24.72 17.31Q26.3 17.31 27.46 17.92Q28.62 18.54 29.25 19.65Q29.88 20.77 29.88 22.25Q29.88 23.73 29.25 24.85Q28.62 25.96 27.46 26.58Q26.3 27.19 24.72 27.19ZM24.72 25.44Q26.15 25.44 26.94 24.6Q27.73 23.76 27.73 22.25Q27.73 20.73 26.94 19.89Q26.15 19.06 24.72 19.06Q23.28 19.06 22.49 19.89Q21.69 20.73 21.69 22.25Q21.69 23.77 22.49 24.61Q23.28 25.44 24.72 25.44Z M30.95 20.84Q31.02 19.75 31.66 18.96Q32.29 18.17 33.34 17.74Q34.38 17.31 35.71 17.31Q36.98 17.31 37.93 17.7Q38.88 18.08 39.41 18.78Q39.94 19.48 39.94 20.4Q39.94 21.11 39.57 21.72Q39.21 22.33 38.4 22.94Q37.6 23.55 36.27 24.26L33.39 25.85L33.23 25.26H40.21V27H31.09V25.48L35.15 23.1Q36.17 22.52 36.74 22.09Q37.31 21.67 37.55 21.3Q37.79 20.93 37.79 20.51Q37.79 20.07 37.55 19.73Q37.31 19.39 36.83 19.2Q36.36 19.01 35.63 19.01Q34.79 19.01 34.24 19.25Q33.7 19.5 33.42 19.92Q33.15 20.34 33.1 20.84Z" />
 </vector>

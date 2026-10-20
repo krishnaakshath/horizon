@@ -1,47 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 320x180 dp Android TV banner: logomark + "Get Apps" wordmark, all vector paths. -->
+<!-- 320 x 180 dp TV banner of H02 Store: the H02 mark on a glass card over a sunrise, STORE caption.
+     Original artwork in the H02 look. Letters are outlines of Unbounded Medium (SIL OFL 1.1) converted
+     to paths: no font is loaded. Regenerate with fonts/companion_art.py. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="VectorRaster"
     android:width="320dp"
     android:height="180dp"
     android:viewportWidth="320"
     android:viewportHeight="180">
-    <path android:pathData="M0,0 H320 V180 H0 Z">
+    <path android:pathData="M0,0h320v180h-320z">
         <aapt:attr name="android:fillColor">
-            <gradient
-                android:type="radial"
-                android:centerX="70" android:centerY="70"
-                android:gradientRadius="260"
-                android:startColor="#FF1C2638"
-                android:endColor="#FF0B0D12" />
+            <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="0" android:endY="180">
+                <item android:offset="0" android:color="#FF0B0D12" />
+                <item android:offset="0.62" android:color="#FF131A2B" />
+                <item android:offset="1" android:color="#FF0B0D12" />
+            </gradient>
         </aapt:attr>
     </path>
-    <group android:translateX="1" android:translateY="33">
-        <path
-            android:pathData="M24,47 L32,56 L32,72 Q32,78 38,78 L70,78 Q76,78 76,72 L76,56 L84,47"
-            android:strokeColor="#FFF5F7FA"
-            android:strokeWidth="6"
-            android:strokeLineCap="round"
-            android:strokeLineJoin="round" />
-        <path
-            android:pathData="M54,26 L54,62 M43,51 L54,62 L65,51"
-            android:strokeWidth="7"
-            android:strokeLineCap="round"
-            android:strokeLineJoin="round">
-            <aapt:attr name="android:strokeColor">
-                <gradient
-                    android:type="linear"
-                    android:startX="54" android:startY="24"
-                    android:endX="54" android:endY="64"
-                    android:startColor="#FF5B8CFF"
-                    android:endColor="#FF7CF2C8" />
-            </aapt:attr>
-        </path>
-    </group>
-    <group android:translateX="109" android:translateY="72" android:scaleX="0.74" android:scaleY="0.74">
-        <path android:pathData="M34.1,5.9 A20,20 0 1,0 40,20 L24,20 M48,27 L74,27 A13,13 0 1,0 70.2,36.2 M88,4 L88,34 Q88,40 94,40 L98,40 M82,14 L98,14" android:strokeColor="#FFF5F7FA" android:strokeWidth="6"
-            android:strokeLineCap="round" android:strokeLineJoin="round" />
-        <path android:pathData="M118,40 L135,0 L152,40 M125,26 L145,26 M160,14 L160,54 M160,27 A13,13 0 1,1 186,27 A13,13 0 1,1 160,27 M194,14 L194,54 M194,27 A13,13 0 1,1 220,27 A13,13 0 1,1 194,27 M249,17 Q245,14 239,14 Q230,14 230,20.5 Q230,26 239,27 Q249,28 249,33.5 Q249,40 239,40 Q232,40 228,37" android:strokeColor="#FF7CF2C8" android:strokeWidth="6"
-            android:strokeLineCap="round" android:strokeLineJoin="round" />
-    </group>
+    <path android:pathData="M74,26H246A22,22 0,0 1 268,48V132A22,22 0,0 1 246,154H74A22,22 0,0 1 52,132V48A22,22 0,0 1 74,26Z" android:strokeColor="#38FFFFFF" android:strokeWidth="1.0">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="52" android:startY="26" android:endX="52" android:endY="154">
+                <item android:offset="0" android:color="#2EFFFFFF" />
+                <item android:offset="0.45" android:color="#14FFFFFF" />
+                <item android:offset="1" android:color="#0AFFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M98,112A62,62 0,0 1 222,112Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="160" android:centerY="112" android:gradientRadius="62"
+                android:startColor="#662DD4BF" android:endColor="#002DD4BF" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M149,112A11,11 0,0 1 171,112Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="160" android:centerY="108.15" android:gradientRadius="12.10"
+                android:startColor="#FFB7CAED" android:endColor="#FF2DD4BF" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M70,111.30H250V112.70H70Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="70" android:startY="112" android:endX="250" android:endY="112">
+                <item android:offset="0" android:color="#00F5F7FA" />
+                <item android:offset="0.5" android:color="#D9F5F7FA" />
+                <item android:offset="1" android:color="#00F5F7FA" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#FFF5F7FA" android:pathData="M93.57 52H102.64V92H93.57ZM125.57 52H134.64V92H125.57ZM98.53 67.79H129.57V75.73H98.53Z M163.01 92.8Q156.29 92.8 151.41 90.21Q146.53 87.63 143.87 82.93Q141.2 78.24 141.2 72Q141.2 65.76 143.87 61.07Q146.53 56.37 151.41 53.79Q156.29 51.2 163.01 51.2Q169.68 51.2 174.56 53.79Q179.44 56.37 182.11 61.07Q184.77 65.76 184.77 72Q184.77 78.24 182.11 82.93Q179.44 87.63 174.56 90.21Q169.68 92.8 163.01 92.8ZM163.01 85.44Q169.04 85.44 172.37 81.89Q175.71 78.35 175.71 72Q175.71 65.6 172.37 62.08Q169.04 58.56 163.01 58.56Q156.99 58.56 153.63 62.08Q150.27 65.6 150.27 72Q150.27 78.4 153.63 81.92Q156.99 85.44 163.01 85.44Z M189.25 66.08Q189.57 61.49 192.24 58.16Q194.91 54.83 199.31 53.01Q203.71 51.2 209.31 51.2Q214.64 51.2 218.64 52.83Q222.64 54.45 224.88 57.39Q227.12 60.32 227.12 64.21Q227.12 67.2 225.57 69.76Q224.03 72.32 220.64 74.91Q217.25 77.49 211.65 80.48L199.55 87.15L198.85 84.69H228.24V92H189.84V85.6L206.96 75.57Q211.23 73.12 213.63 71.33Q216.03 69.55 217.04 68Q218.05 66.45 218.05 64.69Q218.05 62.83 217.04 61.39Q216.03 59.95 214.03 59.15Q212.03 58.35 208.99 58.35Q205.41 58.35 203.12 59.39Q200.83 60.43 199.68 62.19Q198.53 63.95 198.32 66.08Z" />
+    <path android:fillColor="#FFA7B0C0" android:pathData="M129.22 134.71H130.82Q130.88 135.07 131.14 135.33Q131.39 135.6 131.83 135.74Q132.26 135.89 132.83 135.89Q133.66 135.89 134.14 135.65Q134.62 135.41 134.62 134.98Q134.62 134.65 134.35 134.47Q134.07 134.28 133.33 134.2L131.92 134.04Q130.55 133.89 129.94 133.4Q129.33 132.91 129.33 132.03Q129.33 131.34 129.74 130.86Q130.14 130.37 130.88 130.12Q131.62 129.86 132.62 129.86Q133.59 129.86 134.34 130.14Q135.1 130.43 135.55 130.94Q135.99 131.45 136.03 132.13H134.43Q134.38 131.82 134.15 131.59Q133.92 131.36 133.52 131.24Q133.12 131.11 132.58 131.11Q131.82 131.11 131.37 131.33Q130.93 131.56 130.93 131.97Q130.93 132.29 131.19 132.46Q131.46 132.63 132.13 132.72L133.6 132.89Q134.57 133 135.14 133.22Q135.71 133.45 135.96 133.84Q136.21 134.22 136.21 134.81Q136.21 135.51 135.78 136.03Q135.36 136.56 134.59 136.85Q133.83 137.14 132.8 137.14Q131.76 137.14 130.96 136.84Q130.17 136.53 129.71 135.99Q129.26 135.44 129.22 134.71Z M145.29 130.71H146.87V137H145.29ZM142.5 130H149.65V131.4H142.5Z M160.07 137.14Q158.84 137.14 157.92 136.68Q157 136.23 156.49 135.41Q155.98 134.59 155.98 133.5Q155.98 132.41 156.49 131.59Q157 130.77 157.92 130.32Q158.84 129.86 160.07 129.86Q161.29 129.86 162.21 130.32Q163.13 130.77 163.64 131.59Q164.15 132.41 164.15 133.5Q164.15 134.59 163.64 135.41Q163.13 136.23 162.21 136.68Q161.29 137.14 160.07 137.14ZM160.07 135.73Q160.83 135.73 161.39 135.46Q161.94 135.19 162.24 134.69Q162.55 134.18 162.55 133.5Q162.55 132.82 162.24 132.31Q161.94 131.81 161.39 131.54Q160.83 131.27 160.07 131.27Q159.31 131.27 158.75 131.54Q158.19 131.81 157.89 132.31Q157.58 132.82 157.58 133.5Q157.58 134.18 157.89 134.69Q158.19 135.19 158.75 135.46Q159.31 135.73 160.07 135.73Z M172.13 133.11H174.83Q175.36 133.11 175.68 132.86Q175.99 132.61 175.99 132.17Q175.99 131.74 175.68 131.49Q175.36 131.25 174.83 131.25H171.9L172.62 130.44V137H171.03V130H175.02Q175.78 130 176.36 130.28Q176.94 130.55 177.27 131.04Q177.59 131.52 177.59 132.17Q177.59 132.82 177.27 133.3Q176.94 133.79 176.36 134.06Q175.78 134.34 175.02 134.34H172.13ZM173.35 133.72H175.16L177.8 137H175.94Z M190.35 132.89V134.11H185.34V132.89ZM186.4 133.5 185.94 136.47 185.25 135.68H190.64V137H184.34L184.88 133.5L184.34 130H190.59V131.32H185.25L185.94 130.53Z" />
 </vector>

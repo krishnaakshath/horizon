@@ -79,7 +79,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Get Apps: install apps from an https link, the F-Droid catalog or a GitHub project's latest release.
+ * H02 Store: install apps from an https link, the F-Droid catalog or a GitHub project's latest release.
  * Every install goes: download (https, capped, hashed, verified) → inspect → explicit user confirmation →
  * system PackageInstaller session (Android shows its own prompt too). Nothing is ever installed silently.
  */
