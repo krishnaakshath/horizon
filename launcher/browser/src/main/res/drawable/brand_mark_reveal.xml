@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Cold-start reveal of the H02 Browser mark: the sunrise scales up and the letters fade in (about 520 ms). -->
+<!-- Cold-start reveal of the M02 Browser mark: the sunrise scales up and the letters fade in (about 520 ms). -->
 <animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:drawable="@drawable/brand_mark_anim_base">

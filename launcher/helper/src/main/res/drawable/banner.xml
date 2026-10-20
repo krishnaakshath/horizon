@@ -1,10 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 320 x 180 dp TV banner (and icon) of M02 Helper: the M02 mark on a glass card over a sunrise, HELPER caption.
+     Original artwork in the M02 look. Letters are outlines of Unbounded Medium (SIL OFL 1.1) converted
+     to paths: no font is loaded. Regenerate with fonts/companion_art.py. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="VectorRaster"
     android:width="320dp"
     android:height="180dp"
     android:viewportWidth="320"
     android:viewportHeight="180">
-    <path android:fillColor="#0B0D12" android:pathData="M0,0h320v180h-320z" />
-    <path android:fillColor="#151922" android:pathData="M60,70h200v40h-200z" />
-    <path android:fillColor="#F5F7FA" android:pathData="M90,85h60v10h-60z" />
+    <path android:pathData="M0,0h320v180h-320z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="0" android:endY="180">
+                <item android:offset="0" android:color="#FF0B0D12" />
+                <item android:offset="0.62" android:color="#FF131A2B" />
+                <item android:offset="1" android:color="#FF0B0D12" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M74,26H246A22,22 0,0 1 268,48V132A22,22 0,0 1 246,154H74A22,22 0,0 1 52,132V48A22,22 0,0 1 74,26Z" android:strokeColor="#38FFFFFF" android:strokeWidth="1.0">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="52" android:startY="26" android:endX="52" android:endY="154">
+                <item android:offset="0" android:color="#2EFFFFFF" />
+                <item android:offset="0.45" android:color="#14FFFFFF" />
+                <item android:offset="1" android:color="#0AFFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M98,112A62,62 0,0 1 222,112Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="160" android:centerY="112" android:gradientRadius="62"
+                android:startColor="#664C8DFF" android:endColor="#004C8DFF" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M149,112A11,11 0,0 1 171,112Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="160" android:centerY="108.15" android:gradientRadius="12.10"
+                android:startColor="#FFB7CAED" android:endColor="#FF4C8DFF" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M70,111.30H250V112.70H70Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="70" android:startY="112" android:endX="250" android:endY="112">
+                <item android:offset="0" android:color="#00F5F7FA" />
+                <item android:offset="0.5" android:color="#D9F5F7FA" />
+                <item android:offset="1" android:color="#00F5F7FA" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#FFF5F7FA" android:pathData="M142.21 52V92H133.57V55.04L135.87 55.2L118.8 92H109.47L92.4 55.31L94.64 55.09V92H86.05V52H99.97L116.08 87.63H112.19L128.29 52Z M170.53 92.8Q163.81 92.8 158.93 90.21Q154.05 87.63 151.39 82.93Q148.72 78.24 148.72 72Q148.72 65.76 151.39 61.07Q154.05 56.37 158.93 53.79Q163.81 51.2 170.53 51.2Q177.2 51.2 182.08 53.79Q186.96 56.37 189.63 61.07Q192.29 65.76 192.29 72Q192.29 78.24 189.63 82.93Q186.96 87.63 182.08 90.21Q177.2 92.8 170.53 92.8ZM170.53 85.44Q176.56 85.44 179.89 81.89Q183.23 78.35 183.23 72Q183.23 65.6 179.89 62.08Q176.56 58.56 170.53 58.56Q164.51 58.56 161.15 62.08Q157.79 65.6 157.79 72Q157.79 78.4 161.15 81.92Q164.51 85.44 170.53 85.44Z M196.77 66.08Q197.09 61.49 199.76 58.16Q202.43 54.83 206.83 53.01Q211.23 51.2 216.83 51.2Q222.16 51.2 226.16 52.83Q230.16 54.45 232.4 57.39Q234.64 60.32 234.64 64.21Q234.64 67.2 233.09 69.76Q231.55 72.32 228.16 74.91Q224.77 77.49 219.17 80.48L207.07 87.15L206.37 84.69H235.76V92H197.36V85.6L214.48 75.57Q218.75 73.12 221.15 71.33Q223.55 69.55 224.56 68Q225.57 66.45 225.57 64.69Q225.57 62.83 224.56 61.39Q223.55 59.95 221.55 59.15Q219.55 58.35 216.51 58.35Q212.93 58.35 210.64 59.39Q208.35 60.43 207.2 62.19Q206.05 63.95 205.84 66.08Z" />
+    <path android:fillColor="#FFA7B0C0" android:pathData="M123.57 130H125.15V137H123.57ZM129.17 130H130.75V137H129.17ZM124.44 132.76H129.87V134.15H124.44Z M143.76 132.89V134.11H138.75V132.89ZM139.82 133.5 139.35 136.47 138.66 135.68H144.05V137H137.75L138.3 133.5L137.75 130H144.01V131.32H138.66L139.35 130.53Z M152.63 130V136.3L151.91 135.6H157.17V137H151.04V130Z M167.66 130Q168.49 130 169.1 130.29Q169.7 130.58 170.02 131.1Q170.35 131.62 170.35 132.31Q170.35 133.01 170.02 133.52Q169.7 134.04 169.1 134.34Q168.49 134.63 167.66 134.63H164.57V133.32H167.57Q168.12 133.32 168.44 133.05Q168.75 132.78 168.75 132.31Q168.75 131.84 168.44 131.57Q168.12 131.31 167.57 131.31H164.71L165.43 130.55V137H163.84V130Z M182.84 132.89V134.11H177.83V132.89ZM178.9 133.5 178.43 136.47 177.74 135.68H183.13V137H176.83L177.37 133.5L176.83 130H183.09V131.32H177.74L178.43 130.53Z M191.22 133.11H193.92Q194.45 133.11 194.77 132.86Q195.08 132.61 195.08 132.17Q195.08 131.74 194.77 131.49Q194.45 131.25 193.92 131.25H190.99L191.71 130.44V137H190.12V130H194.11Q194.87 130 195.45 130.28Q196.03 130.55 196.36 131.04Q196.68 131.52 196.68 132.17Q196.68 132.82 196.36 133.3Q196.03 133.79 195.45 134.06Q194.87 134.34 194.11 134.34H191.22ZM192.44 133.72H194.25L196.89 137H195.03Z" />
 </vector>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes the launcher banner and adaptive icon (H02 mark: a sun rising on a horizon line) as vector XML.
+"""Writes the launcher banner and adaptive icon (M02 mark: a sun rising on a horizon line) as vector XML.
 The letters are the brand font's outlines converted to paths, so the icons need no font at runtime.
 Usage (fontTools venv, see build-brand-font.sh): python brand_art.py [brand_display.ttf] [app/src/main/res]"""
 import sys, os
@@ -24,6 +24,7 @@ def g(text, cx, base, cap, track=0.0):
         out.append(pen.getCommands())
         x += (a + track * upm) * s
     return " ".join(p for p in out if p)
+MARK = "M02"; CAPTION = "MINTAKA"  # Brand.SHORT and Brand.CAPTION (Mintaka, a star in Orion's belt)
 ACCENT = "#FF4C8DFF"; CORE = "#FFB7CAED"; TEXT = "#FFF5F7FA"; TEXT2 = "#FFA7B0C0"
 HDR = '''<?xml version="1.0" encoding="utf-8"?>
 <!-- %s
@@ -73,11 +74,11 @@ def body_banner():
 '''
     s += sun(160, 120, 12, 70)
     s += line(36, 284, 120, 1.6)
-    s += mark(g("H02", 160, 98, 42))
-    s += mark(g("HORIZON", 160, 148, 7, 0.62), TEXT2)
+    s += mark(g(MARK, 160, 98, 42))
+    s += mark(g(CAPTION, 160, 148, 7, 0.62), TEXT2)
     return s
 
-banner = HDR % "320 x 180 dp TV banner (android:banner): the H02 mark over a horizon line with a rising sun, and the HORIZON caption." + '''<vector xmlns:android="http://schemas.android.com/apk/res/android"
+banner = HDR % "320 x 180 dp TV banner (android:banner): the M02 mark over a horizon line with a rising sun, and the MINTAKA caption." + '''<vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     xmlns:tools="http://schemas.android.com/tools"
     tools:ignore="VectorRaster"
@@ -88,9 +89,9 @@ banner = HDR % "320 x 180 dp TV banner (android:banner): the H02 mark over a hor
 ''' + body_banner() + '</vector>\n'
 
 def fg_body():
-    return sun(54, 66, 5, 24) + line(28, 80, 66, 1.2) + mark(g("H02", 54, 57, 14))
+    return sun(54, 66, 5, 24) + line(28, 80, 66, 1.2) + mark(g(MARK, 54, 57, 13.5))
 
-fg = HDR % "Adaptive-icon foreground (108 dp, content inside the 66 dp safe zone): H02 over a sunrise." + '''<vector xmlns:android="http://schemas.android.com/apk/res/android"
+fg = HDR % "Adaptive-icon foreground (108 dp, content inside the 66 dp safe zone): M02 over a sunrise." + '''<vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
@@ -118,7 +119,7 @@ bg = '''<?xml version="1.0" encoding="utf-8"?>
 </vector>
 '''
 k = 48 / 66
-legacy = HDR % "API 24-25 icon: rounded night square with the H02 sunrise mark (the adaptive foreground's safe zone)." + f'''<vector xmlns:android="http://schemas.android.com/apk/res/android"
+legacy = HDR % "API 24-25 icon: rounded night square with the M02 sunrise mark (the adaptive foreground's safe zone)." + f'''<vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="48dp"
     android:height="48dp"
