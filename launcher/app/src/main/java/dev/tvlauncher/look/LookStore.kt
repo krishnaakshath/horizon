@@ -60,13 +60,13 @@ class LookStore(context: Context) {
     companion object {
         const val KEY_LOOK = "look_json"
         const val KEY_SAVED = "saved_looks"
-        const val FOLDER = "M02 Looks"
-        /** Folder name before the Mintaka rename: still read, never written. */
-        const val LEGACY_FOLDER = "H02 Looks" // legacy name
+        const val FOLDER = "H02 Looks"
+        /** Folder name used by the short-lived M02 builds: still read, never written. */
+        const val LEGACY_FOLDER = "M02 Looks" // legacy name
     }
 }
 
-/** Look files on a USB stick or in Pictures/M02 Looks. Off the main thread; never throws. */
+/** Look files on a USB stick or in Pictures/H02 Looks. Off the main thread; never throws. */
 object LookFiles {
     /** Folders to write to / read from, most specific first: USB sticks, then this TV's Pictures. */
     @Suppress("DEPRECATION")

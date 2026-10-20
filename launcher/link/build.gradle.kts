@@ -12,8 +12,8 @@ android {
         // 30, not 28: Google Play Protect blocks a fresh install of an app that targets 28
         // ("built for an older version of Android"). Package visibility is declared in <queries>.
         targetSdk = 30
-        versionCode = providers.gradleProperty("mintaka.versionCode").get().toInt()
-        versionName = providers.gradleProperty("mintaka.versionName").get()
+        versionCode = providers.gradleProperty("horizon.versionCode").get().toInt()
+        versionName = providers.gradleProperty("horizon.versionName").get()
     }
 
     buildTypes {

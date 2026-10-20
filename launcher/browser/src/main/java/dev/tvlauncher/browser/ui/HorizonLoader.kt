@@ -8,7 +8,7 @@ import android.view.View
 import android.view.animation.LinearInterpolator
 
 /**
- * The M02 loading motif (same as the launcher's HorizonLoader): a small sun-disc gliding along a thin horizon line and back (one
+ * The H02 loading motif (same as the launcher's HorizonLoader): a small sun-disc gliding along a thin horizon line and back (one
  * [ValueAnimator] phase, [HorizonLoaderMath] for the geometry; no allocation per frame, no
  * hardware layer). Runs only while attached and visible, and never when animations are off; the disc
  * then rests at the centre of the line.

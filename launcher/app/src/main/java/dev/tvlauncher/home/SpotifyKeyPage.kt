@@ -18,7 +18,7 @@ import dev.tvlauncher.system.lite
 
 /**
  * Settings > Home screen > Now Playing > Spotify artwork: the optional Spotify app key for the
- * "Artist banner" style. The key goes straight to M02 Link (which owns the network) through its
+ * "Artist banner" style. The key goes straight to H02 Link (which owns the network) through its
  * signature-protected provider; the launcher never stores, backs up or shows the secret.
  */
 object SpotifyKeyPage {
@@ -37,8 +37,8 @@ object SpotifyKeyPage {
         val page = SettingsPage(context, nav.style, SPEC)
         page.lead(LEAD)
         if (!LinkStatus.read(context).installed) {
-            page.row(STATUS, "Key status", RowKind.Info("Needs M02 Link"),
-                subtitle = "Install M02 Link: the launcher itself has no internet access", iconRes = R.drawable.ic_set_about)
+            page.row(STATUS, "Key status", RowKind.Info("Needs H02 Link"),
+                subtitle = "Install H02 Link: the launcher itself has no internet access", iconRes = R.drawable.ic_set_about)
             return page
         }
         // A local provider query (no network), like the Smart home page's.
@@ -52,7 +52,7 @@ object SpotifyKeyPage {
         page.row(CLIENT_ID, "Client ID", RowKind.Action(if (configured) hint else "Not set") { enter(context, nav) },
             subtitle = "Or paste it on the phone remote's More page", iconRes = R.drawable.ic_set_tune)
         page.row(SECRET, "Client secret", RowKind.Action(if (configured) "••••••••" else "Not set") { enter(context, nav) },
-            subtitle = "Kept only in M02 Link on this TV; never backed up", iconRes = R.drawable.ic_sys_lock)
+            subtitle = "Kept only in H02 Link on this TV; never backed up", iconRes = R.drawable.ic_sys_lock)
         if (configured) {
             page.row(TEST, "Test key", RowKind.Action(chevron = false) {
                 nav.task({ SpotifyArtClient.call(context, LinkContract.METHOD_SPOTIFY_TEST, null)?.getString(LinkContract.EXTRA_STATE) }) { s ->
@@ -67,7 +67,7 @@ object SpotifyKeyPage {
         }
     }
 
-    /** Client ID, then the secret (masked), with the TV keyboard; saved and tested in M02 Link. */
+    /** Client ID, then the secret (masked), with the TV keyboard; saved and tested in H02 Link. */
     private fun enter(context: Context, nav: SettingsNav) {
         val host = contentRoot(context) ?: return
         val idSheet = TextEntrySheet(context, nav.lite())
@@ -94,6 +94,6 @@ object SpotifyKeyPage {
         })
     }
 
-    /** Same rule as M02 Link: 16 to 64 letters and digits. */
+    /** Same rule as H02 Link: 16 to 64 letters and digits. */
     fun validCredential(s: String): Boolean = s.length in 16..64 && s.all { it.isLetterOrDigit() }
 }

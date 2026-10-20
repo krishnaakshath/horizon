@@ -30,8 +30,8 @@ class RevealTargets(
 
 /**
  * Cold-start "sunrise" over the backdrop (see [SplashReveal]): a horizon line draws across, a sun-disc in
- * the [accent] rises on it, "M02" resolves above in the brand face with a soft glow (FULL only) and the
- * letter-spaced "MINTAKA" caption fades in below; then the home rises. ViewPropertyAnimator only, no
+ * the [accent] rises on it, "H02" resolves above in the brand face with a soft glow (FULL only) and the
+ * letter-spaced "HORIZON" caption fades in below; then the home rises. ViewPropertyAnimator only, no
  * hardware layers, no blur. Not created at all when animations are off ([enabled], HomeLook.showSplash).
  */
 class SplashOverlay(
@@ -43,7 +43,7 @@ class SplashOverlay(
     private val sunPx = context.dp(if (full) SplashLook.SUN_DP else SplashLook.SUN_DP_LITE)
     private val stageH = context.dp(SplashLook.STAGE_DP)
 
-    /** "M02" in the brand face. */
+    /** "H02" in the brand face. */
     private val mark = TextView(context).apply {
         text = Brand.SHORT
         style(if (full) SplashLook.MARK_SP else SplashLook.MARK_SP_LITE, Theme.brand)
@@ -93,7 +93,7 @@ class SplashOverlay(
             Gravity.BOTTOM))
     }
 
-    /** "MINTAKA", small and letter-spaced. */
+    /** "HORIZON", small and letter-spaced. */
     private val caption = TextView(context).apply {
         text = Brand.CAPTION
         style(SplashLook.CAPTION_SP, Theme.brand, Theme.TEXT_2)

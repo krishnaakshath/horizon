@@ -73,7 +73,7 @@ class AppFilterTest {
         val out = AppFilter.unhideAll(s, visible, installed)
         assertEquals(emptySet<String>(), out.hidden)
         assertEquals(listOf("a"), out.favorites)
-        // TCL's own apps are not restored by "Unhide all": M02 replaces that layer.
+        // TCL's own apps are not restored by "Unhide all": H02 replaces that layer.
         val shown = pkgs(AppFilter.arrange(installed, out))
         assertEquals(setOf("a", "b"), shown.toSet())
     }

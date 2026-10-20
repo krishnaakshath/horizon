@@ -27,7 +27,7 @@ import dev.tvlauncher.ui.dp
  */
 object StartupLoadingPage {
     const val TITLE = "Start-up and loading"
-    const val NOTE = "The TV's own logo at power-on belongs to the TV; this controls what M02 shows."
+    const val NOTE = "The TV's own logo at power-on belongs to the TV; this controls what H02 shows."
 
     val SPEC = PageSpec(
         "appearance.startupPage",
@@ -54,7 +54,7 @@ object StartupLoadingPage {
         page.row("startup.style", "Start-up animation",
             RowKind.Choice(STARTUP_CHOICES.map { it.label }, STARTUP_CHOICES.indexOf(s.startup)) { i ->
                 prefs.update { it.copy(startup = STARTUP_CHOICES[i]) }
-            }, subtitle = "What M02 shows while it gets ready", iconRes = R.drawable.ic_set_appearance)
+            }, subtitle = "What H02 shows while it gets ready", iconRes = R.drawable.ic_set_appearance)
         page.row("startup.when", "Play start-up",
             RowKind.Choice(WHEN_CHOICES.map { it.label }, WHEN_CHOICES.indexOf(s.startupWhen)) { i ->
                 prefs.update { it.copy(startupWhen = WHEN_CHOICES[i]) }

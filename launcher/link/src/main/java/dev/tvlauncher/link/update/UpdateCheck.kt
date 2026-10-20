@@ -8,7 +8,7 @@ import org.json.JSONObject
  * Off by default: nothing is checked until the owner switches it on in Link's settings AND a
  * repository is set ([DEFAULT_REPO] is empty on purpose: the project is private until the owner
  * says otherwise). The check only reads the public release JSON; downloading and installing is
- * left to M02 Store, which verifies the published SHA-256 and the signing certificate itself.
+ * left to H02 Store, which verifies the published SHA-256 and the signing certificate itself.
  */
 object UpdateCheck {
     /** "owner/repo" of the launcher's releases; empty = disabled. */
@@ -51,12 +51,13 @@ object UpdateCheck {
     }
 
     /**
-     * The launcher's APK: release files are named "M02-app-<version>.apk" (older releases
-     * "H02-h02-<version>.apk"); else one named like "launcher"/"mintaka"/"app"; else the only APK.
+     * The launcher's APK: release files are named "H02-app-<version>.apk" (1.0.0 used
+     * "H02-h02-<version>.apk", the short-lived M02 builds "M02-app-<version>.apk"); else one named like
+     * "launcher"/"horizon"/"app"; else the only APK.
      */
     fun pickApk(apks: List<Asset>): Asset? {
         if (apks.size <= 1) return apks.firstOrNull()
-        val preferred = listOf("m02-app-", "h02-h02-", "launcher", "mintaka", "horizon", "app-release", "app")
+        val preferred = listOf("h02-app-", "h02-h02-", "m02-app-", "launcher", "horizon", "mintaka", "app-release", "app") // legacy name
         for (p in preferred) apks.firstOrNull { it.name.lowercase().contains(p) }?.let { return it }
         return null
     }

@@ -2,10 +2,10 @@ package dev.tvlauncher.link
 
 /** Pure brand constants (ARGB ints); no Android dependencies. */
 object LinkBrand {
-    const val APP_NAME = "M02 Link" // mirrors R.string.app_name and Brand.LINK in the launcher
-    const val BROWSER = "M02 Browser"
-    const val STORE = "M02 Store"
-    const val HELPER = "M02 Helper"
+    const val APP_NAME = "H02 Link" // mirrors R.string.app_name and Brand.LINK in the launcher
+    const val BROWSER = "H02 Browser"
+    const val STORE = "H02 Store"
+    const val HELPER = "H02 Helper"
 
     const val BG = 0xFF0B0D12.toInt()
     const val SURFACE = 0xFF151922.toInt()

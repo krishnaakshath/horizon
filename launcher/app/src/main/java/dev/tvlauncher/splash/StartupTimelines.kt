@@ -9,9 +9,9 @@ object StartupTimelines {
     enum class Part {
         /** Aurora: the colour band sweeping across. */
         SWEEP,
-        /** The M02 mark resolving. */
+        /** The H02 mark resolving. */
         MARK,
-        /** The MINTAKA caption (FULL only). */
+        /** The HORIZON caption (FULL only). */
         CAPTION,
         /** The overlay leaving. */
         OUT,

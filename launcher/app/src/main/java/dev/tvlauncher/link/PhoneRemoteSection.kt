@@ -23,7 +23,7 @@ import dev.tvlauncher.ui.Glass
 import dev.tvlauncher.ui.Theme
 import dev.tvlauncher.ui.dp
 
-/** M02 Link's state as its provider reports it (null fields when the companion is missing). */
+/** H02 Link's state as its provider reports it (null fields when the companion is missing). */
 data class LinkStatus(
     val installed: Boolean,
     val enabled: Boolean = false,
@@ -110,7 +110,7 @@ class QrView(context: Context) : View(context) {
 
 /**
  * Settings > System > Phone remote: use a phone on the same Wi-Fi as a remote and keyboard.
- * Reads and drives M02 Link through its provider (signature permission); the launcher itself
+ * Reads and drives H02 Link through its provider (signature permission); the launcher itself
  * never touches the network.
  */
 object PhoneRemoteSection : SettingsSection, SpecifiedPage {
@@ -136,7 +136,7 @@ object PhoneRemoteSection : SettingsSection, SpecifiedPage {
         val page = SettingsPage(context, nav.style, spec)
         if (!s.installed) {
             page.row(STATUS, "Phone remote", RowKind.Info(PhoneRemoteText.status(s)),
-                subtitle = "Install M02 Link to use a phone as a remote", iconRes = R.drawable.ic_set_about)
+                subtitle = "Install H02 Link to use a phone as a remote", iconRes = R.drawable.ic_set_about)
             return page
         }
         page.row(STATUS, "Phone remote", RowKind.Toggle(s.enabled) { on ->
@@ -153,7 +153,7 @@ object PhoneRemoteSection : SettingsSection, SpecifiedPage {
             LinkStatus.call(context, LinkContract.METHOD_FORGET_PHONES)
             nav.refresh()
         }, subtitle = "Every phone must pair again", iconRes = R.drawable.ic_set_reset)
-        page.note("Home and Settings work fully. In other apps, Home and volume work; the rest needs M02 Helper.")
+        page.note("Home and Settings work fully. In other apps, Home and volume work; the rest needs H02 Helper.")
         return page
     }
 

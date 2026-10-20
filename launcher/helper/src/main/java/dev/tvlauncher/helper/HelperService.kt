@@ -169,7 +169,7 @@ class HelperService : AccessibilityService() {
             private set
 
         const val ACTION_POWER_MENU = "dev.tvlauncher.helper.action.POWER_MENU"
-        /** Phone remote (M02 Link via the launcher): extra "key" = "back" or "home". */
+        /** Phone remote (H02 Link via the launcher): extra "key" = "back" or "home". */
         const val ACTION_LINK_INPUT = "dev.tvlauncher.helper.action.LINK_INPUT"
         const val PERMISSION = "dev.tvlauncher.permission.HELPER_ACTIONS"
     }

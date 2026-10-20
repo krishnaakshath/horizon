@@ -11,7 +11,7 @@ import dev.tvlauncher.link.core.LinkContract
 import java.util.concurrent.Executors
 
 /**
- * The launcher's side of the optional Spotify artwork: asks M02 Link (which holds the user's key
+ * The launcher's side of the optional Spotify artwork: asks H02 Link (which holds the user's key
  * and the network) for a picture of the playing song through the signature-protected provider,
  * then reads the cached file as a read-only descriptor. Never blocks the main thread; pictures
  * stay in memory only ([SpotifyArtPolicy.MEMORY_BYTES]). Without Link, without a key or offline,

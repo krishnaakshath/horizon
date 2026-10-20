@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">M02 Helper</string>
+    <string name="app_name" translatable="false">H02 Helper</string>
     <string name="service_description">Detects Back-button presses and one shortcut key. It does not read screen content.</string>
 </resources>

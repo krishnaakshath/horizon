@@ -31,7 +31,7 @@ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 License for the specific language governing permissions and limitations
 under the License.
 
-All icons, colors, animations and drawing code in Mintaka (M02) are original
-work of the Mintaka contributors (the letters of the M02 icon and banner are
+All icons, colors, animations and drawing code in Horizon (H02) are original
+work of the Horizon contributors (the letters of the H02 icon and banner are
 Unbounded outlines converted to vector paths). App names, icons and banners shown on
 the home screen belong to their owners and are drawn from the installed apps.

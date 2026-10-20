@@ -2,7 +2,7 @@ package dev.tvlauncher.weather
 
 /** Pure brand constants (ARGB ints); no Android dependencies. */
 object WeatherBrand {
-    const val APP_NAME = "M02 Weather" // mirrors R.string.app_name
+    const val APP_NAME = "H02 Weather" // mirrors R.string.app_name
     const val WORDMARK = "WEATHER"
 
     const val BG = 0xFF0B0D12.toInt()

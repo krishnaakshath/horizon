@@ -1,4 +1,4 @@
-"""One-command setup of Mintaka (M02) and its companion apps on an Android TV over adb.
+"""One-command setup of Horizon (H02) and its companion apps on an Android TV over adb.
 
 Flow: probe the TV -> plan (pure, see `plan_steps`) -> print every command with a reason ->
 with --apply only: write an undo script, run each step and verify it. Nothing outside
@@ -22,16 +22,16 @@ HELPER = "dev.tvlauncher.helper"
 STORE = "dev.tvlauncher.store"
 LINK = "dev.tvlauncher.link"  # phone remote; same signing key, so the LINK signature permission is granted at install
 OUR_PACKAGES = (LAUNCHER, HELPER, "dev.tvlauncher.browser", STORE, "dev.tvlauncher.weather", LINK)
-TITLES = {LAUNCHER: "M02 (Mintaka launcher)", HELPER: "M02 Helper", "dev.tvlauncher.browser": "M02 Browser",
-          STORE: "M02 Store", "dev.tvlauncher.weather": "M02 Weather", LINK: "M02 Link"}
-# app_name of older Helper builds: "Launcher Helper", then "H02 Helper" (before the Mintaka / M02 rename).
-LEGACY_HELPER_LABELS = ("Launcher Helper", "H02 Helper")
+TITLES = {LAUNCHER: "H02 (Horizon launcher)", HELPER: "H02 Helper", "dev.tvlauncher.browser": "H02 Browser",
+          STORE: "H02 Store", "dev.tvlauncher.weather": "H02 Weather", LINK: "H02 Link"}
+# app_name of older Helper builds: "Launcher Helper", then "M02 Helper" (the short-lived M02 builds).
+LEGACY_HELPER_LABELS = ("Launcher Helper", "M02 Helper")
 # File-name stems (first token, lower case) that identify each APK, e.g. app-debug.apk, helper-release.apk.
-# Release files carry a brand prefix (M02-app-1.0.1.apk, M02-link-1.0.1.apk); older ones H02-<module>-<version>.apk.
-APK_STEMS = {LAUNCHER: ("app", "launcher", "tvlauncher", "mintaka", "m02", "horizon", "h02"), HELPER: ("helper",), "dev.tvlauncher.browser": ("browser",),
+# Release files carry a brand prefix (H02-app-1.0.1.apk, H02-link-1.0.1.apk); H02-h02-1.0.0.apk from 1.0.0; M02-<module>-<version>.apk from the short-lived M02 builds.
+APK_STEMS = {LAUNCHER: ("app", "launcher", "tvlauncher", "horizon", "h02", "mintaka", "m02"), HELPER: ("helper",), "dev.tvlauncher.browser": ("browser",),
              STORE: ("store", "getapps"), "dev.tvlauncher.weather": ("weather",), LINK: ("link",)}
-# Brand prefixes stripped before the stem is read: the current mark and the legacy one.
-APK_PREFIXES = ("m02", "h02")
+# Brand prefixes stripped before the stem is read: the current mark first, then the legacy one.
+APK_PREFIXES = ("h02", "m02")
 
 LISTENER = f"{LAUNCHER}/{LAUNCHER}.ambient.AmbientNotificationService"
 HELPER_SERVICE = f"{HELPER}/{HELPER}.HelperService"
@@ -129,7 +129,7 @@ def match_apks(filenames: list[str]) -> dict[str, str]:
         stem = name[:-4]
         parts = re.split(r"[-_.]", stem, maxsplit=1)
         if len(parts) == 2 and parts[0].lower() in APK_PREFIXES and parts[1]:
-            stem = parts[1]  # M02-app-1.0.1 -> app-1.0.1; H02-link-debug -> link-debug
+            stem = parts[1]  # H02-app-1.0.1 -> app-1.0.1; H02-link-debug -> link-debug
         pkg = next((p for p in sorted(OUR_PACKAGES, key=len, reverse=True)
                     if stem == p or stem.startswith(p + "-") or stem.startswith(p + "_")), None)
         if pkg is None:
@@ -401,11 +401,11 @@ def plan_steps(p: Probe, apks: dict[str, str], profile: ProvisionProfile, take_o
     if LAUNCHER in apks or overlay != "allow":
         undo = (("appops", "set", LAUNCHER, OVERLAY_OP, overlay),) if not fresh_launcher and overlay in APPOP_MODES else ()
         steps.append(Step(("appops", "set", LAUNCHER, OVERLAY_OP, "allow"),
-                          "Lets M02 bring the home screen forward when the TV turns on (Android 11 needs this; "
+                          "Lets H02 bring the home screen forward when the TV turns on (Android 11 needs this; "
                           "the launcher never draws over other apps).", undo=undo, verify="appop"))
     if STORE in after and (STORE not in p.installed or not p.store_install_allowed):
         steps.append(Step(("appops", "set", STORE, "REQUEST_INSTALL_PACKAGES", "allow"),
-                          "Lets M02 Store install the apps you pick (it still asks before each install).",
+                          "Lets H02 Store install the apps you pick (it still asks before each install).",
                           undo=(("appops", "set", STORE, "REQUEST_INSTALL_PACKAGES", "default"),), verify="store"))
     listeners = p.secure.get("enabled_notification_listeners")
     if not _contains(listeners, LISTENER):
@@ -440,7 +440,7 @@ def plan_steps(p: Probe, apks: dict[str, str], profile: ProvisionProfile, take_o
         # The receiver only accepts WRITE_SECURE_SETTINGS holders (the adb shell); the owner can
         # switch it off in Settings > System > Phone remote.
         steps.append(Step(("am", "broadcast", "-a", LINK_START_ACTION, "-n", LINK_START_RECEIVER),
-                          "Switches on the phone remote (M02 Link); it only answers phones you pair with the PIN on the TV.",
+                          "Switches on the phone remote (H02 Link); it only answers phones you pair with the PIN on the TV.",
                           verify="link_running", soft=True,
                           warn="the phone remote did not start; switch it on in Settings > System > Phone remote"))
     if p.secure.get("tv_user_setup_complete") == "0":
@@ -455,12 +455,12 @@ def plan_steps(p: Probe, apks: dict[str, str], profile: ProvisionProfile, take_o
         else:
             argv = ("cmd", "package", "set-home-activity", HOME_ACTIVITY)
             undo = ()
-        steps.append(Step(argv, "Makes M02 the home app.", undo=undo, verify="home", soft=True))
+        steps.append(Step(argv, "Makes H02 the home app.", undo=undo, verify="home", soft=True))
     if take_over_home:
         for pkg in profile.stock_launchers:
             if pkg in p.installed and pkg not in p.disabled and pkg not in OUR_PACKAGES:
                 steps.append(Step(("pm", "disable-user", "--user", "0", pkg),
-                                  f"Turns off the stock launcher {pkg} so the Home key opens M02 (undo re-enables it).",
+                                  f"Turns off the stock launcher {pkg} so the Home key opens H02 (undo re-enables it).",
                                   undo=(("pm", "enable", pkg),), verify="disabled", takeover=True))
     if self_test or (self_test is None and steps):
         steps.extend(self_test_steps())
@@ -475,12 +475,12 @@ def self_test_steps() -> list[Step]:
              "Self-test: opens the TV's Settings so another app is in front (nothing in it is changed).",
              optional=True, warn="the TV's Settings did not open, so the self-test was skipped", selftest=True),
         Step(("am", "broadcast", "-a", TCL_RESUME, "-n", POWER_RECEIVER),
-             f"Self-test: after {SELFTEST_WAIT_S} seconds, tells M02 the TV just woke up, as the TV does after "
+             f"Self-test: after {SELFTEST_WAIT_S} seconds, tells H02 the TV just woke up, as the TV does after "
              "standby. The home screen should come forward by itself.",
              wait_s=SELFTEST_WAIT_S, verify="selftest", soft=True, selftest=True,
              warn="home did not come forward by itself; on the TV, see Settings > System > Power & sleep > Power on"),
         Step(("run-as", LAUNCHER, "rm", "-f", "shared_prefs/power_on.xml"),
-             "Self-test: forgets the test wake-up, so it does not count against real power-ons. M02 restarts "
+             "Self-test: forgets the test wake-up, so it does not count against real power-ons. H02 restarts "
              "on its home screen.",
              then=(("am", "force-stop", LAUNCHER), ("am", "start", "-n", HOME_ACTIVITY)),
              optional=True, selftest=True,
@@ -633,7 +633,7 @@ def run(a, adb: Adb, say) -> int:
     steps = plan_steps(p, {k: str(apk_dir / v) for k, v in apks.items()} if apk_dir else {}, profile, a.take_over_home,
                        self_test)
     if LAUNCHER not in p.installed and LAUNCHER not in apks:
-        say("M02 is not installed and no launcher APK was found; pass --apks FOLDER.")
+        say("H02 is not installed and no launcher APK was found; pass --apks FOLDER.")
         return 2
     if not steps:
         say("Everything is already set up. Nothing to do.")
@@ -659,7 +659,7 @@ def run(a, adb: Adb, say) -> int:
             continue
         try:
             if s.takeover and f"{LAUNCHER}/" not in _resolvable_home(adb):
-                say(f"  [{i}] STOPPED: M02 is not available as a home app, so the stock launcher stays on.")
+                say(f"  [{i}] STOPPED: H02 is not available as a home app, so the stock launcher stays on.")
                 return 1
             if s.wait_s:
                 say(f"  [{i}] waiting {s.wait_s} s...")

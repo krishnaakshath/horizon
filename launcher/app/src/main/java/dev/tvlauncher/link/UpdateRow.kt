@@ -8,7 +8,7 @@ import dev.tvlauncher.appsettings.SettingsNav
 import dev.tvlauncher.appsettings.SettingsPage
 import dev.tvlauncher.link.core.LinkContract
 
-/** M02 Link's release check as its provider reports it. Off by default; no repository is built in. */
+/** H02 Link's release check as its provider reports it. Off by default; no repository is built in. */
 data class UpdateState(val enabled: Boolean, val repo: String, val latest: String, val available: Boolean)
 
 /** About > Updates: the row's words (pure, tested). */
@@ -24,12 +24,12 @@ object UpdateRowText {
 
     fun subtitle(s: UpdateState?): String = when {
         !active(s) -> "Update checks are switched off"
-        s!!.available && s.latest.isNotEmpty() -> "Version ${s.latest} is ready in M02 Store"
-        else -> "Checks once a day through M02 Link"
+        s!!.available && s.latest.isNotEmpty() -> "Version ${s.latest} is ready in H02 Store"
+        else -> "Checks once a day through H02 Link"
     }
 }
 
-/** Adds the About > Updates row when M02 Link is installed; nothing otherwise. */
+/** Adds the About > Updates row when H02 Link is installed; nothing otherwise. */
 object UpdateRow {
     const val ID = "about.update"
 

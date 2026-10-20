@@ -11,13 +11,13 @@ class BrowserBrandTest {
     private fun read(p: String) = File(res, p).readText()
 
     @Test fun name_followsTheFamily() {
-        assertEquals("M02 Browser", BrowserBrand.NAME)
+        assertEquals("H02 Browser", BrowserBrand.NAME)
         assertEquals(0xFF, BrowserBrand.ACCENT ushr 24)
         val strings = read("values/strings.xml")
-        assertTrue(strings.contains(">M02 Browser<"))
+        assertTrue(strings.contains(">H02 Browser<"))
     }
 
-    @Test fun xmlAssets_areTheGeneratedM02Art() {
+    @Test fun xmlAssets_areTheGeneratedH02Art() {
         for (a in BrowserBrand.ASSETS) {
             val xml = read(a)
             assertTrue(a, xml.contains("Unbounded Medium") || a.endsWith("ic_launcher_bg.xml"))

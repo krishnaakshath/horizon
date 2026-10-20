@@ -11,21 +11,20 @@ import org.junit.Test
 
 class BrandTest {
     @Test fun names() {
-        assertEquals("Mintaka", Brand.NAME)
-        assertEquals("M02", Brand.SHORT)
-        assertEquals("MINTAKA", Brand.CAPTION)
-        assertEquals("Named after a star in Orion's belt.", Brand.STORY)
-        assertEquals("M02 Browser", Brand.BROWSER)
-        assertEquals("M02 Store", Brand.STORE)
-        assertEquals("M02 Weather", Brand.WEATHER)
-        assertEquals("M02 Helper", Brand.HELPER)
-        assertEquals("M02 Link", Brand.LINK)
-        assertEquals("M02 Ambient", Brand.AMBIENT)
+        assertEquals("Horizon", Brand.NAME)
+        assertEquals("H02", Brand.SHORT)
+        assertEquals("HORIZON", Brand.CAPTION)
+        assertEquals("H02 Browser", Brand.BROWSER)
+        assertEquals("H02 Store", Brand.STORE)
+        assertEquals("H02 Weather", Brand.WEATHER)
+        assertEquals("H02 Helper", Brand.HELPER)
+        assertEquals("H02 Link", Brand.LINK)
+        assertEquals("H02 Ambient", Brand.AMBIENT)
         assertEquals(Brand.NAME.uppercase(), Brand.CAPTION)
         assertEquals(Brand.NAME, Branding.NAME)
         assertTrue(Branding.COPYRIGHT_HOLDER.contains(Brand.NAME))
         assertTrue(Brand.TAGLINE.isNotBlank() && !Brand.TAGLINE.contains('\n'))
-        assertEquals("Mintaka 1.0 (1)", Brand.versionLine("1.0 (1)"))
+        assertEquals("Horizon 1.0 (1)", Brand.versionLine("1.0 (1)"))
         for (c in listOf(Brand.BROWSER, Brand.STORE, Brand.WEATHER, Brand.HELPER, Brand.LINK, Brand.AMBIENT)) {
             assertTrue(c, c.startsWith(Brand.SHORT + " "))
         }
@@ -35,7 +34,7 @@ class BrandTest {
         assertTrue(BrandFont.covers(Brand.SHORT))
         assertTrue(BrandFont.covers(Brand.CAPTION))
         assertTrue(BrandFont.covers(Brand.NAME))
-        assertFalse(BrandFont.covers("M02 ★"))
+        assertFalse(BrandFont.covers("H02 ★"))
     }
 }
 
@@ -74,28 +73,29 @@ class BrandStringsTest {
     /** Every module ships the same version, set once in gradle.properties. */
     @Test fun oneVersionForEveryModule() {
         val props = File("../gradle.properties").readText()
-        assertTrue(props.contains("mintaka.versionName=1.0.1"))
-        assertTrue(props.contains("mintaka.versionCode=2"))
+        assertTrue(props.contains("horizon.versionName=1.0.1"))
+        assertTrue(props.contains("horizon.versionCode=2"))
         for (m in listOf(".", "../browser", "../store", "../weather", "../helper", "../link")) {
             val gradle = File("$m/build.gradle.kts").readText()
-            assertTrue(m, gradle.contains("gradleProperty(\"mintaka.versionName\")"))
-            assertTrue(m, gradle.contains("gradleProperty(\"mintaka.versionCode\")"))
+            assertTrue(m, gradle.contains("gradleProperty(\"horizon.versionName\")"))
+            assertTrue(m, gradle.contains("gradleProperty(\"horizon.versionCode\")"))
         }
     }
 
     /**
      * No user-facing literal or resource in any module still says an old product name: the first
-     * names (TV Launcher, Orbit, Get Apps...) or the pre-1.0.1 Horizon / H02. A line that must keep
+     * names (TV Launcher, Orbit, Get Apps...), the short-lived Mintaka / M02 or the
+     * never-shipped Zephivane / Z02. A line that must keep
      * an old name for compatibility (reading an old folder) says so with a `// legacy name` comment.
      */
     @Test fun noOldProductNameOnScreen() {
-        val old = Regex("""TV Launcher|TV launcher|Launcher Helper|Launcher Weather|Get Apps|\bOrbit\b|\bHorizon\b|\bHORIZON\b|\bH02\b""")
+        val old = Regex("""TV Launcher|TV launcher|Launcher Helper|Launcher Weather|Get Apps|\bOrbit\b|Mintaka|MINTAKA|\bM02|Zephivane|ZEPHIVANE|\bZ02""")
         val literal = Regex(""""(?:[^"\\]|\\.)*"""")
         val hits = ArrayList<String>()
         for (m in listOf("src/main", "../helper/src/main", "../store/src/main", "../browser/src/main", "../weather/src/main", "../link/src/main")) {
-            File(m).walkTopDown().filter { it.isFile && (it.extension == "kt" || it.extension == "xml") }.forEach { f ->
-                // XML comments (also multi-line ones) are not shown; blank them but keep line numbers.
-                val text = if (f.extension == "xml") f.readText().replace(Regex("<!--[\\s\\S]*?-->")) { c -> c.value.replace(Regex("[^\n]"), " ") }
+            File(m).walkTopDown().filter { it.isFile && it.extension in setOf("kt", "xml", "html", "txt") }.forEach { f ->
+                // XML / HTML comments (also multi-line ones) are not shown; blank them but keep line numbers.
+                val text = if (f.extension == "xml" || f.extension == "html") f.readText().replace(Regex("<!--[\\s\\S]*?-->")) { c -> c.value.replace(Regex("[^\n]"), " ") }
                 else f.readText()
                 text.lines().forEachIndexed { i, line ->
                     val t = line.trim()
@@ -110,9 +110,9 @@ class BrandStringsTest {
     }
 }
 
-/** M02 Store and M02 Browser artwork is the generated M02 look (fonts/companion_art.py), never the old marks. */
+/** H02 Store and H02 Browser artwork is the generated H02 look (fonts/companion_art.py), never the old marks. */
 class CompanionArtTest {
-    @Test fun storeAndBrowserDrawTheM02Mark() {
+    @Test fun storeAndBrowserDrawTheH02Mark() {
         val art = listOf(
             "../store/src/main/res/drawable/banner.xml", "../store/src/main/res/drawable/ic_launcher_foreground.xml",
             "../store/src/main/res/drawable/wordmark.xml", "../store/src/main/res/drawable/ic_launcher_legacy.xml",
@@ -123,15 +123,15 @@ class CompanionArtTest {
         for (f in art) {
             val xml = File(f).readText()
             assertTrue(f, xml.contains("companion_art.py") && xml.contains("Unbounded Medium"))
-            assertFalse(f, Regex("Get Apps|Orbit|H02|Horizon").containsMatchIn(xml))
+            assertFalse(f, Regex("Get Apps|Orbit|M02|Mintaka|Z02|Zephivane").containsMatchIn(xml))
         }
         val gen = File("../fonts/companion_art.py").readText()
-        for (name in listOf("M02 Store", "M02 Browser", "M02 Weather", "M02 Helper", "M02 Link")) assertTrue(name, gen.contains(name))
+        for (name in listOf("H02 Store", "H02 Browser", "H02 Weather", "H02 Helper", "H02 Link")) assertTrue(name, gen.contains(name))
         for (f in listOf("../weather/src/main/res/drawable/banner_weather.xml", "../helper/src/main/res/drawable/banner.xml",
                 "../link/src/main/res/drawable/banner.xml")) {
             assertTrue(f, File(f).readText().contains("companion_art.py"))
         }
-        assertTrue(File("src/main/res/drawable/tv_banner.xml").readText().contains("MINTAKA caption"))
+        assertTrue(File("src/main/res/drawable/tv_banner.xml").readText().contains("HORIZON caption"))
     }
 }
 

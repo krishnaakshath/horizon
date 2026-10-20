@@ -164,7 +164,7 @@ object ConfigBackupIo {
         return null
     }
 
-    /** The configuration document as text (M02 Link's encrypted phone backup), or null. */
+    /** The configuration document as text (H02 Link's encrypted phone backup), or null. */
     fun exportText(context: Context): String? = try { ConfigBackup.encode(snapshot(context)) } catch (e: Exception) { null }
 
     /** Applies a document from [exportText]; false when invalid. */

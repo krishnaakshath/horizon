@@ -8,8 +8,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="M02 Remote">
-<title>M02 Remote</title>
+<meta name="apple-mobile-web-app-title" content="H02 Remote">
+<title>H02 Remote</title>
 <style>
 :root{--bg:#0b0d12;--glass:rgba(30,34,43,.72);--glass2:rgba(255,255,255,.07);--edge:rgba(255,255,255,.13);--text:#f5f7fa;
 --dim:#a9b2c2;--accent:#4fc3f7;--accent2:rgba(79,195,247,.28);--warn:#ffc46b;--err:#ff9e94;--ok:#7be0a3;
@@ -117,7 +117,7 @@ border-radius:999px;padding:11px 18px;font-size:14px;opacity:0;transition:opacit
 </head>
 <body>
 <header>
-<h1>M02 Remote</h1>
+<h1>H02 Remote</h1>
 <span class="chip wait" id="chip" role="status" aria-live="polite"><i></i><span id="chipText">Connecting</span></span>
 </header>
 
@@ -157,7 +157,7 @@ border-radius:999px;padding:11px 18px;font-size:14px;opacity:0;transition:opacit
 </div>
 <div class="vlabel vtext" aria-live="polite"></div>
 </div>
-<p class="note">Everything works on the home screen and in Settings. In other apps, Back needs M02 Helper switched on in the TV's accessibility settings; Home and volume work everywhere.</p>
+<p class="note">Everything works on the home screen and in Settings. In other apps, Back needs H02 Helper switched on in the TV's accessibility settings; Home and volume work everywhere.</p>
 </section>
 
 <!-- Trackpad -->
@@ -190,7 +190,7 @@ border-radius:999px;padding:11px 18px;font-size:14px;opacity:0;transition:opacit
 <div class="card">
 <h2>Send a link to the TV</h2>
 <input id="url" placeholder="Web address" inputmode="url" autocomplete="off" autocapitalize="off" aria-label="Web address">
-<button id="openUrl" style="width:100%">Open in M02 Browser</button>
+<button id="openUrl" style="width:100%">Open in H02 Browser</button>
 </div>
 </section>
 
@@ -260,7 +260,7 @@ border-radius:999px;padding:11px 18px;font-size:14px;opacity:0;transition:opacit
 
 <div class="card" id="spCard">
 <h2>Spotify artwork (optional)</h2>
-<p class="note" style="margin:0 0 10px">For the "Artist banner" style. Make a free app in Spotify's online dashboard and paste its Client ID and Client secret. They stay on the TV, in M02 Link only.</p>
+<p class="note" style="margin:0 0 10px">For the "Artist banner" style. Make a free app in Spotify's online dashboard and paste its Client ID and Client secret. They stay on the TV, in H02 Link only.</p>
 <p class="note" id="spState" style="margin:0 0 10px"></p>
 <input id="spId" placeholder="Client ID" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Spotify Client ID">
 <input id="spSecret" placeholder="Client secret" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Spotify Client secret">
@@ -273,7 +273,7 @@ border-radius:999px;padding:11px 18px;font-size:14px;opacity:0;transition:opacit
 <p class="note" style="margin:0 0 10px">Save your home screen, apps order and settings to this phone, locked with a passphrase you choose.</p>
 <input id="bkPass" type="password" placeholder="Passphrase (8 characters or more)" autocomplete="new-password" aria-label="Backup passphrase">
 <div class="g2"><button id="bkExport">Save backup</button><button id="bkImport">Restore backup</button></div>
-<input id="bkFile" type="file" class="hidden" accept=".m02,.h02,.zip,application/octet-stream,application/zip">
+<input id="bkFile" type="file" class="hidden" accept=".h02,.m02,.zip,application/octet-stream,application/zip">
 </div>
 
 <div class="card hidden" id="a2hsCard">
@@ -285,7 +285,7 @@ border-radius:999px;padding:11px 18px;font-size:14px;opacity:0;transition:opacit
 
 <div class="card">
 <h2>Where it works</h2>
-<p class="note" style="margin:0">On the TV's home screen and in Settings, every button and typing work. In other apps, Home, volume, media and app launching work; Back needs M02 Helper switched on in the TV's accessibility settings, and typing works only on the home screen.</p>
+<p class="note" style="margin:0">On the TV's home screen and in Settings, every button and typing work. In other apps, Home, volume, media and app launching work; Back needs H02 Helper switched on in the TV's accessibility settings, and typing works only on the home screen.</p>
 </div>
 <button id="forget" style="width:100%">Forget this phone</button>
 </section>
@@ -313,7 +313,7 @@ var online=false,failures=0,retryT=0;
 function chip(kind,text){var c=$("chip");c.className="chip "+kind;$("chipText").textContent=text}
 function api(path,body){
   return fetch(path,{method:"POST",credentials:"same-origin",cache:"no-store",
-    headers:{"Content-Type":"application/json","X-M02-Link":"1"},body:JSON.stringify(body||{})})
+    headers:{"Content-Type":"application/json","X-H02-Link":"1"},body:JSON.stringify(body||{})})
   .then(function(r){return r.json().catch(function(){return {ok:false,error:"bad"}})})
   .then(function(r){if(!online){online=true;failures=0;setChip()}if(r&&r.error==="pair_first")showPair();return r},
     function(){lost();return {ok:false,error:"offline"}});
@@ -326,7 +326,7 @@ function lost(){if(online||failures===0){online=false}failures++;chip(failures>2
 var tid=0;
 function toast(t){if(!t)return;var e=$("toast");e.textContent=t;e.classList.add("on");clearTimeout(tid);tid=setTimeout(function(){e.classList.remove("on")},2200)}
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
-var whereText={needs_helper:"Another app is open. Switch on M02 Helper on the TV for this.",failed:"That didn't work on the TV",none:"The TV didn't answer"};
+var whereText={needs_helper:"Another app is open. Switch on H02 Helper on the TV for this.",failed:"That didn't work on the TV",none:"The TV didn't answer"};
 var lastNote=0;
 function outcome(r){if(!r||r.error==="pair_first"||r.error==="offline")return r;
   if(r.where&&whereText[r.where]){var n=Date.now();if(n-lastNote>2500){toast(whereText[r.where]);lastNote=n}}return r}
@@ -458,7 +458,7 @@ function drawNp(){var n=np||{};var has=!!(n.title||n.app);
   $("npBar").style.width=(n.duration>0?Math.round(pos*100/n.duration):0)+"%";$("npPos").textContent=fmt(pos);$("npDur").textContent=n.duration>0?fmt(n.duration):"";
   $("ppIcon").innerHTML=n.playing?'<path d="M8 5v14M16 5v14"/>':'<path d="M7 5l12 7-12 7z"/>';
   var note=$("npNote");
-  if(n.available===false){note.textContent="Media controls need the M02 launcher on the TV.";note.classList.remove("hidden")}
+  if(n.available===false){note.textContent="Media controls need the H02 launcher on the TV.";note.classList.remove("hidden")}
   else if(n.access===false){note.textContent="To see and control what's playing, switch on Now Playing in the TV's Settings.";note.classList.remove("hidden")}
   else note.classList.add("hidden")}
 function poll(){if(!paired||document.visibilityState!=="visible")return;
@@ -471,7 +471,7 @@ all("[data-media]").forEach(function(b){b.onclick=function(){buzz();api("/api/me
 /* ---------- quick actions, power ---------- */
 all("[data-quick]").forEach(function(b){b.onclick=function(){buzz();api("/api/quick",{item:b.dataset.quick}).then(outcome)}});
 $("powerBtn").onclick=function(){buzz(20);api("/api/power").then(function(r){
-  if(r.where==="needs_helper")toast("The power menu needs M02 Helper switched on on the TV");else if(r.done)toast("Power menu is open on the TV")})};
+  if(r.where==="needs_helper")toast("The power menu needs H02 Helper switched on on the TV");else if(r.done)toast("Power menu is open on the TV")})};
 
 /* ---------- smart home ---------- */
 var haText={ok:"",not_configured:"Connect Home Assistant to control lights and scenes here and on the TV.",unreachable:"Can't reach Home Assistant right now.",auth:"Home Assistant didn't accept the token.",loading:"Loading…"};
@@ -505,9 +505,9 @@ $("haPick").onclick=function(){var box=$("haAll");box.classList.toggle("hidden")
 /* ---------- encrypted backup ---------- */
 function passOk(){var p=$("bkPass").value;if(p.length<8){toast("Use a passphrase of 8 characters or more");return null}return p}
 $("bkExport").onclick=function(){var p=passOk();if(!p)return;toast("Preparing the backup…");
-  fetch("/api/backup/export",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-M02-Link":"1"},body:JSON.stringify({passphrase:p})})
+  fetch("/api/backup/export",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-H02-Link":"1"},body:JSON.stringify({passphrase:p})})
   .then(function(r){if(!r.ok)return r.json().then(function(j){throw j});
-    var name=((r.headers.get("Content-Disposition")||"").match(/filename="([^"]+)"/)||[])[1]||"m02-backup.m02";
+    var name=((r.headers.get("Content-Disposition")||"").match(/filename="([^"]+)"/)||[])[1]||"h02-backup.h02";
     return r.blob().then(function(b){var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();
       setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},4000);toast("Backup saved to this phone")})})
   .catch(function(j){toast(j&&j.error==="slow_down"?"Wait a moment and try again":j&&j.error==="launcher"?"The TV couldn't make a backup":"Saving didn't work")})};
@@ -516,7 +516,7 @@ $("bkFile").onchange=function(){var f=this.files&&this.files[0];this.value="";if
   if(f.size>1100000){toast("That file is too large to be a backup");return}
   var rd=new FileReader();rd.onload=function(){var s=String(rd.result),data=s.slice(s.indexOf(",")+1);
     api("/api/backup/import",{passphrase:$("bkPass").value,data:data}).then(function(r){
-      var m={passphrase:"The passphrase doesn't match this backup",file:"That isn't an M02 backup file",launcher:"The TV couldn't restore it",slow_down:"Wait a moment and try again"};
+      var m={passphrase:"The passphrase doesn't match this backup",file:"That isn't an H02 backup file",launcher:"The TV couldn't restore it",slow_down:"Wait a moment and try again"};
       toast(r.ok?"Restored. The TV's home screen will update.":(m[r.error]||"Restoring didn't work"))})};
   rd.readAsDataURL(f)};
 
@@ -526,10 +526,10 @@ $("forget").onclick=function(){if(!confirm("Forget this phone? You'll need a new
 var tab="remote";
 function go(t){tab=t;all("[data-tab]").forEach(function(s){s.classList.toggle("hidden",s.dataset.tab!==t)});
   all("[data-go]").forEach(function(b){b.setAttribute("aria-selected",b.dataset.go===t)});
-  try{localStorage.setItem("m02tab",t)}catch(e){}
+  try{localStorage.setItem("h02tab",t)}catch(e){}
   if(t==="media"||t==="remote")poll();if(t==="apps"&&!apps.length)loadApps();if(t==="more"){loadHome();loadSpotify()}window.scrollTo(0,0)}
 all("[data-go]").forEach(function(b){b.onclick=function(){buzz(6);go(b.dataset.go)}});
-try{var saved=localStorage.getItem("m02tab");if(saved&&document.querySelector('[data-tab="'+saved+'"]'))go(saved)}catch(e){}
+try{var saved=localStorage.getItem("h02tab");if(saved&&document.querySelector('[data-tab="'+saved+'"]'))go(saved)}catch(e){}
 
 /* ---------- installable: manifest and icon made here ---------- */
 (function(){
@@ -540,7 +540,7 @@ try{var saved=localStorage.getItem("m02tab");if(saved&&document.querySelector('[
   var icon=c.toDataURL("image/png");
   var t=document.createElement("link");t.rel="apple-touch-icon";t.href=icon;document.head.appendChild(t);
   var f=document.createElement("link");f.rel="icon";f.href=icon;document.head.appendChild(f);
-  var m={name:"M02 Remote",short_name:"M02 Remote",start_url:location.origin+"/",scope:location.origin+"/",display:"standalone",
+  var m={name:"H02 Remote",short_name:"H02 Remote",start_url:location.origin+"/",scope:location.origin+"/",display:"standalone",
     background_color:"#0b0d12",theme_color:"#0b0d12",icons:[{src:icon,sizes:"512x512",type:"image/png",purpose:"any maskable"}]};
   var l=document.createElement("link");l.rel="manifest";l.href="data:application/manifest+json,"+encodeURIComponent(JSON.stringify(m));document.head.appendChild(l);
   var standalone=(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone;

@@ -35,7 +35,7 @@ object AppFilter {
         "com.android.vending"
     )
 
-    /** TCL's own apps (Safety Guard, media centre, accounts...) never show in the shelf: M02 replaces that whole layer. */
+    /** TCL's own apps (Safety Guard, media centre, accounts...) never show in the shelf: H02 replaces that whole layer. */
     fun isTclApp(pkg: String) = pkg.startsWith("com.tcl.")
 
     fun isDefaultHidden(pkg: String, s: LauncherSettings) =

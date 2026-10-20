@@ -51,7 +51,7 @@ object LookPage {
 
         page.row("look.presets", "Looks", RowKind.Action(LookPresets.ALL.firstOrNull { matches(it.look, look) }?.name) {
             nav.push("Looks") { c, n -> presets(c, n) }
-        }, subtitle = "Mintaka, Clear, Cinema, Bright room and Classic", iconRes = R.drawable.ic_set_palette)
+        }, subtitle = "Horizon, Clear, Cinema, Bright room and Classic", iconRes = R.drawable.ic_set_palette)
 
         val styles = GlassStyle.values().toList()
         val glass = GlassStyle.resolve(look.glassStyle, full)

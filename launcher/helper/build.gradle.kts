@@ -10,8 +10,8 @@ android {
         applicationId = "dev.tvlauncher.helper"
         minSdk = 24
         targetSdk = 30
-        versionCode = providers.gradleProperty("mintaka.versionCode").get().toInt()
-        versionName = providers.gradleProperty("mintaka.versionName").get()
+        versionCode = providers.gradleProperty("horizon.versionCode").get().toInt()
+        versionName = providers.gradleProperty("horizon.versionName").get()
     }
 
     buildTypes {

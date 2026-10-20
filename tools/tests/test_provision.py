@@ -176,8 +176,8 @@ def test_parseAppopMode_andBound():
     dump = ("User state[\n  Bound services:{Service[label=Launcher Helper, feedbackType[FEEDBACK_GENERIC]]}\n"
             "  Enabled services:{{dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService}}\n  Crashed services:{}\n")
     assert pv.parse_bound(dump)  # pre-rename label, still on TVs with an older Helper build
-    assert pv.parse_bound(dump.replace("label=Launcher Helper", "label=M02 Helper"))
-    assert pv.parse_bound(dump.replace("label=Launcher Helper", "label=H02 Helper"))  # before the Mintaka rename
+    assert pv.parse_bound(dump.replace("label=Launcher Helper", "label=H02 Helper"))
+    assert pv.parse_bound(dump.replace("label=Launcher Helper", "label=M02 Helper"))  # the short-lived M02 builds
     crashed = ("  Bound services:{}\n  Enabled services:{{dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService}}\n"
                "  Crashed services:{dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService}\n")
     assert not pv.parse_bound(crashed)
@@ -272,7 +272,7 @@ class FakeTv:
             return ""
         if a == ["dumpsys", "accessibility"]:
             if self.bound():
-                return "  Bound services:{Service[label=M02 Helper]}\n  Enabled services:{}\n"
+                return "  Bound services:{Service[label=H02 Helper]}\n  Enabled services:{}\n"
             return "  Bound services:{}\n  Crashed services:{dev.tvlauncher.helper/dev.tvlauncher.helper.HelperService}\n"
         if a == ["date", "+%s"]:
             return "1760950000\n"
@@ -560,32 +560,38 @@ def test_home_holder_from_dumpsys_role_when_cmd_role_lacks_get_role_holders():
     assert parse_dumpsys_role_holder("name=android.app.role.DIALER\nholders=x.y\n") is None
 
 
-def test_reasons_use_the_m02_brand_not_the_old_names():
+def test_reasons_use_the_h02_brand_not_the_old_names():
     import pathlib
     src = (pathlib.Path(__file__).resolve().parents[1] / "tvtool" / "provision.py").read_text(encoding="utf-8")
     assert "TV Launcher" not in src
-    assert "Lets M02 bring the home screen forward" in src
-    assert all(not t.startswith("H02") and "Horizon" not in t for t in pv.TITLES.values())
+    assert "Lets H02 bring the home screen forward" in src
+    assert all(t.startswith("H02") and not t.startswith("M02") and "Mintaka" not in t for t in pv.TITLES.values())
 
 
 def test_matchApks_releaseNames_currentAndLegacyPrefix():
-    m = pv.match_apks(["M02-app-1.0.1.apk", "M02-link-1.0.1.apk", "M02-helper-1.0.1.apk", "M02-browser-1.0.1.apk",
-                       "M02-store-1.0.1.apk", "M02-weather-1.0.1.apk"])
-    assert m == {"dev.tvlauncher": "M02-app-1.0.1.apk", "dev.tvlauncher.link": "M02-link-1.0.1.apk",
-                 "dev.tvlauncher.helper": "M02-helper-1.0.1.apk", "dev.tvlauncher.browser": "M02-browser-1.0.1.apk",
-                 "dev.tvlauncher.store": "M02-store-1.0.1.apk", "dev.tvlauncher.weather": "M02-weather-1.0.1.apk"}
+    m = pv.match_apks(["H02-app-1.0.1.apk", "H02-link-1.0.1.apk", "H02-helper-1.0.1.apk", "H02-browser-1.0.1.apk",
+                       "H02-store-1.0.1.apk", "H02-weather-1.0.1.apk"])
+    assert m == {"dev.tvlauncher": "H02-app-1.0.1.apk", "dev.tvlauncher.link": "H02-link-1.0.1.apk",
+                 "dev.tvlauncher.helper": "H02-helper-1.0.1.apk", "dev.tvlauncher.browser": "H02-browser-1.0.1.apk",
+                 "dev.tvlauncher.store": "H02-store-1.0.1.apk", "dev.tvlauncher.weather": "H02-weather-1.0.1.apk"}
     legacy = pv.match_apks(["H02-h02-1.0.0.apk", "H02-link-1.0.0.apk", "h02_store_1.0.0.apk", "link-debug.apk"])
     assert legacy == {"dev.tvlauncher": "H02-h02-1.0.0.apk", "dev.tvlauncher.link": "H02-link-1.0.0.apk",
                       "dev.tvlauncher.store": "h02_store_1.0.0.apk"}
+    assert pv.match_apks(["horizon-1.0.1.apk"]) == {"dev.tvlauncher": "horizon-1.0.1.apk"}
+    assert pv.match_apks(["H02-h02-1.0.1.apk"]) == {"dev.tvlauncher": "H02-h02-1.0.1.apk"}
+    m02 = pv.match_apks(["M02-app-1.0.1.apk", "M02-link-1.0.1.apk", "M02-helper-1.0.1.apk"])  # the short-lived M02 builds
+    assert m02 == {"dev.tvlauncher": "M02-app-1.0.1.apk", "dev.tvlauncher.link": "M02-link-1.0.1.apk",
+                   "dev.tvlauncher.helper": "M02-helper-1.0.1.apk"}
     assert pv.match_apks(["mintaka-1.0.1.apk"]) == {"dev.tvlauncher": "mintaka-1.0.1.apk"}
-    assert pv.match_apks(["M02-m02-1.0.1.apk"]) == {"dev.tvlauncher": "M02-m02-1.0.1.apk"}
-    assert pv.match_apks(["M02-unknown-1.0.1.apk", "notes-M02.apk"]) == {}
+    both = pv.match_apks(["M02-app-1.0.1.apk", "H02-app-1.0.1.apk"])
+    assert both == {"dev.tvlauncher": "H02-app-1.0.1.apk"}
+    assert pv.match_apks(["H02-unknown-1.0.1.apk", "notes-H02.apk"]) == {}
 
 
 def test_matchApks_recognisesLinkApk_andInstallsItAfterTheLauncher():
     m = pv.match_apks(["link-debug.apk", "app-debug.apk"])
     assert m == {"dev.tvlauncher.link": "link-debug.apk", "dev.tvlauncher": "app-debug.apk"}
-    assert pv.TITLES[pv.LINK] == "M02 Link"
+    assert pv.TITLES[pv.LINK] == "H02 Link"
     steps = pv.plan_steps(probe(), {**ALL_APKS, pv.LINK: "link-debug.apk"}, tcl_profile(), take_over_home=False)
     installs = [x for x in cmds(steps) if x.startswith("install ")]
     assert installs.index("install link-debug.apk") > installs.index("install app-debug.apk")

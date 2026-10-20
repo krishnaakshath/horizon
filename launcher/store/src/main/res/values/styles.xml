@@ -10,5 +10,5 @@
     <color name="base">#FF0B0D12</color>
     <color name="text">#FFF5F7FA</color>
     <color name="accent">#FF7CF2C8</color>
-    <string name="app_name" translatable="false">M02 Store</string>
+    <string name="app_name" translatable="false">H02 Store</string>
 </resources>

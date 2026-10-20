@@ -39,7 +39,7 @@ object SafeHttp {
             c.connectTimeout = connectMs
             c.readTimeout = readMs
             c.requestMethod = method
-            c.setRequestProperty("User-Agent", "M02Link/1")
+            c.setRequestProperty("User-Agent", "H02Link/1")
             for ((k, v) in headers) {
                 require(k.none { it == '\r' || it == '\n' } && v.none { it == '\r' || it == '\n' })
                 c.setRequestProperty(k, v)

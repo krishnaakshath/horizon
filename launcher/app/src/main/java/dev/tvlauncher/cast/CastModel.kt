@@ -4,7 +4,7 @@ import dev.tvlauncher.appsettings.PageSpec
 
 /**
  * Pure logic of Settings > Connections > Cast & AirPlay and of the AirPlay row in the Inputs
- * panel. Mintaka does not receive casts itself: it shows which receivers the TV already has
+ * panel. Horizon does not receive casts itself: it shows which receivers the TV already has
  * (Google Cast built in, a maker's AirPlay input) and how to reach them.
  */
 object CastModel {

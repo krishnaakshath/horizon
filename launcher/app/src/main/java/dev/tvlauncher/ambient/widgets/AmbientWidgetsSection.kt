@@ -44,7 +44,7 @@ object AmbientWidgetsSection : SettingsSection, SpecifiedPage {
         when (AmbientWidgetsModel.calendarRow(AmbientWidgetsStore.calendarGranted(context))) {
             AmbientWidgetsModel.CalendarRow.ALLOW -> page.row(CALENDAR, "Show my calendar", RowKind.Action("Allow") {
                 askCalendar(context, nav)
-            }, subtitle = "Allow M02 to read the calendar on this TV to see your next three events", iconRes = R.drawable.ic_set_calendar)
+            }, subtitle = "Allow H02 to read the calendar on this TV to see your next three events", iconRes = R.drawable.ic_set_calendar)
             AmbientWidgetsModel.CalendarRow.TOGGLE -> page.row(CALENDAR, "Calendar", RowKind.Toggle(s.calendar) { on ->
                 store.save(store.load().copy(calendar = on))
             }, subtitle = "Your next three events, at the top right", iconRes = R.drawable.ic_set_calendar)

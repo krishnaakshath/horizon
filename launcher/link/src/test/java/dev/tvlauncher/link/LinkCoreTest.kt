@@ -35,8 +35,8 @@ class LinkCoreTest {
     private fun hex(s: String) = s.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
     @Test fun brand() {
-        assertEquals("M02 Link", LinkBrand.APP_NAME)
-        assertTrue(File("src/main/res/values/strings.xml").readText().contains(">M02 Link<"))
+        assertEquals("H02 Link", LinkBrand.APP_NAME)
+        assertTrue(File("src/main/res/values/strings.xml").readText().contains(">H02 Link<"))
     }
 
     @Test fun pbkdf2_rfc7914Vectors() {
@@ -176,7 +176,7 @@ class LinkCoreTest {
         assertEquals(413, status("POST /api/key HTTP/1.1\r\nContent-Length: 999999\r\n\r\n"))
         assertEquals(405, status("PUT / HTTP/1.1\r\n\r\n"))
         // The CSRF header the phone page sends may appear only once.
-        assertEquals(400, status("POST /api/key HTTP/1.1\r\nX-M02-Link: 1\r\nX-M02-Link: 1\r\nContent-Length: 0\r\n\r\n"))
+        assertEquals(400, status("POST /api/key HTTP/1.1\r\nX-H02-Link: 1\r\nX-H02-Link: 1\r\nContent-Length: 0\r\n\r\n"))
         assertEquals(400, status("GET /../x HTTP/1.1\r\n\r\n"))
         assertEquals(431, status("GET / HTTP/1.1\r\nX: " + "a".repeat(9000) + "\r\n\r\n"))
         assertEquals(400, status("GET / HTTP/1.1\r\nHost: a\r\nHost: b\r\n\r\n"))
@@ -189,9 +189,9 @@ class LinkCoreTest {
         assertFalse(LinkApi.hostOk("192.168.1.38:80"))
         assertFalse(LinkApi.hostOk("8.8.8.8:8765"))
         fun r(h: Map<String, String>) = HttpRequest("POST", "/api/key", "", h, ByteArray(0))
-        val good = mapOf("host" to "192.168.1.38:8765", "x-m02-link" to "1", "content-type" to "application/json")
+        val good = mapOf("host" to "192.168.1.38:8765", "x-h02-link" to "1", "content-type" to "application/json")
         assertNull(LinkApi.csrfProblem(r(good)))
-        assertEquals("header", LinkApi.csrfProblem(r(good - "x-m02-link")))
+        assertEquals("header", LinkApi.csrfProblem(r(good - "x-h02-link")))
         assertEquals("type", LinkApi.csrfProblem(r(good + ("content-type" to "text/plain"))))
         assertEquals("origin", LinkApi.csrfProblem(r(good + ("origin" to "http://evil.example"))))
         assertNull(LinkApi.csrfProblem(r(good + ("origin" to "http://192.168.1.38:8765"))))
@@ -226,17 +226,23 @@ class LinkCoreTest {
         assertFalse(UpdateCheck.available(r.copy(prerelease = true), "0.1.0"))
         assertTrue(UpdateCheck.due(0, 5, false)); assertFalse(UpdateCheck.due(10, 20, false))
         fun a(n: String) = UpdateCheck.Asset(n, "https://x/$n", 1, null)
-        val release = listOf("M02-browser-1.0.1.apk", "M02-helper-1.0.1.apk", "M02-app-1.0.1.apk", "M02-link-1.0.1.apk").map(::a)
-        assertEquals("M02-app-1.0.1.apk", UpdateCheck.pickApk(release)!!.name)
+        val release = listOf("H02-browser-1.0.1.apk", "H02-helper-1.0.1.apk", "H02-app-1.0.1.apk", "H02-link-1.0.1.apk").map(::a)
+        assertEquals("H02-app-1.0.1.apk", UpdateCheck.pickApk(release)!!.name)
         val legacy = listOf("H02-browser-1.0.0.apk", "H02-h02-1.0.0.apk", "H02-store-1.0.0.apk").map(::a)
         assertEquals("H02-h02-1.0.0.apk", UpdateCheck.pickApk(legacy)!!.name)
+        val m02 = listOf("M02-browser-1.0.1.apk", "M02-app-1.0.1.apk", "M02-link-1.0.1.apk").map(::a)
+        assertEquals("M02-app-1.0.1.apk", UpdateCheck.pickApk(m02)!!.name)
+        assertEquals("H02-app-1.0.1.apk", UpdateCheck.pickApk(m02 + release)!!.name)
     }
 
     @Test fun phonePageIsSmallAndSelfContained() {
         val html = File("src/main/assets/phone.html").readText()
         assertTrue(html.toByteArray().size < 150_000)
         assertFalse(html.contains("<script src")); assertFalse(html.contains("<link "))
-        assertTrue(html.contains("X-M02-Link"))
+        assertTrue(html.contains("X-H02-Link"))
+        assertFalse(html.contains("X-M02-Link"))
+        assertTrue(html.contains("accept=\".h02,.m02,"))
+        assertEquals("h02-backup.h02", dev.tvlauncher.link.sync.BackupZip.FILE_NAME)
     }
 
     @Test fun volumePercent_roundsAndReadsMutedAsZero() {

@@ -26,7 +26,7 @@ class SafeModeListTest {
 
     @Test
     fun ownPackage_isExcluded() {
-        val rows = SafeModeList.build(listOf(app("dev.tvlauncher", "M02"), app("x", "X")), emptyList(), "dev.tvlauncher", false)
+        val rows = SafeModeList.build(listOf(app("dev.tvlauncher", "H02"), app("x", "X")), emptyList(), "dev.tvlauncher", false)
         assertEquals(listOf("X"), rows.filterIsInstance<SafeModeList.Row.App>().map { it.app.label })
     }
 

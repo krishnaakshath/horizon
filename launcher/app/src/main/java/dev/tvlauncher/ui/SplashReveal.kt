@@ -2,8 +2,8 @@ package dev.tvlauncher.ui
 
 /**
  * Pure sequencing of the cold-start reveal (the "sunrise"). Offsets are relative to the start of the reveal.
- * Intro (runs while apps load): a horizon line draws across, a small sun-disc rises on it, the "M02" mark
- * resolves above it and the letter-spaced "MINTAKA" caption fades in below. Then the mark leaves and the
+ * Intro (runs while apps load): a horizon line draws across, a small sun-disc rises on it, the "H02" mark
+ * resolves above it and the letter-spaced "HORIZON" caption fades in below. Then the mark leaves and the
  * home rises: FULL = top bar, hero, a left-to-right tile stagger and the dock; LITE = one fade+rise of the
  * whole content. FULL ends by [FULL_BUDGET_MS], LITE by [LITE_BUDGET_MS].
  */

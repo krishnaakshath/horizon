@@ -84,6 +84,6 @@ class UpdateRowTextTest {
         assertEquals("Not checked yet", UpdateRowText.value(UpdateState(true, "o/r", "", false)))
         assertEquals("Up to date", UpdateRowText.value(UpdateState(true, "o/r", "v1", false)))
         assertEquals("Update available", UpdateRowText.value(UpdateState(true, "o/r", "v2", true)))
-        assertEquals("Version v2 is ready in M02 Store", UpdateRowText.subtitle(UpdateState(true, "o/r", "v2", true)))
+        assertEquals("Version v2 is ready in H02 Store", UpdateRowText.subtitle(UpdateState(true, "o/r", "v2", true)))
     }
 }

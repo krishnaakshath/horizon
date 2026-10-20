@@ -18,7 +18,7 @@ import dev.tvlauncher.system.TextEntrySheet
 import dev.tvlauncher.system.contentRoot
 import dev.tvlauncher.system.lite
 
-/** One favourite Home Assistant entity, as M02 Link's provider lists it (read-only). */
+/** One favourite Home Assistant entity, as H02 Link's provider lists it (read-only). */
 data class SmartEntity(
     val id: String,
     val name: String,
@@ -49,7 +49,7 @@ object SmartHomeText {
     fun entitySubtitle(e: SmartEntity): String = if (!e.available) "Unavailable" else e.state
 }
 
-/** M02 Link's Home Assistant snapshot through its signature-protected provider. Never throws. */
+/** H02 Link's Home Assistant snapshot through its signature-protected provider. Never throws. */
 object SmartHomeData {
     fun favourites(context: Context): Pair<String, List<SmartEntity>> = try {
         context.contentResolver.query(Uri.parse(LinkContract.URI_HOME), null, null, null, null)?.use { c ->
@@ -82,7 +82,7 @@ object SmartHomeData {
 }
 
 /**
- * Settings > System > Smart home: Home Assistant through M02 Link (the launcher itself has no
+ * Settings > System > Smart home: Home Assistant through H02 Link (the launcher itself has no
  * network access). Connect with the TV keyboard or from the phone page, test the connection, and
  * control the favourites chosen on the phone.
  */
@@ -109,7 +109,7 @@ object SmartHomeSection : SettingsSection, SpecifiedPage {
         val link = LinkStatus.read(context)
         if (!link.installed) {
             page.row(STATUS, "Smart home", RowKind.Info("Not installed"),
-                subtitle = "Install M02 Link to control Home Assistant from the TV", iconRes = R.drawable.ic_set_about)
+                subtitle = "Install H02 Link to control Home Assistant from the TV", iconRes = R.drawable.ic_set_about)
             return page
         }
         val (state, favs) = SmartHomeData.favourites(context)

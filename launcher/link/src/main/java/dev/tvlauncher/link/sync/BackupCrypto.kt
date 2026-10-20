@@ -12,7 +12,7 @@ import javax.crypto.spec.SecretKeySpec
  *
  * File layout (all integers big-endian):
  *   "H02B" | version (1 byte, 1) | iterations (4 bytes) | salt (16) | nonce (12) | ciphertext+tag (16)
- *   (the "H02B" magic is a file-format id from before the M02 rename; kept so older backups restore)
+ *   (the "H02B" magic is the file-format id; the short-lived M02 builds wrote it too, so their backups restore)
  * The 37-byte header is the GCM associated data, so changing the iteration count or salt breaks
  * the tag. Salt and nonce are fresh random bytes per file. PBKDF2 is computed here on top of
  * HmacSHA256 (SecretKeyFactory's PBKDF2WithHmacSHA256 only exists from Android 8), and is checked

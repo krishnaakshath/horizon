@@ -41,7 +41,7 @@ data class Look(
 data class NamedLook(val name: String, val look: Look)
 
 object LookPresets {
-    val MINTAKA = NamedLook("Mintaka", Look())
+    val HORIZON = NamedLook("Horizon", Look())
     val CLEAR = NamedLook("Clear", Look(glassStyle = GlassStyle.CLEAR, amount = 85, corners = Corners.ROUND, tint = LookTint.NEUTRAL))
     val CINEMA = NamedLook("Cinema", Look(glassStyle = GlassStyle.FROSTED, amount = 20, corners = Corners.SOFT,
         tint = LookTint.NEUTRAL, accent = 0xFFC9D1DE.toInt()))
@@ -50,7 +50,7 @@ object LookPresets {
     val CLASSIC = NamedLook("Classic", Look(glassStyle = GlassStyle.SOLID, amount = 0, corners = Corners.SOFT,
         tint = LookTint.NEUTRAL))
 
-    val ALL = listOf(MINTAKA, CLEAR, CINEMA, BRIGHT_ROOM, CLASSIC)
+    val ALL = listOf(HORIZON, CLEAR, CINEMA, BRIGHT_ROOM, CLASSIC)
 
     /** Twelve extra accent swatches (the 8 Appearance presets stay first). */
     val SWATCHES: List<Int> = listOf(
