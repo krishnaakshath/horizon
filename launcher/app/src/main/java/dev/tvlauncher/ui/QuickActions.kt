@@ -39,7 +39,9 @@ object QuickActions {
         /** Turns Focus mode on for the chosen time, or off. */
         FOCUS("Focus mode"),
         /** Toggles Bedtime mode in place (routines.Bedtime). */
-        BEDTIME("Bedtime mode")
+        BEDTIME("Bedtime mode"),
+        /** Settings > Connections > Cast & AirPlay. */
+        CAST("Cast & AirPlay")
     }
 
     enum class Route { WIFI_PANEL, BLUETOOTH_PANEL, DEVICES_PANEL, INPUTS_PANEL, AMBIENT, ROOM_CYCLE, DISCOVER, RESTART, SYSTEM }
@@ -73,6 +75,7 @@ object QuickActions {
         Item.POWER, Item.SLEEP_TIMER -> "system"
         Item.DEVICES -> "devices"
         Item.ACCESSIBILITY -> "accessibility"
+        Item.CAST -> dev.tvlauncher.cast.CastSection.ID
         else -> null
     }
 
@@ -120,5 +123,6 @@ object QuickActions {
         Item.RECENTS -> R.drawable.ic_qa_recents
         Item.FOCUS -> R.drawable.ic_qa_focus
         Item.BEDTIME -> R.drawable.ic_bedtime
+        Item.CAST -> R.drawable.ic_dev_phonecast
     }
 }
