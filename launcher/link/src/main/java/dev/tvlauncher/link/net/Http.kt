@@ -150,7 +150,7 @@ class HttpResponse(
             "X-Frame-Options" to "DENY",
             "Referrer-Policy" to "no-referrer",
             "Content-Security-Policy" to "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; " +
-                "connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+                "connect-src 'self'; img-src 'self' data: blob:; manifest-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
             "Connection" to "close",
         )
 

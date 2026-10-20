@@ -2,167 +2,539 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0b0d12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="H02 Remote">
 <title>H02 Remote</title>
 <style>
-:root{--bg:#0b0d12;--glass:rgba(30,34,43,.72);--edge:rgba(255,255,255,.12);--text:#f5f7fa;--dim:#9aa4b5;--accent:#4fc3f7;--warn:#ffb347;--err:#ff8a80}
+:root{--bg:#0b0d12;--glass:rgba(30,34,43,.72);--glass2:rgba(255,255,255,.07);--edge:rgba(255,255,255,.13);--text:#f5f7fa;
+--dim:#a9b2c2;--accent:#4fc3f7;--accent2:rgba(79,195,247,.28);--warn:#ffc46b;--err:#ff9e94;--ok:#7be0a3;
+--safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:radial-gradient(120% 80% at 50% 0%,#1a2233 0%,var(--bg) 60%);color:var(--text);min-height:100%;
-font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
-main{max-width:460px;margin:0 auto;padding:16px 16px 40px}
-h1{font-size:20px;font-weight:600;margin:4px 0 2px}
-.sub{color:var(--dim);font-size:13px;margin:0 0 14px}
+html,body{margin:0;background:var(--bg);color:var(--text);min-height:100%;overscroll-behavior:none;
+font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-text-size-adjust:100%}
+body{background:radial-gradient(120% 70% at 50% 0%,#1b2436 0%,var(--bg) 62%) fixed}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:10px;
+padding:calc(10px + var(--safe-t)) 16px 10px;background:rgba(11,13,18,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+border-bottom:1px solid rgba(255,255,255,.06)}
+h1{font-size:19px;font-weight:650;margin:0;letter-spacing:.01em}
+.chip{display:inline-flex;align-items:center;gap:8px;min-height:32px;padding:6px 12px;border-radius:999px;border:1px solid var(--edge);
+background:var(--glass2);font-size:13px;color:var(--dim);max-width:62vw;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.chip i{width:9px;height:9px;border-radius:50%;background:var(--dim);flex:none}
+.chip.ok i{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+.chip.wait i{background:var(--warn);animation:pulse 1.1s infinite}
+.chip.bad i{background:var(--err)}
+@keyframes pulse{50%{opacity:.3}}
+main{max-width:480px;margin:0 auto;padding:14px 16px calc(96px + var(--safe-b))}
 .card{background:var(--glass);border:1px solid var(--edge);border-radius:22px;padding:16px;margin:0 0 14px;
 backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
-.card h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 12px;font-weight:600}
-button{font:inherit;color:var(--text);background:rgba(255,255,255,.07);border:1px solid var(--edge);border-radius:16px;
-padding:14px 10px;font-size:16px;cursor:pointer;touch-action:manipulation;user-select:none}
-button:active{background:rgba(79,195,247,.28)}
-button.primary{background:var(--accent);color:#0b0d12;border:0;font-weight:600}
-.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.pad .ok{border-radius:50%;aspect-ratio:1;font-weight:600;font-size:18px}
-.pad button{min-height:64px}
-.row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
-input{font:inherit;width:100%;padding:13px 14px;border-radius:14px;border:1px solid var(--edge);background:rgba(0,0,0,.25);
-color:var(--text);font-size:16px;margin:0 0 10px}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.note{color:var(--dim);font-size:13px;line-height:1.45;margin:8px 0 0}
-#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--glass);border:1px solid var(--edge);
-border-radius:999px;padding:10px 18px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;backdrop-filter:blur(18px)}
+.card h2{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);margin:0 0 12px;font-weight:650}
+button{font:inherit;color:var(--text);background:var(--glass2);border:1px solid var(--edge);border-radius:16px;min-height:48px;min-width:44px;
+padding:12px 10px;font-size:16px;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;transition:background .12s,transform .08s}
+button:active,button.press{background:var(--accent2);transform:scale(.97)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:#06121a;border:0;font-weight:650}
+button:disabled{opacity:.45}
+button svg{width:24px;height:24px;vertical-align:middle;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+input,textarea{font:inherit;width:100%;padding:13px 14px;border-radius:14px;border:1px solid var(--edge);background:rgba(0,0,0,.28);
+color:var(--text);font-size:16px;margin:0 0 10px;min-height:48px}
+textarea{resize:none;height:96px}
+input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:0}
+::placeholder{color:#7f899b}
+.note{color:var(--dim);font-size:14px;line-height:1.45;margin:8px 0 0}
+.hidden{display:none!important}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+/* D-pad */
+.dpad{position:relative;width:min(78vw,300px);aspect-ratio:1;margin:6px auto 16px;border-radius:50%;
+background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.10),rgba(255,255,255,.03) 70%);border:1px solid var(--edge);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 18px 40px rgba(0,0,0,.35);touch-action:none}
+.dpad button{position:absolute;border:0;background:transparent;border-radius:0;display:flex;align-items:center;justify-content:center;color:var(--text)}
+.dpad button:active,.dpad button.press{background:rgba(79,195,247,.22)}
+.dpad .u{top:0;left:30%;width:40%;height:30%;border-radius:120px 120px 0 0}
+.dpad .d{bottom:0;left:30%;width:40%;height:30%;border-radius:0 0 120px 120px}
+.dpad .l{left:0;top:30%;width:30%;height:40%;border-radius:120px 0 0 120px}
+.dpad .r{right:0;top:30%;width:30%;height:40%;border-radius:0 120px 120px 0}
+.dpad .ok{left:31%;top:31%;width:38%;height:38%;border-radius:50%;background:rgba(255,255,255,.10);border:1px solid var(--edge);
+font-weight:700;font-size:19px;letter-spacing:.04em}
+.dpad .ok:active,.dpad .ok.press{background:var(--accent);color:#06121a}
+.keys button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:13px;color:var(--dim);min-height:64px}
+.keys button span{color:var(--text)}
+/* volume */
+.vol{display:grid;grid-template-columns:56px 1fr 56px 56px;gap:10px;align-items:center}
+.bar{height:10px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;position:relative}
+.bar b{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#4fc3f7,#8fe3ff);border-radius:99px;transition:width .25s}
+.vlabel{text-align:center;color:var(--dim);font-size:13px;margin-top:6px}
+/* trackpad */
+.pad{height:min(62vh,440px);border-radius:24px;border:1px solid var(--edge);touch-action:none;position:relative;overflow:hidden;
+background:radial-gradient(circle at 50% 50%,rgba(79,195,247,.10),rgba(255,255,255,.03) 65%);user-select:none;-webkit-user-select:none}
+.pad .hint{position:absolute;inset:auto 0 14px;text-align:center;color:var(--dim);font-size:13px;line-height:1.5;pointer-events:none}
+.pad .dot{position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:rgba(79,195,247,.25);
+border:1px solid rgba(79,195,247,.5);pointer-events:none;opacity:0;transition:opacity .15s}
+.pad .flash{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font-size:15px;font-weight:650;opacity:0;transition:opacity .2s;pointer-events:none}
+/* apps */
+.apps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.app{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 6px;min-height:100px;border-radius:18px}
+.app .ic{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:#fff;
+text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.app .nm{font-size:13px;line-height:1.25;text-align:center;max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+/* media */
+.np-title{font-size:20px;font-weight:650;margin:0 0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.np-sub{color:var(--dim);font-size:14px;margin:0 0 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.times{display:flex;justify-content:space-between;color:var(--dim);font-size:12px;margin:6px 0 14px;font-variant-numeric:tabular-nums}
+.transport button{min-height:60px}
+.transport .big{background:var(--accent);color:#06121a;border:0}
+/* tiles */
+.tile{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;margin:0 0 8px}
+.tile small{color:var(--dim);font-size:13px}
+.tile.on small{color:var(--accent)}
+.qa button{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;min-height:76px}
+/* nav */
+nav{position:fixed;left:0;right:0;bottom:0;z-index:6;display:grid;grid-template-columns:repeat(6,1fr);gap:2px;
+padding:6px 6px calc(6px + var(--safe-b));background:rgba(14,17,24,.86);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+border-top:1px solid rgba(255,255,255,.08)}
+nav button{border:0;background:transparent;border-radius:14px;display:flex;flex-direction:column;align-items:center;gap:3px;
+font-size:11px;color:var(--dim);padding:6px 2px;min-height:52px}
+nav button[aria-selected=true]{color:var(--accent);background:rgba(79,195,247,.10)}
+nav button svg{width:22px;height:22px}
+#toast{position:fixed;left:50%;bottom:calc(84px + var(--safe-b));transform:translateX(-50%);background:rgba(30,34,43,.95);border:1px solid var(--edge);
+border-radius:999px;padding:11px 18px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9;max-width:88vw;text-align:center}
 #toast.on{opacity:1}
-.list button{display:block;width:100%;text-align:left;margin:0 0 8px}
-.tile{display:flex;justify-content:space-between;align-items:center}
-.tile small{color:var(--dim)}
-.on small{color:var(--accent)}
-.hidden{display:none}
-.pin{font-size:28px;letter-spacing:.3em;text-align:center}
+.pin{font-size:30px;letter-spacing:.3em;text-align:center}
+.a2hs{display:flex;gap:12px;align-items:flex-start}
+.a2hs p{margin:0;font-size:14px;line-height:1.45;color:var(--dim)}
+.row-split{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.switch{min-height:44px;padding:8px 14px;font-size:14px}
+.switch[aria-pressed=true]{background:var(--accent2);border-color:rgba(79,195,247,.6)}
+@media (min-width:520px){.apps{grid-template-columns:repeat(4,1fr)}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
-<main>
+<header>
 <h1>H02 Remote</h1>
-<p class="sub" id="where">Connecting to your TV…</p>
+<span class="chip wait" id="chip" role="status" aria-live="polite"><i></i><span id="chipText">Connecting</span></span>
+</header>
 
+<main>
 <section class="card hidden" id="pairCard">
 <h2>Pair this phone</h2>
-<p class="note" id="pairHint">Open Settings, then System, then Phone remote on the TV. Type the 6-digit code it shows.</p>
-<input id="pin" class="pin" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000">
+<p class="note" id="pairHint">On the TV, open Settings, then System, then Phone remote, and choose Pair a phone. Scan the code, or type the 6 digits it shows.</p>
+<input id="pin" class="pin" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" aria-label="Pairing code">
 <button class="primary" id="pairBtn" style="width:100%">Pair</button>
 </section>
 
 <div id="app" class="hidden">
-<section class="card">
-<h2>Remote</h2>
-<div class="pad">
-<button data-key="menu">Menu</button><button data-key="up">▲</button><button data-key="home">Home</button>
-<button data-key="left">◀</button><button data-key="ok" class="ok">OK</button><button data-key="right">▶</button>
-<button data-key="back">Back</button><button data-key="down">▼</button><button data-key="play_pause">⏯</button>
+
+<!-- Remote -->
+<section data-tab="remote">
+<div class="card">
+<div class="dpad" id="dpad" aria-label="Direction pad">
+<button class="u" data-key="up" data-hold aria-label="Up"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+<button class="l" data-key="left" data-hold aria-label="Left"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+<button class="ok" data-key="ok" aria-label="OK">OK</button>
+<button class="r" data-key="right" data-hold aria-label="Right"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+<button class="d" data-key="down" data-hold aria-label="Down"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
 </div>
-<div class="row">
-<button data-vol="down">Vol −</button><button data-vol="mute">Mute</button><button data-vol="up">Vol +</button>
+<div class="g3 keys">
+<button data-key="back" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></svg><span>Back</span></button>
+<button data-key="home" aria-label="Home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg><span>Home</span></button>
+<button data-key="menu" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>Menu</span></button>
 </div>
-<p class="note">On the home screen and in Settings everything works. In other apps, Back, Home and typing need the
-H02 Helper switched on in the TV's accessibility settings (the TV may switch it off). Volume works everywhere.</p>
+</div>
+<div class="card">
+<h2>Volume</h2>
+<div class="vol">
+<button data-vol="down" data-hold aria-label="Volume down"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+<div class="bar" aria-hidden="true"><b class="vbar"></b></div>
+<button data-vol="up" data-hold aria-label="Volume up"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+<button data-vol="mute" aria-label="Mute"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l4 6M21 9l-4 6"/></svg></button>
+</div>
+<div class="vlabel vtext" aria-live="polite"></div>
+</div>
+<p class="note">Everything works on the home screen and in Settings. In other apps, Back needs H02 Helper switched on in the TV's accessibility settings; Home and volume work everywhere.</p>
 </section>
 
-<section class="card">
-<h2>Type on the TV</h2>
-<input id="text" placeholder="Text for the selected box on the TV" autocomplete="off" autocapitalize="off">
-<div class="two"><button id="sendText">Send text</button><button id="enter">Send and search</button></div>
+<!-- Trackpad -->
+<section data-tab="touch" class="hidden">
+<div class="pad" id="pad" aria-label="Touch area">
+<div class="dot" id="padDot"></div>
+<div class="flash" id="padFlash"></div>
+<div class="hint">Swipe to move · Tap for OK<br>Two-finger tap for Back · Hold for options</div>
+</div>
+<div class="g3 keys" style="margin-top:12px">
+<button data-key="back"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/></svg><span>Back</span></button>
+<button data-key="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg><span>Home</span></button>
+<button data-key="menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>Menu</span></button>
+</div>
 </section>
 
-<section class="card">
+<!-- Keyboard -->
+<section data-tab="type" class="hidden">
+<div class="card">
+<div class="row-split" style="margin-bottom:10px"><h2 style="margin:0">Type on the TV</h2>
+<button class="switch" id="liveBtn" aria-pressed="true">Live typing</button></div>
+<textarea id="text" placeholder="Select a text box on the TV, then type here" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Text for the TV"></textarea>
+<div class="g3">
+<button id="pasteBtn">Paste</button>
+<button id="sendText">Send</button>
+<button class="primary" id="enter">Search</button>
+</div>
+<p class="note" id="typeNote">With live typing on, each letter appears on the TV as you type. Typing works on the home screen, in Spotlight and in Settings.</p>
+</div>
+<div class="card">
 <h2>Send a link to the TV</h2>
-<input id="url" placeholder="https://…" inputmode="url" autocomplete="off" autocapitalize="off">
+<input id="url" placeholder="Web address" inputmode="url" autocomplete="off" autocapitalize="off" aria-label="Web address">
 <button id="openUrl" style="width:100%">Open in H02 Browser</button>
+</div>
 </section>
 
-<section class="card">
-<h2>Open an app</h2>
-<input id="appFilter" placeholder="Find an app">
-<div class="list" id="apps"></div>
+<!-- Apps -->
+<section data-tab="apps" class="hidden">
+<input id="appFilter" placeholder="Search apps" type="search" aria-label="Search apps">
+<div class="apps" id="apps"></div>
+<p class="note hidden" id="appsEmpty">No apps match.</p>
 </section>
 
-<section class="card" id="homeCard">
+<!-- Media -->
+<section data-tab="media" class="hidden">
+<div class="card">
+<h2 id="npApp">Now playing</h2>
+<p class="np-title" id="npTitle">Nothing playing</p>
+<p class="np-sub" id="npArtist"></p>
+<div class="bar"><b id="npBar"></b></div>
+<div class="times"><span id="npPos">0:00</span><span id="npDur"></span></div>
+<div class="g5 transport">
+<button data-media="prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 5v14M19 5l-10 7 10 7z"/></svg></button>
+<button data-media="rewind" aria-label="Back 10 seconds"><svg viewBox="0 0 24 24"><path d="M11 6l-6 6 6 6M19 6l-6 6 6 6"/></svg></button>
+<button data-media="play_pause" class="big" id="ppBtn" aria-label="Play or pause"><svg viewBox="0 0 24 24" id="ppIcon"><path d="M7 5l12 7-12 7z"/></svg></button>
+<button data-media="forward" aria-label="Forward 10 seconds"><svg viewBox="0 0 24 24"><path d="M13 6l6 6-6 6M5 6l6 6-6 6"/></svg></button>
+<button data-media="next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M18 5v14M5 5l10 7-10 7z"/></svg></button>
+</div>
+<p class="note hidden" id="npNote"></p>
+</div>
+<div class="card">
+<h2>Volume</h2>
+<div class="vol">
+<button data-vol="down" data-hold aria-label="Volume down"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+<div class="bar" aria-hidden="true"><b class="vbar"></b></div>
+<button data-vol="up" data-hold aria-label="Volume up"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+<button data-vol="mute" aria-label="Mute"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l4 6M21 9l-4 6"/></svg></button>
+</div>
+<div class="vlabel vtext"></div>
+</div>
+</section>
+
+<!-- More -->
+<section data-tab="more" class="hidden">
+<div class="card">
+<h2>Quick actions</h2>
+<div class="g3 qa">
+<button data-quick="spotlight"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>Spotlight</button>
+<button data-quick="inputs"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/></svg>Inputs</button>
+<button data-quick="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>Settings</button>
+<button data-quick="ambient"><svg viewBox="0 0 24 24"><path d="M4 18h16M7 14a5 5 0 0110 0"/></svg>Ambient</button>
+<button data-quick="focus"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>Focus mode</button>
+<button data-quick="bedtime"><svg viewBox="0 0 24 24"><path d="M20 14A8 8 0 0110 4a8 8 0 1010 10z"/></svg>Bedtime</button>
+</div>
+<button id="powerBtn" style="width:100%;margin-top:10px"><svg viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M6.3 7a8 8 0 1011.4 0"/></svg> Power and sleep</button>
+</div>
+
+<div class="card" id="homeCard">
 <h2>Smart home</h2>
 <div id="haSetup">
-<input id="haUrl" placeholder="homeassistant.local:8123" autocomplete="off" autocapitalize="off">
-<input id="haToken" placeholder="Long-lived access token" type="password" autocomplete="off">
+<input id="haUrl" placeholder="homeassistant.local:8123" autocomplete="off" autocapitalize="off" aria-label="Home Assistant address">
+<input id="haToken" placeholder="Long-lived access token" type="password" autocomplete="off" aria-label="Access token">
 <button id="haSave" style="width:100%">Connect Home Assistant</button>
 </div>
-<div class="list" id="haTiles"></div>
-<button id="haPick" class="hidden" style="width:100%">Choose favourites</button>
-<div class="list hidden" id="haAll"></div>
+<div id="haTiles"></div>
+<div class="g2"><button id="haPick" class="hidden">Choose favourites</button><button id="haForget" class="hidden">Disconnect</button></div>
+<div class="hidden" id="haAll" style="margin-top:10px"></div>
 <p class="note" id="haNote"></p>
-</section>
+</div>
 
+<div class="card">
+<h2>Backup</h2>
+<p class="note" style="margin:0 0 10px">Save your home screen, apps order and settings to this phone, locked with a passphrase you choose.</p>
+<input id="bkPass" type="password" placeholder="Passphrase (8 characters or more)" autocomplete="new-password" aria-label="Backup passphrase">
+<div class="g2"><button id="bkExport">Save backup</button><button id="bkImport">Restore backup</button></div>
+<input id="bkFile" type="file" class="hidden" accept=".h02,.zip,application/octet-stream,application/zip">
+</div>
+
+<div class="card hidden" id="a2hsCard">
+<h2>Keep the remote one tap away</h2>
+<div class="a2hs"><svg viewBox="0 0 24 24" style="width:28px;height:28px;flex:none;fill:none;stroke:var(--accent);stroke-width:2"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M12 7v7M9 11l3 3 3-3"/></svg>
+<p id="a2hsText"></p></div>
+<button id="a2hsBtn" class="primary hidden" style="width:100%;margin-top:12px">Add to Home Screen</button>
+</div>
+
+<div class="card">
+<h2>Where it works</h2>
+<p class="note" style="margin:0">On the TV's home screen and in Settings, every button and typing work. In other apps, Home, volume, media and app launching work; Back needs H02 Helper switched on in the TV's accessibility settings, and typing works only on the home screen.</p>
+</div>
 <button id="forget" style="width:100%">Forget this phone</button>
+</section>
 </div>
 </main>
-<div id="toast"></div>
+
+<nav id="nav" class="hidden" role="tablist">
+<button data-go="remote" aria-selected="true" role="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg>Remote</button>
+<button data-go="touch" role="tab"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M12 8v4"/></svg>Touch</button>
+<button data-go="type" role="tab"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg>Type</button>
+<button data-go="apps" role="tab"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>Apps</button>
+<button data-go="media" role="tab"><svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>Media</button>
+<button data-go="more" role="tab"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>More</button>
+</nav>
+<div id="toast" role="status" aria-live="polite"></div>
 <script>
 (function(){
 "use strict";
 var $=function(id){return document.getElementById(id)};
+var all=function(sel){return Array.prototype.slice.call(document.querySelectorAll(sel))};
+function buzz(ms){try{if(navigator.vibrate)navigator.vibrate(ms||10)}catch(e){}}
+
+/* ---------- connection ---------- */
+var online=false,failures=0,retryT=0;
+function chip(kind,text){var c=$("chip");c.className="chip "+kind;$("chipText").textContent=text}
 function api(path,body){
-  return fetch(path,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-H02-Link":"1"},
-    body:JSON.stringify(body||{})}).then(function(r){return r.json().catch(function(){return {ok:false}})});
+  return fetch(path,{method:"POST",credentials:"same-origin",cache:"no-store",
+    headers:{"Content-Type":"application/json","X-H02-Link":"1"},body:JSON.stringify(body||{})})
+  .then(function(r){return r.json().catch(function(){return {ok:false,error:"bad"}})})
+  .then(function(r){if(!online){online=true;failures=0;setChip()}if(r&&r.error==="pair_first")showPair();return r},
+    function(){lost();return {ok:false,error:"offline"}});
 }
+var helperOn=false,paired=false;
+function setChip(){if(!online)return;if(!paired){chip("wait","Not paired");return}chip("ok",helperOn?"Connected · Helper on":"Connected")}
+function lost(){if(online||failures===0){online=false}failures++;chip(failures>2?"bad":"wait",failures>2?"TV not reachable":"Reconnecting");
+  clearTimeout(retryT);retryT=setTimeout(hello,Math.min(15000,800*Math.pow(1.6,failures)))}
+
 var tid=0;
-function toast(t){var e=$("toast");e.textContent=t;e.classList.add("on");clearTimeout(tid);tid=setTimeout(function(){e.classList.remove("on")},1800)}
+function toast(t){if(!t)return;var e=$("toast");e.textContent=t;e.classList.add("on");clearTimeout(tid);tid=setTimeout(function(){e.classList.remove("on")},2200)}
 function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
-var whereText={launcher:"",helper:"",needs_helper:"Another app is open: switch on H02 Helper on the TV for this",failed:"That didn't work",none:"The TV didn't answer"};
-function outcome(r){if(r&&r.ok===false&&r.error==="pair_first"){showPair();return}
-  if(r&&r.where&&whereText[r.where])toast(whereText[r.where])}
+var whereText={needs_helper:"Another app is open. Switch on H02 Helper on the TV for this.",failed:"That didn't work on the TV",none:"The TV didn't answer"};
+var lastNote=0;
+function outcome(r){if(!r||r.error==="pair_first"||r.error==="offline")return r;
+  if(r.where&&whereText[r.where]){var n=Date.now();if(n-lastNote>2500){toast(whereText[r.where]);lastNote=n}}return r}
 
-function showPair(){$("app").classList.add("hidden");$("pairCard").classList.remove("hidden");$("where").textContent="Not paired yet"}
-function showApp(helper){$("pairCard").classList.add("hidden");$("app").classList.remove("hidden");
-  $("where").textContent=helper?"Connected · H02 Helper is on":"Connected";loadApps();loadHome()}
+function showPair(){paired=false;setChip();$("app").classList.add("hidden");$("nav").classList.add("hidden");$("pairCard").classList.remove("hidden")}
+var started=false;
+function showApp(){paired=true;setChip();$("pairCard").classList.add("hidden");$("app").classList.remove("hidden");$("nav").classList.remove("hidden");
+  if(!started){started=true;loadApps();loadHome();poll()}}
 
-function hello(){api("/api/hello").then(function(r){
-  if(!r.ok){$("where").textContent="Can't reach the TV";return}
-  if(r.paired)showApp(r.helper);else{showPair();var m=location.hash.match(/pair=(\d{6})/);if(m){$("pin").value=m[1];pair()}}
-}).catch(function(){$("where").textContent="Can't reach the TV"})}
+function hello(){clearTimeout(retryT);api("/api/hello").then(function(r){
+  if(!r.ok){return}
+  helperOn=!!r.helper;
+  if(r.paired)showApp();else{showPair();var m=location.hash.match(/pair=(\d{6})/);if(m){$("pin").value=m[1];pair()}}
+})}
+setInterval(function(){if(document.visibilityState==="visible")hello()},15000);
+document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"){hello();poll()}});
+window.addEventListener("online",hello);
 
 function pair(){api("/api/pair",{pin:$("pin").value.trim()}).then(function(r){
-  if(r.ok){history.replaceState(null,"",location.pathname);hello();return}
-  var msg={wrong_pin:"That code isn't right",locked:"Too many tries. Show a new code on the TV.",no_window:"Open Phone remote in the TV's Settings to show a code",slow_down:"Wait a minute and try again"};
-  toast(msg[r.error]||"Pairing failed")})}
+  if(r.ok){history.replaceState(null,"",location.pathname);buzz(20);hello();return}
+  var msg={wrong_pin:"That code isn't right",locked:"Too many tries. Show a new code on the TV.",no_window:"Choose Pair a phone on the TV to show a code",slow_down:"Wait a minute and try again",offline:"Can't reach the TV"};
+  toast(msg[r.error]||"Pairing didn't work")})}
 $("pairBtn").onclick=pair;
+$("pin").addEventListener("input",function(){if($("pin").value.replace(/\D/g,"").length===6)pair()});
 
-document.querySelectorAll("[data-key]").forEach(function(b){b.onclick=function(){api("/api/key",{key:b.dataset.key}).then(outcome)}});
-document.querySelectorAll("[data-vol]").forEach(function(b){b.onclick=function(){api("/api/volume",{action:b.dataset.vol})}});
-$("sendText").onclick=function(){api("/api/text",{text:$("text").value}).then(outcome)};
-$("enter").onclick=function(){api("/api/text",{text:$("text").value,enter:true}).then(outcome)};
-$("openUrl").onclick=function(){api("/api/open",{url:$("url").value.trim()}).then(function(r){
-  if(r.ok===false&&r.error==="url")toast("That doesn't look like a web link");else{outcome(r);if(r.done)toast("Opening on the TV")}})};
+/* ---------- keys, in order, with hold-to-repeat ---------- */
+var chain=Promise.resolve(),pending=0;
+function key(k){if(pending>6)return;pending++;chain=chain.then(function(){return api("/api/key",{key:k}).then(outcome)}).then(function(){pending--},function(){pending--})}
+function vol(a){return api("/api/volume",{action:a}).then(function(r){showVol(r.volume);return r})}
+function holdable(b,fire){
+  var t=0,iv=0,n=0;
+  function stop(){clearTimeout(t);clearTimeout(iv);b.classList.remove("press")}
+  function rep(){n++;fire();buzz(6);iv=setTimeout(rep,Math.max(60,140-n*8))}
+  b.addEventListener("pointerdown",function(e){e.preventDefault();n=0;b.classList.add("press");fire();buzz(12);
+    if(b.hasAttribute("data-hold"))t=setTimeout(rep,420)});
+  ["pointerup","pointercancel","pointerleave"].forEach(function(ev){b.addEventListener(ev,stop)});
+  b.addEventListener("contextmenu",function(e){e.preventDefault()});
+  b.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();fire()}});
+}
+all("[data-key]").forEach(function(b){holdable(b,function(){key(b.dataset.key)})});
+all("[data-vol]").forEach(function(b){holdable(b,function(){vol(b.dataset.vol)})});
+function showVol(v){if(!v)return;all(".vbar").forEach(function(x){x.style.width=v.percent+"%"});
+  all(".vtext").forEach(function(x){x.textContent=v.muted?"Muted":"Volume "+v.percent+"%"})}
 
+/* ---------- trackpad ---------- */
+(function(){
+  var pad=$("pad"),dot=$("padDot"),fl=$("padFlash");
+  var pts={},sx=0,sy=0,ax=0,ay=0,lx=0,ly=0,lt=0,t0=0,moved=0,maxPts=0,longT=0,longDone=false;
+  function flash(t){fl.textContent=t;fl.style.opacity=1;setTimeout(function(){fl.style.opacity=0},350)}
+  function count(){return Object.keys(pts).length}
+  pad.addEventListener("pointerdown",function(e){e.preventDefault();try{pad.setPointerCapture(e.pointerId)}catch(x){}
+    pts[e.pointerId]=1;maxPts=Math.max(maxPts,count());
+    if(count()===1){sx=lx=e.clientX;sy=ly=e.clientY;lt=t0=performance.now();ax=ay=0;moved=0;longDone=false;
+      var r=pad.getBoundingClientRect();dot.style.left=(e.clientX-r.left)+"px";dot.style.top=(e.clientY-r.top)+"px";dot.style.opacity=1;
+      clearTimeout(longT);longT=setTimeout(function(){if(moved<12&&maxPts===1){longDone=true;buzz(30);flash("Options");key("ok_long")}},600)}
+    else clearTimeout(longT)});
+  pad.addEventListener("pointermove",function(e){if(!pts[e.pointerId]||count()!==1||maxPts>1)return;
+    var now=performance.now(),dx=e.clientX-lx,dy=e.clientY-ly,dt=Math.max(1,now-lt);
+    var r=pad.getBoundingClientRect();dot.style.left=(e.clientX-r.left)+"px";dot.style.top=(e.clientY-r.top)+"px";
+    moved+=Math.abs(dx)+Math.abs(dy);if(moved>12)clearTimeout(longT);
+    var speed=Math.sqrt(dx*dx+dy*dy)/dt; /* px per ms */
+    var step=Math.max(14,46-speed*22); /* faster swipes need less distance per step */
+    ax+=dx;ay+=dy;lx=e.clientX;ly=e.clientY;lt=now;
+    while(Math.abs(ax)>=step||Math.abs(ay)>=step){
+      if(Math.abs(ax)>=Math.abs(ay)){var k=ax>0?"right":"left";ax-=ax>0?step:-step;ay*=.5;key(k)}
+      else{var k2=ay>0?"down":"up";ay-=ay>0?step:-step;ax*=.5;key(k2)}
+      buzz(5)}});
+  function up(e){if(!pts[e.pointerId])return;delete pts[e.pointerId];
+    if(count()>0)return;
+    clearTimeout(longT);dot.style.opacity=0;var dur=performance.now()-t0;
+    if(!longDone&&moved<14&&dur<350){if(maxPts>=2){buzz(18);flash("Back");key("back")}else{buzz(12);flash("OK");key("ok")}}
+    maxPts=0}
+  pad.addEventListener("pointerup",up);pad.addEventListener("pointercancel",function(e){delete pts[e.pointerId];if(!count()){clearTimeout(longT);dot.style.opacity=0;maxPts=0}});
+  pad.addEventListener("contextmenu",function(e){e.preventDefault()});
+})();
+
+/* ---------- keyboard with live sync ---------- */
+var live=true,synced="",typing=Promise.resolve();
+function sendText(t,enter){return api("/api/text",{text:t,enter:!!enter}).then(outcome)}
+function sync(){var now=$("text").value;
+  typing=typing.then(function(){
+    var cur=$("text").value,i=0;if(cur!==now)return; /* a newer edit will follow */
+    while(i<synced.length&&i<cur.length&&synced[i]===cur[i])i++;
+    var dels=synced.length-i,add=cur.slice(i),p=Promise.resolve();
+    for(var d=0;d<Math.min(dels,60);d++)p=p.then(function(){return api("/api/key",{key:"del"})});
+    if(add)p=p.then(function(){return sendText(add,false)});
+    return p.then(function(){synced=cur})})}
+var syncT=0;
+$("text").addEventListener("input",function(){if(!live)return;clearTimeout(syncT);syncT=setTimeout(sync,120)});
+$("liveBtn").onclick=function(){live=!live;this.setAttribute("aria-pressed",live);clearBox();toast(live?"Live typing on: new letters go straight to the TV":"Live typing off: use Send")};
+function clearBox(){$("text").value="";synced=""}
+$("sendText").onclick=function(){buzz();var v=$("text").value;
+  if(live){clearTimeout(syncT);sync();typing.then(clearBox);return}
+  if(v)sendText(v,false).then(function(r){if(r.done)clearBox()})};
+$("enter").onclick=function(){buzz();clearTimeout(syncT);
+  if(live){sync();typing=typing.then(function(){return sendText("",true)}).then(clearBox);return}
+  sendText($("text").value,true).then(function(r){if(r.done)clearBox()})};
+$("text").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();$("enter").onclick()}});
+$("pasteBtn").onclick=function(){
+  if(navigator.clipboard&&navigator.clipboard.readText){navigator.clipboard.readText().then(function(t){
+    var x=$("text");x.value+=t;x.dispatchEvent(new Event("input"))},function(){toast("Long-press the box and choose Paste")})}
+  else{$("text").focus();toast("Long-press the box and choose Paste")}};
+$("openUrl").onclick=function(){buzz();api("/api/open",{url:$("url").value.trim()}).then(function(r){
+  if(r.ok===false&&r.error==="url")toast("That doesn't look like a web address");else{outcome(r);if(r.done){toast("Opening on the TV");$("url").value=""}}})};
+
+/* ---------- apps ---------- */
 var apps=[];
-function renderApps(){var box=$("apps");box.textContent="";var q=$("appFilter").value.toLowerCase();
-  apps.filter(function(a){return !q||a.label.toLowerCase().indexOf(q)>=0}).slice(0,30).forEach(function(a){
-    var b=el("button",null,a.label);b.onclick=function(){api("/api/launch",{package:a.package}).then(function(r){outcome(r);if(r.done)toast("Opening "+a.label)})};box.appendChild(b)})}
-function loadApps(){api("/api/apps").then(function(r){if(r.ok){apps=r.apps;renderApps()}})}
+function hue(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return h%360}
+function initials(l){var w=l.replace(/[^\p{L}\p{N} ]/gu,"").trim().split(/\s+/);return ((w[0]||"?")[0]+((w[1]||"")[0]||"")).toUpperCase()}
+function renderApps(){var box=$("apps");box.textContent="";var q=$("appFilter").value.toLowerCase().trim();
+  var list=apps.filter(function(a){return !q||a.label.toLowerCase().indexOf(q)>=0});
+  $("appsEmpty").classList.toggle("hidden",list.length>0||!apps.length);
+  list.slice(0,120).forEach(function(a){
+    var b=el("button","app");b.setAttribute("aria-label","Open "+a.label);var h=hue(a.package);
+    var ic=el("span","ic",initials(a.label));ic.style.background="linear-gradient(145deg,hsl("+h+",62%,52%),hsl("+((h+40)%360)+",58%,36%))";
+    b.appendChild(ic);b.appendChild(el("span","nm",a.label));
+    b.onclick=function(){buzz();api("/api/launch",{package:a.package}).then(function(r){outcome(r);if(r.done)toast("Opening "+a.label)})};box.appendChild(b)})}
+function loadApps(){api("/api/apps").then(function(r){if(r.ok){apps=r.apps||[];renderApps()}})}
 $("appFilter").oninput=renderApps;
 
-var haText={ok:"",not_configured:"Connect Home Assistant to control lights and scenes here and on the TV.",unreachable:"Can't reach Home Assistant",auth:"Home Assistant refused the token",loading:"Loading…"};
+/* ---------- media ---------- */
+var np=null,npAt=0;
+function fmt(ms){if(!(ms>0))return "0:00";var s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor(s%3600/60);s%=60;
+  return (h?h+":"+(m<10?"0":""):"")+m+":"+(s<10?"0":"")+s}
+function drawNp(){var n=np||{};var has=!!(n.title||n.app);
+  $("npTitle").textContent=n.title||(has?n.app:"Nothing playing");$("npArtist").textContent=n.artist||(n.title&&n.app?n.app:"");
+  $("npApp").textContent=n.app?("Playing on "+n.app):"Now playing";
+  var pos=n.position||0;if(n.playing&&npAt)pos+=Date.now()-npAt;if(n.duration>0)pos=Math.min(pos,n.duration);
+  $("npBar").style.width=(n.duration>0?Math.round(pos*100/n.duration):0)+"%";$("npPos").textContent=fmt(pos);$("npDur").textContent=n.duration>0?fmt(n.duration):"";
+  $("ppIcon").innerHTML=n.playing?'<path d="M8 5v14M16 5v14"/>':'<path d="M7 5l12 7-12 7z"/>';
+  var note=$("npNote");
+  if(n.available===false){note.textContent="Media controls need the H02 launcher on the TV.";note.classList.remove("hidden")}
+  else if(n.access===false){note.textContent="To see and control what's playing, switch on Now Playing in the TV's Settings.";note.classList.remove("hidden")}
+  else note.classList.add("hidden")}
+function poll(){if(!paired||document.visibilityState!=="visible")return;
+  api("/api/nowplaying").then(function(r){if(r.ok){np=r.np;npAt=Date.now();drawNp();showVol(r.volume)}})}
+setInterval(function(){if(tab==="media"||tab==="remote")poll()},3000);
+setInterval(function(){if(tab==="media"&&np&&np.playing)drawNp()},1000);
+all("[data-media]").forEach(function(b){b.onclick=function(){buzz();api("/api/media",{action:b.dataset.media}).then(function(r){
+  if(r.where==="failed")toast("Nothing to control right now");setTimeout(poll,400)})}});
+
+/* ---------- quick actions, power ---------- */
+all("[data-quick]").forEach(function(b){b.onclick=function(){buzz();api("/api/quick",{item:b.dataset.quick}).then(outcome)}});
+$("powerBtn").onclick=function(){buzz(20);api("/api/power").then(function(r){
+  if(r.where==="needs_helper")toast("The power menu needs H02 Helper switched on on the TV");else if(r.done)toast("Power menu is open on the TV")})};
+
+/* ---------- smart home ---------- */
+var haText={ok:"",not_configured:"Connect Home Assistant to control lights and scenes here and on the TV.",unreachable:"Can't reach Home Assistant right now.",auth:"Home Assistant didn't accept the token.",loading:"Loading…"};
 function loadHome(){api("/api/ha/status").then(function(r){if(!r.ok)return;
-  $("haSetup").classList.toggle("hidden",r.configured&&r.state==="ok");
-  $("haPick").classList.toggle("hidden",!r.configured||r.state!=="ok");
-  $("haNote").textContent=(haText[r.state]||"")+(r.configured&&r.host?" ("+r.host+")":"");
+  var good=r.configured&&r.state==="ok";
+  $("haSetup").classList.toggle("hidden",good);$("haPick").classList.toggle("hidden",!good);$("haForget").classList.toggle("hidden",!r.configured);
+  $("haNote").textContent=(haText[r.state]||"")+(r.configured&&r.host?" "+r.host:"");
   var box=$("haTiles");box.textContent="";
   (r.favourites||[]).forEach(function(f){var b=el("button","tile"+(f.on?" on":""));b.appendChild(el("span",null,f.name));b.appendChild(el("small",null,f.state));
-    b.disabled=!f.available;b.onclick=function(){api("/api/ha/action",{entity:f.entity,action:f.control==="scene"?"activate":"toggle"}).then(function(x){if(!x.done)toast("Home Assistant didn't accept that");setTimeout(loadHome,600)})};box.appendChild(b)})})}
-$("haSave").onclick=function(){api("/api/ha/config",{url:$("haUrl").value.trim(),token:$("haToken").value.trim()}).then(function(r){
-  $("haToken").value="";toast(r.state==="ok"?"Connected":(haText[r.state]||"Couldn't connect"));loadHome()})};
+    b.disabled=!f.available;b.onclick=function(){buzz();api("/api/ha/action",{entity:f.entity,action:f.control==="scene"?"activate":"toggle"}).then(function(x){if(!x.done)toast("Home Assistant didn't accept that");setTimeout(loadHome,600)})};box.appendChild(b)})})}
+$("haSave").onclick=function(){var u=$("haUrl").value.trim();if(!u){toast("Type your Home Assistant address");return}
+  toast("Testing the connection…");api("/api/ha/config",{url:u,token:$("haToken").value.trim()}).then(function(r){
+  $("haToken").value="";toast(r.state==="ok"?"Connected to Home Assistant":(haText[r.state]||"Couldn't connect"));loadHome()})};
+$("haForget").onclick=function(){api("/api/ha/forget").then(function(){toast("Home Assistant disconnected");loadHome()})};
 $("haPick").onclick=function(){var box=$("haAll");box.classList.toggle("hidden");if(box.classList.contains("hidden"))return;box.textContent="Loading…";
-  api("/api/ha/entities").then(function(r){box.textContent="";if(!r.ok){box.textContent="Can't reach Home Assistant";return}
+  api("/api/ha/entities").then(function(r){box.textContent="";if(!r.ok){box.textContent="Can't reach Home Assistant right now.";return}
     var chosen=r.entities.filter(function(e){return e.favourite}).map(function(e){return e.entity});
     r.entities.forEach(function(e){var b=el("button","tile"+(e.favourite?" on":""));b.appendChild(el("span",null,e.name));b.appendChild(el("small",null,e.favourite?"Favourite":e.domain));
       b.onclick=function(){var i=chosen.indexOf(e.entity);if(i>=0)chosen.splice(i,1);else if(chosen.length<8)chosen.push(e.entity);else{toast("Up to 8 favourites");return}
         e.favourite=i<0;b.className="tile"+(e.favourite?" on":"");b.lastChild.textContent=e.favourite?"Favourite":e.domain;
         api("/api/ha/favourites",{ids:chosen}).then(loadHome)};box.appendChild(b)})})};
-$("forget").onclick=function(){api("/api/forget").then(function(){location.reload()})};
+
+/* ---------- encrypted backup ---------- */
+function passOk(){var p=$("bkPass").value;if(p.length<8){toast("Use a passphrase of 8 characters or more");return null}return p}
+$("bkExport").onclick=function(){var p=passOk();if(!p)return;toast("Preparing the backup…");
+  fetch("/api/backup/export",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-H02-Link":"1"},body:JSON.stringify({passphrase:p})})
+  .then(function(r){if(!r.ok)return r.json().then(function(j){throw j});
+    var name=((r.headers.get("Content-Disposition")||"").match(/filename="([^"]+)"/)||[])[1]||"h02-backup.zip";
+    return r.blob().then(function(b){var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();
+      setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},4000);toast("Backup saved to this phone")})})
+  .catch(function(j){toast(j&&j.error==="slow_down"?"Wait a moment and try again":j&&j.error==="launcher"?"The TV couldn't make a backup":"Saving didn't work")})};
+$("bkImport").onclick=function(){if(!passOk())return;$("bkFile").click()};
+$("bkFile").onchange=function(){var f=this.files&&this.files[0];this.value="";if(!f)return;
+  if(f.size>1100000){toast("That file is too large to be a backup");return}
+  var rd=new FileReader();rd.onload=function(){var s=String(rd.result),data=s.slice(s.indexOf(",")+1);
+    api("/api/backup/import",{passphrase:$("bkPass").value,data:data}).then(function(r){
+      var m={passphrase:"The passphrase doesn't match this backup",file:"That isn't an H02 backup file",launcher:"The TV couldn't restore it",slow_down:"Wait a moment and try again"};
+      toast(r.ok?"Restored. The TV's home screen will update.":(m[r.error]||"Restoring didn't work"))})};
+  rd.readAsDataURL(f)};
+
+$("forget").onclick=function(){if(!confirm("Forget this phone? You'll need a new code from the TV to pair again."))return;api("/api/forget").then(function(){location.reload()})};
+
+/* ---------- tabs ---------- */
+var tab="remote";
+function go(t){tab=t;all("[data-tab]").forEach(function(s){s.classList.toggle("hidden",s.dataset.tab!==t)});
+  all("[data-go]").forEach(function(b){b.setAttribute("aria-selected",b.dataset.go===t)});
+  try{localStorage.setItem("h02tab",t)}catch(e){}
+  if(t==="media"||t==="remote")poll();if(t==="apps"&&!apps.length)loadApps();if(t==="more")loadHome();window.scrollTo(0,0)}
+all("[data-go]").forEach(function(b){b.onclick=function(){buzz(6);go(b.dataset.go)}});
+try{var saved=localStorage.getItem("h02tab");if(saved&&document.querySelector('[data-tab="'+saved+'"]'))go(saved)}catch(e){}
+
+/* ---------- installable: manifest and icon made here ---------- */
+(function(){
+  var c=document.createElement("canvas");c.width=c.height=512;var g=c.getContext("2d");if(!g)return;
+  var gr=g.createLinearGradient(0,0,512,512);gr.addColorStop(0,"#1b2436");gr.addColorStop(1,"#0b0d12");g.fillStyle=gr;g.fillRect(0,0,512,512);
+  g.strokeStyle="#4fc3f7";g.lineWidth=26;g.beginPath();g.arc(256,256,150,0,Math.PI*2);g.stroke();
+  g.fillStyle="#4fc3f7";g.beginPath();g.arc(256,256,58,0,Math.PI*2);g.fill();
+  var icon=c.toDataURL("image/png");
+  var t=document.createElement("link");t.rel="apple-touch-icon";t.href=icon;document.head.appendChild(t);
+  var f=document.createElement("link");f.rel="icon";f.href=icon;document.head.appendChild(f);
+  var m={name:"H02 Remote",short_name:"H02 Remote",start_url:location.origin+"/",scope:location.origin+"/",display:"standalone",
+    background_color:"#0b0d12",theme_color:"#0b0d12",icons:[{src:icon,sizes:"512x512",type:"image/png",purpose:"any maskable"}]};
+  var l=document.createElement("link");l.rel="manifest";l.href="data:application/manifest+json,"+encodeURIComponent(JSON.stringify(m));document.head.appendChild(l);
+  var standalone=(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone;
+  if(standalone)return;
+  var ios=/iPhone|iPad|iPod/.test(navigator.userAgent);
+  $("a2hsText").textContent=ios?"In Safari, tap the Share button, then Add to Home Screen. The remote then opens like an app.":
+    "In your browser menu, choose Add to Home screen. The remote then opens like an app.";
+  $("a2hsCard").classList.remove("hidden");
+  var prompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();prompt=e;$("a2hsBtn").classList.remove("hidden")});
+  $("a2hsBtn").onclick=function(){if(prompt){prompt.prompt();prompt=null;$("a2hsBtn").classList.add("hidden")}};
+})();
+
 hello();
 })();
 </script>

@@ -89,6 +89,13 @@ class LinkProvider : ContentProvider() {
                 val action = extras?.getString(LinkContract.EXTRA_ACTION)
                 out.putBoolean(LinkContract.EXTRA_OK, arg != null && action != null && HaRepository.act(c, arg, action))
             }
+            LinkContract.METHOD_HA_CONFIGURE -> {
+                val url = arg?.trim().orEmpty()
+                val token = extras?.getString(LinkContract.EXTRA_VALUE)?.trim()?.ifEmpty { null }
+                val ok = url.isNotEmpty() && dev.tvlauncher.link.net.UrlPolicy.parse(if (url.contains("://")) url else "http://$url") != null
+                out.putString(LinkContract.EXTRA_STATE, if (ok) HaRepository.configure(c, url, token) else LinkContract.HA_NOT_CONFIGURED)
+            }
+            LinkContract.METHOD_HA_FORGET -> { HaRepository.forget(c); out.putBoolean(LinkContract.EXTRA_OK, true) }
             LinkContract.METHOD_UPDATE_CHECK -> out.putBoolean(LinkContract.EXTRA_OK, Updates.check(c, force = arg == "force"))
             else -> return null
         }

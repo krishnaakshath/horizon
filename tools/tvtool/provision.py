@@ -50,7 +50,9 @@ POWER_RECEIVER = f"{LAUNCHER}/.power.PowerOnReceiver"
 SELFTEST_LINE = "home in front via DIRECT"  # tag and spacing before it differ between logcat builds
 SELFTEST_WAIT_S = 15
 # Intent actions that look like package names but are not packages.
-SCOPE_TOKENS = frozenset({TCL_RESUME})
+LINK_START_ACTION = "dev.tvlauncher.link.action.PROVISION_START"
+LINK_START_RECEIVER = "dev.tvlauncher.link/.ProvisionStartReceiver"
+SCOPE_TOKENS = frozenset({TCL_RESUME, LINK_START_ACTION, LINK_START_RECEIVER})
 HELPER_NOT_RUNNING = "helper not running (TCL memory manager may stop it); launcher features still work"
 
 PROVISION_DIR = Path(__file__).resolve().parents[2] / "profiles" / "provision"
@@ -427,6 +429,13 @@ def plan_steps(p: Probe, apks: dict[str, str], profile: ProvisionProfile, take_o
             steps.append(Step(("dumpsys", "accessibility"),
                               "Checks that the Helper is running; if not, the four steps above are repeated once.",
                               verify="bound", soft=True, retry=tuple(x.argv for x in seq), warn=HELPER_NOT_RUNNING))
+    if LINK in apks:
+        # The receiver only accepts WRITE_SECURE_SETTINGS holders (the adb shell); the owner can
+        # switch it off in Settings > System > Phone remote.
+        steps.append(Step(("am", "broadcast", "-a", LINK_START_ACTION, "-n", LINK_START_RECEIVER),
+                          "Switches on the phone remote (H02 Link); it only answers phones you pair with the PIN on the TV.",
+                          verify="link_running", soft=True,
+                          warn="the phone remote did not start; switch it on in Settings > System > Phone remote"))
     if p.secure.get("tv_user_setup_complete") == "0":
         steps.append(Step(("settings", "put", "secure", "tv_user_setup_complete", "1"),
                           "This TV reports its first-time setup as unfinished, which makes the Home key do nothing.",
@@ -539,6 +548,8 @@ def write_undo(out_dir: Path, model: str, host: str, steps: list[Step]) -> Path:
 
 
 def verify(kind: str, step: Step, adb: Adb, sdk: int, mark: str | None = None) -> bool:
+    if kind == "link_running":
+        return "LinkService" in adb.shell("dumpsys", "activity", "services", LINK)
     if kind == "installed":
         return "package:" in adb.shell("pm", "path", step.argv[-1])
     if kind == "granted":

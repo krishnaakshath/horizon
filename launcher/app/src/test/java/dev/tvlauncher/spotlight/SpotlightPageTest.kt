@@ -93,7 +93,7 @@ class SpotlightPageTest {
         assertTrue(Item.ACCESSIBILITY in none && Item.POWER in none && Item.RESTART in none && Item.DISCOVER in none)
         // The sleep timer is the launcher's own (TV & system > Power & sleep), so it is there by default.
         assertTrue(Item.SLEEP_TIMER in QuickActions.items(QuickActions.Availability(emptySet()), c))
-        val all = QuickActions.items(QuickActions.Availability(setOf(QuickActions.BROWSER_PACKAGE, QuickActions.GET_APPS_PACKAGE)), c)
+        val all = QuickActions.items(QuickActions.Availability(setOf(QuickActions.BROWSER_PACKAGE, QuickActions.GET_APPS_PACKAGE, QuickActions.LINK_PACKAGE)), c)
         assertEquals(Item.values().toList(), all)
     }
 

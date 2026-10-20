@@ -108,11 +108,17 @@ class HelperService : AccessibilityService() {
             override fun onReceive(c: Context?, i: Intent?) {
                 if (i?.action == ACTION_POWER_MENU) {
                     try { performGlobalAction(GLOBAL_ACTION_POWER_DIALOG) } catch (e: Exception) { }
+                } else if (i?.action == ACTION_LINK_INPUT) {
+                    // Phone remote in another app: the existing global actions only (no screen reading).
+                    when (i.getStringExtra("key")) {
+                        "back" -> try { performGlobalAction(GLOBAL_ACTION_BACK) } catch (e: Exception) { }
+                        "home" -> try { performGlobalAction(GLOBAL_ACTION_HOME) } catch (e: Exception) { }
+                    }
                 }
             }
         }
         try {
-            registerReceiver(r, IntentFilter(ACTION_POWER_MENU), PERMISSION, null)
+            registerReceiver(r, IntentFilter(ACTION_POWER_MENU).apply { addAction(ACTION_LINK_INPUT) }, PERMISSION, null)
             actions = r
         } catch (e: Exception) {
             // No power menu from the launcher this session.
@@ -163,6 +169,8 @@ class HelperService : AccessibilityService() {
             private set
 
         const val ACTION_POWER_MENU = "dev.tvlauncher.helper.action.POWER_MENU"
+        /** Phone remote (H02 Link via the launcher): extra "key" = "back" or "home". */
+        const val ACTION_LINK_INPUT = "dev.tvlauncher.helper.action.LINK_INPUT"
         const val PERMISSION = "dev.tvlauncher.permission.HELPER_ACTIONS"
     }
 

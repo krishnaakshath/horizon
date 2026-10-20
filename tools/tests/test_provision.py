@@ -573,3 +573,19 @@ def test_matchApks_recognisesLinkApk_andInstallsItAfterTheLauncher():
     steps = pv.plan_steps(probe(), {**ALL_APKS, pv.LINK: "link-debug.apk"}, tcl_profile(), take_over_home=False)
     installs = [x for x in cmds(steps) if x.startswith("install ")]
     assert installs.index("install link-debug.apk") > installs.index("install app-debug.apk")
+
+
+def test_linkApk_addsAProvisionStartStep_afterItsInstall_andPassesScope():
+    steps = pv.plan_steps(probe(), {**ALL_APKS, pv.LINK: "link-debug.apk"}, tcl_profile(), take_over_home=False)
+    lines = cmds(steps)
+    start = "am broadcast -a dev.tvlauncher.link.action.PROVISION_START -n dev.tvlauncher.link/.ProvisionStartReceiver"
+    assert start in lines
+    assert lines.index(start) > lines.index("install link-debug.apk")
+    step = next(s for s in steps if s.argv[0] == "am" and pv.LINK_START_ACTION in s.argv)
+    assert step.soft and step.verify == "link_running" and step.undo == ()
+    pv.check_scope(steps, tcl_profile())
+
+
+def test_noLinkApk_noProvisionStartStep():
+    steps = pv.plan_steps(probe(), ALL_APKS, tcl_profile(), take_over_home=False)
+    assert not any(pv.LINK_START_ACTION in s.argv for s in steps)

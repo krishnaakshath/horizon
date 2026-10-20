@@ -240,7 +240,9 @@ class SpotlightPanel(
     /** All apps Spotlight can find and the installed set (for Browser); refreshed every reload. */
     fun setApps(list: List<AppEntry>, installed: Set<String>) {
         apps = list
-        installedPackages = installed
+        // H02 Link has no launcher tile: its quick actions (Phone remote, Smart home) check the package itself.
+        val link = try { context.packageManager.getPackageInfo(QuickActions.LINK_PACKAGE, 0); true } catch (e: Exception) { false }
+        installedPackages = if (link) installed + QuickActions.LINK_PACKAGE else installed
         if (!isOpen) return
         if (everythingOn) prepareEverything()
         scheduleRank()

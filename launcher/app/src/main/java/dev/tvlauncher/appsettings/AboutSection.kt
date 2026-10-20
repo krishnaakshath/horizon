@@ -15,7 +15,7 @@ object AboutSection : SettingsSection, SpecifiedPage {
     override val iconRes = R.drawable.ic_set_about
     override val group = SettingsGroup.SYSTEM
     override val description = Branding.NAME
-    override val spec = PageSpec(ID, listOf("about.version", "about.license", "about.notices", "about.tv"))
+    override val spec = PageSpec(ID, listOf("about.version", "about.license", "about.notices", "about.tv", dev.tvlauncher.link.UpdateRow.ID))
 
     override fun buildPage(context: Context, nav: SettingsNav): View {
         val page = SettingsPage(context, nav.style, spec)
@@ -30,6 +30,7 @@ object AboutSection : SettingsSection, SpecifiedPage {
         page.row("about.tv", "This TV", RowKind.Action(AboutText.ram(nav.profile.totalRamKb)) {
             nav.push("This TV") { c, n -> thisTv(c, n) }
         }, subtitle = "Memory, processor, effects and resolution", iconRes = R.drawable.ic_sc_device)
+        dev.tvlauncher.link.UpdateRow.add(page, context, nav) // only with H02 Link installed
         page.note("© ${Branding.COPYRIGHT_YEAR} ${Branding.COPYRIGHT_HOLDER}")
         page.note(Branding.DISCLAIMER)
         return page

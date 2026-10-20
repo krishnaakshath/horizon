@@ -102,6 +102,9 @@ object LinkContract {
     const val METHOD_HA_REFRESH = "ha_refresh"
     /** arg = entity id; [EXTRA_ACTION] (+ [EXTRA_VALUE]); result in [EXTRA_OK]. */
     const val METHOD_HA_ACTION = "ha_action"
+    /** arg = Home Assistant address; [EXTRA_VALUE] = token (absent keeps the saved one). Tests it; result in [EXTRA_STATE]. */
+    const val METHOD_HA_CONFIGURE = "ha_configure"
+    const val METHOD_HA_FORGET = "ha_forget"
     /** Checks the release feed when enabled and stale (arg "force" skips the day limit). */
     const val METHOD_UPDATE_CHECK = "update_check"
 
@@ -141,8 +144,53 @@ object LinkContract {
     const val KIND_ENTER = "enter"
     const val KIND_OPEN_URL = "open_url"
     const val KIND_LAUNCH = "launch"
+    /** Media transport through the launcher's Now Playing access; [EXTRA_ACTION] is one of [MEDIA_ACTIONS]. */
+    const val KIND_MEDIA = "media"
+    /** What is playing: the result extras carry the NP_* keys (empty when nothing plays). */
+    const val KIND_NOW_PLAYING = "now_playing"
+    /** The TV's power menu (through the Helper's existing power-dialog action). */
+    const val KIND_POWER_MENU = "power_menu"
+    /** A home-screen quick action; [EXTRA_ITEM] is one of [QUICK_ITEMS]. */
+    const val KIND_QUICK = "quick"
+
+    const val EXTRA_ITEM = "item"
+
+    const val MEDIA_PLAY_PAUSE = "play_pause"
+    const val MEDIA_NEXT = "next"
+    const val MEDIA_PREV = "prev"
+    const val MEDIA_FORWARD = "forward"
+    const val MEDIA_REWIND = "rewind"
+    val MEDIA_ACTIONS = setOf(MEDIA_PLAY_PAUSE, MEDIA_NEXT, MEDIA_PREV, MEDIA_FORWARD, MEDIA_REWIND)
+    /** Seek step of [MEDIA_FORWARD] / [MEDIA_REWIND]. */
+    const val SEEK_STEP_MS = 10_000L
+
+    const val NP_TITLE = "np_title"
+    const val NP_ARTIST = "np_artist"
+    const val NP_APP = "np_app"
+    const val NP_PLAYING = "np_playing"
+    const val NP_POSITION_MS = "np_position_ms"
+    const val NP_DURATION_MS = "np_duration_ms"
+    /** False when the launcher has no notification access (Now Playing is off). */
+    const val NP_ACCESS = "np_access"
+
+    const val QUICK_SPOTLIGHT = "spotlight"
+    const val QUICK_INPUTS = "inputs"
+    const val QUICK_SETTINGS = "settings"
+    const val QUICK_AMBIENT = "ambient"
+    const val QUICK_FOCUS = "focus"
+    const val QUICK_BEDTIME = "bedtime"
+    val QUICK_ITEMS = listOf(QUICK_SPOTLIGHT, QUICK_INPUTS, QUICK_SETTINGS, QUICK_AMBIENT, QUICK_FOCUS, QUICK_BEDTIME)
+
+    /** Starts HomeActivity with [EXTRA_ITEM] (internal: explicit component, launcher only). */
+    const val ACTION_QUICK_HOME = "dev.tvlauncher.action.LINK_QUICK"
+
+    // ---- Provisioning start of :link (adb shell only: guarded by WRITE_SECURE_SETTINGS, which
+    // the shell holds and ordinary apps cannot).
+    const val ACTION_PROVISION_START = "dev.tvlauncher.link.action.PROVISION_START"
+    const val PROVISION_START_PERMISSION = "android.permission.WRITE_SECURE_SETTINGS"
 
     // ---- :app -> :helper (sent with the existing HELPER_ACTIONS signature permission).
+    // Only "back" and "home" ([EXTRA_KEY]): the Helper's global actions, nothing that reads screens.
 
     const val ACTION_HELPER_INPUT = "dev.tvlauncher.helper.action.LINK_INPUT"
     const val HELPER_PERMISSION = "dev.tvlauncher.permission.HELPER_ACTIONS"
@@ -179,7 +227,11 @@ object LinkContract {
         BACK("back", 4),
         HOME("home", 3),
         MENU("menu", 82),
-        PLAY_PAUSE("play_pause", 85);
+        PLAY_PAUSE("play_pause", 85),
+        /** Backspace in the focused text box (live typing from the phone). */
+        DEL("del", 67),
+        /** OK held down: a tile's options. */
+        OK_LONG("ok_long", 23);
 
         companion object {
             fun fromWire(s: String?): Key? = values().firstOrNull { it.wire == s }
@@ -210,6 +262,13 @@ object LinkContract {
         }
         val authority = rest.substringBefore('/').substringBefore('?').substringBefore('#')
         return authority.isNotEmpty() && '@' !in authority && '\\' !in rest
+    }
+
+    /** Seek target: clamped to 0..duration (duration <= 0 = unknown, then only the lower bound). */
+    fun seekTarget(positionMs: Long, durationMs: Long, forward: Boolean): Long {
+        val t = positionMs + if (forward) SEEK_STEP_MS else -SEEK_STEP_MS
+        val upper = if (durationMs > 0) durationMs else Long.MAX_VALUE
+        return t.coerceIn(0L, upper)
     }
 
     /** Removes control characters (keeps newlines out too) and caps the length. */

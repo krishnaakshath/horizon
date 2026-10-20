@@ -23,24 +23,29 @@ object Forwarder {
     private val thread = HandlerThread("link-results").apply { start() }
     private val handler = Handler(thread.looper)
 
-    fun send(context: Context, fill: (Intent) -> Unit): Int {
+    fun send(context: Context, fill: (Intent) -> Unit): Int = sendForExtras(context, fill).first
+
+    /** Like [send], also returning the launcher's result extras (null when none). */
+    fun sendForExtras(context: Context, fill: (Intent) -> Unit): Pair<Int, android.os.Bundle?> {
         val i = Intent(LinkContract.ACTION_COMMAND).setPackage(LinkContract.LAUNCHER_PACKAGE)
         i.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
         fill(i)
         val result = AtomicInteger(LinkContract.Outcome.NONE)
+        val extras = java.util.concurrent.atomic.AtomicReference<android.os.Bundle?>(null)
         val done = CountDownLatch(1)
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context, intent: Intent) {
                 result.set(resultCode)
+                extras.set(getResultExtras(false))
                 done.countDown()
             }
         }
         return try {
             context.sendOrderedBroadcast(i, LinkContract.PERMISSION, receiver, handler, Activity.RESULT_CANCELED, null, null)
             done.await(TIMEOUT_MS, TimeUnit.MILLISECONDS)
-            result.get().let { if (it == Activity.RESULT_CANCELED) LinkContract.Outcome.NONE else it }
+            result.get().let { if (it == Activity.RESULT_CANCELED) LinkContract.Outcome.NONE else it } to extras.get()
         } catch (e: Exception) {
-            LinkContract.Outcome.NONE
+            LinkContract.Outcome.NONE to null
         }
     }
 
@@ -59,5 +64,19 @@ object Forwarder {
 
     fun launch(context: Context, pkg: String) = send(context) {
         it.putExtra(LinkContract.EXTRA_KIND, LinkContract.KIND_LAUNCH).putExtra(LinkContract.EXTRA_PACKAGE, pkg)
+    }
+
+    fun media(context: Context, action: String) = send(context) {
+        it.putExtra(LinkContract.EXTRA_KIND, LinkContract.KIND_MEDIA).putExtra(LinkContract.EXTRA_ACTION, action)
+    }
+
+    fun nowPlaying(context: Context): android.os.Bundle? = sendForExtras(context) {
+        it.putExtra(LinkContract.EXTRA_KIND, LinkContract.KIND_NOW_PLAYING)
+    }.second
+
+    fun powerMenu(context: Context) = send(context) { it.putExtra(LinkContract.EXTRA_KIND, LinkContract.KIND_POWER_MENU) }
+
+    fun quick(context: Context, item: String) = send(context) {
+        it.putExtra(LinkContract.EXTRA_KIND, LinkContract.KIND_QUICK).putExtra(LinkContract.EXTRA_ITEM, item)
     }
 }

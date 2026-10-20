@@ -14,6 +14,7 @@ import dev.tvlauncher.spotlight.SpotlightConfig
 object QuickActions {
     const val BROWSER_PACKAGE = "dev.tvlauncher.browser"
     const val GET_APPS_PACKAGE = "dev.tvlauncher.store"
+    const val LINK_PACKAGE = "dev.tvlauncher.link"
 
     enum class Item(val title: String, val hasLongPress: Boolean = false) {
         INPUTS("Inputs"),
@@ -41,7 +42,11 @@ object QuickActions {
         /** Toggles Bedtime mode in place (routines.Bedtime). */
         BEDTIME("Bedtime mode"),
         /** Settings > Connections > Cast & AirPlay. */
-        CAST("Cast & AirPlay")
+        CAST("Cast & AirPlay"),
+        /** Settings > System > Phone remote (shown once H02 Link is installed). */
+        PHONE_REMOTE("Phone remote"),
+        /** Settings > System > Smart home (shown once H02 Link is installed). */
+        SMART_HOME("Smart home")
     }
 
     enum class Route { WIFI_PANEL, BLUETOOTH_PANEL, DEVICES_PANEL, INPUTS_PANEL, AMBIENT, ROOM_CYCLE, DISCOVER, RESTART, SYSTEM }
@@ -76,6 +81,8 @@ object QuickActions {
         Item.DEVICES -> "devices"
         Item.ACCESSIBILITY -> "accessibility"
         Item.CAST -> dev.tvlauncher.cast.CastSection.ID
+        Item.PHONE_REMOTE -> "phone_remote"
+        Item.SMART_HOME -> "smart_home"
         else -> null
     }
 
@@ -93,6 +100,7 @@ object QuickActions {
         Item.BROWSER -> if (BROWSER_PACKAGE in a.installedPackages) null else "Shown once Browser is installed"
         Item.GET_APPS -> if (GET_APPS_PACKAGE in a.installedPackages) null else "Shown once ${Brand.STORE} is installed"
         Item.SLEEP_TIMER -> if (a.sleepTimer) null else "The sleep timer isn't available"
+        Item.PHONE_REMOTE, Item.SMART_HOME -> if (LINK_PACKAGE in a.installedPackages) null else "Shown once H02 Link is installed"
         else -> null
     }
 
@@ -124,5 +132,7 @@ object QuickActions {
         Item.FOCUS -> R.drawable.ic_qa_focus
         Item.BEDTIME -> R.drawable.ic_bedtime
         Item.CAST -> R.drawable.ic_dev_phonecast
+        Item.PHONE_REMOTE -> R.drawable.ic_set_remote
+        Item.SMART_HOME -> R.drawable.ic_set_home
     }
 }

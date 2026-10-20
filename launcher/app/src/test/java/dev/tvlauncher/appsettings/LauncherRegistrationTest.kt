@@ -30,6 +30,7 @@ class LauncherRegistrationTest {
         dev.tvlauncher.routines.RoutinesSection.register(r)
         dev.tvlauncher.ambient.widgets.AmbientWidgetsSection.register(r)
         dev.tvlauncher.link.PhoneRemoteSection.register(r)
+        dev.tvlauncher.link.SmartHomeSection.register(r)
         return r
     }
 
@@ -76,5 +77,14 @@ class LauncherRegistrationTest {
         assertEquals(1, sections.count { it.id == dev.tvlauncher.link.PhoneRemoteSection.ID })
         assertEquals(SettingsGroup.SYSTEM, sections.first { it.id == dev.tvlauncher.link.PhoneRemoteSection.ID }.group)
         assertTrue(dev.tvlauncher.link.PhoneRemoteSection.spec.withinBudget)
+    }
+
+    @Test fun smartHome_isRegisteredOnceInSystem() {
+        val sections = all().sections()
+        assertEquals(1, sections.count { it.id == dev.tvlauncher.link.SmartHomeSection.ID })
+        assertEquals(SettingsGroup.SYSTEM, sections.first { it.id == dev.tvlauncher.link.SmartHomeSection.ID }.group)
+        assertTrue(dev.tvlauncher.link.SmartHomeSection.spec.withinBudget)
+        assertEquals(dev.tvlauncher.link.SmartHomeSection.ID, dev.tvlauncher.ui.QuickActions.launcherSection(dev.tvlauncher.ui.QuickActions.Item.SMART_HOME))
+        assertEquals(dev.tvlauncher.link.PhoneRemoteSection.ID, dev.tvlauncher.ui.QuickActions.launcherSection(dev.tvlauncher.ui.QuickActions.Item.PHONE_REMOTE))
     }
 }
