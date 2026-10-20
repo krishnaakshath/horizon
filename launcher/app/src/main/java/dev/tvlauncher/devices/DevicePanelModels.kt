@@ -141,12 +141,15 @@ object InputsModel {
     }
 
     fun header(items: List<TvInputItem>): PanelHeader {
-        val live = items.count { it.signal.live }
+        // Same words as the rows: a port in standby is counted as "in standby", not "connected".
+        val on = items.count { it.signal == InputSignal.CONNECTED }
+        val standby = items.count { it.signal == InputSignal.STANDBY }
         return PanelHeader(R.drawable.ic_input, "Inputs", when {
             items.isEmpty() -> "None found"
-            live == 0 -> "Nothing connected"
-            live == 1 -> "1 connected"
-            else -> "$live connected"
+            on == 0 && standby == 0 -> "Nothing connected"
+            standby == 0 -> "$on connected"
+            on == 0 -> "$standby in standby"
+            else -> "$on connected, $standby in standby"
         })
     }
 

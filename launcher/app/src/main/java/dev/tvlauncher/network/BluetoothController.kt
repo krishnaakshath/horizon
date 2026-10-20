@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import dev.tvlauncher.system.MonkeyGuard
 
 data class BtSnapshot(
     val present: Boolean,
@@ -143,6 +144,7 @@ class BluetoothController(context: Context) {
      * [scanWhenReady] starts discovery from the STATE_ON broadcast (no fixed delay).
      */
     fun setEnabled(on: Boolean, scanWhenReady: Boolean = false): Result {
+        if (MonkeyGuard.blocks()) return Result.NOT_PERMITTED
         val a = adapter ?: return Result.FAILED
         if (Build.VERSION.SDK_INT >= 33) return Result.NOT_PERMITTED
         return try {
@@ -175,6 +177,7 @@ class BluetoothController(context: Context) {
 
     /** removeBond is a hidden API: reflection, and OK means the call returned true. */
     fun forget(address: String): Result {
+        if (MonkeyGuard.blocks()) return Result.NOT_PERMITTED
         val a = adapter ?: return Result.FAILED
         return try {
             val d = a.getRemoteDevice(address)
@@ -195,6 +198,7 @@ class BluetoothController(context: Context) {
     fun disconnect(address: String): Result = profileCall(address, "disconnect")
 
     private fun profileCall(address: String, method: String): Result {
+        if (method == "disconnect" && MonkeyGuard.blocks()) return Result.NOT_PERMITTED
         val a = adapter ?: return Result.FAILED
         if (proxies.isEmpty()) return Result.FAILED
         var refused = false

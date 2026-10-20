@@ -77,6 +77,16 @@ class DevicePanelModelsTest {
         assertEquals("1 connected", c.header.subtitle)
     }
 
+    @Test fun inputs_header_saysStandby_whenPortsOnlyInStandby() {
+        fun item(id: String, state: Int) = TvInputItem(id, "HDMI $id", InputsModel.TYPE_HDMI, state, null)
+        val sb = InputsModel.STATE_STANDBY; val on = InputsModel.STATE_CONNECTED
+        // The rows say "Standby": the header must not claim "2 connected".
+        assertEquals("2 in standby", InputsModel.header(listOf(item("1", sb), item("2", sb))).subtitle)
+        assertEquals("1 in standby", InputsModel.header(listOf(item("1", sb))).subtitle)
+        assertEquals("1 connected, 1 in standby", InputsModel.header(listOf(item("1", on), item("2", sb))).subtitle)
+        assertEquals("2 connected", InputsModel.header(listOf(item("1", on), item("2", on))).subtitle)
+    }
+
     @Test fun inputs_empty() {
         val c = InputsModel.build(emptyList())
         assertEquals(listOf("msg:empty"), c.messages.map { it.key })

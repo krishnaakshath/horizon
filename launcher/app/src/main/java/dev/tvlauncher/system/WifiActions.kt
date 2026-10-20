@@ -38,7 +38,7 @@ class WifiActions(context: Context) {
 
     fun isEnabled(): Boolean = safe(false) { wm?.isWifiEnabled == true }
 
-    fun setEnabled(on: Boolean): Boolean = safe(false) { wm?.setWifiEnabled(on) == true }
+    fun setEnabled(on: Boolean): Boolean = !MonkeyGuard.blocks() && safe(false) { wm?.setWifiEnabled(on) == true }
 
     /** Networks saved on this TV (needs location access; empty otherwise). */
     @SuppressLint("MissingPermission")
@@ -53,6 +53,7 @@ class WifiActions(context: Context) {
 
     /** Adds [c] (or rejoins the TV's saved copy when the system will not let us replace it) and connects. */
     fun join(c: WifiCredential): Result {
+        if (MonkeyGuard.blocks()) return Result.REFUSED
         val m = wm ?: return Result.REFUSED
         val config = toConfig(c)
         var id = safe(-1) { m.addNetwork(config) }
@@ -62,6 +63,7 @@ class WifiActions(context: Context) {
 
     /** Connects to a saved network by id (also works for networks the TV saved). */
     fun connect(networkId: Int): Result {
+        if (MonkeyGuard.blocks()) return Result.REFUSED
         val m = wm ?: return Result.REFUSED
         val ok = safe(false) { m.enableNetwork(networkId, true) }
         if (!ok) return Result.REFUSED
@@ -70,6 +72,7 @@ class WifiActions(context: Context) {
     }
 
     fun forget(networkId: Int): Result {
+        if (MonkeyGuard.blocks()) return Result.REFUSED
         val m = wm ?: return Result.REFUSED
         return if (safe(false) { m.removeNetwork(networkId) }) Result.OK else Result.NOT_OWNER
     }

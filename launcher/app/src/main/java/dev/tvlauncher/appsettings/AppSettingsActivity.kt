@@ -13,6 +13,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.text.TextUtils
 import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
@@ -232,6 +233,12 @@ class AppSettingsActivity : Activity(), SettingsNav {
             // marks the clip edges (FULL; LITE clips hard) instead of scroll chevrons.
             clipChildren = true
             clipToPadding = true
+            // clipChildren/clipToPadding above do NOT clip the scrolled list to this view: a view is
+            // clipped to its bounds by its PARENT's clipChildren (the sidebar's is false, for the glass
+            // shadow), and clipToPadding needs non-zero padding. Without this, entries scrolled past
+            // the edges were drawn half outside the sidebar card. The outline clip is this view only.
+            outlineProvider = ViewOutlineProvider.BOUNDS
+            clipToOutline = true
             // The fade also runs on LITE: a hard clip leaves half a line sticking out of the glass card.
             isVerticalFadingEdgeEnabled = true
             setFadingEdgeLength(dp(36))

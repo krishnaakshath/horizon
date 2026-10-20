@@ -9,9 +9,9 @@ android {
     defaultConfig {
         applicationId = "dev.tvlauncher.link"
         minSdk = 24
-        // Same target as the launcher (:app): the phone page asks the launcher to start apps and
-        // the H02 Browser; at 28 every package is visible and the background rules match :app.
-        targetSdk = 28
+        // 30, not 28: Google Play Protect blocks a fresh install of an app that targets 28
+        // ("built for an older version of Android"). Package visibility is declared in <queries>.
+        targetSdk = 30
         versionCode = 1
         versionName = "0.1.0"
     }
