@@ -15,6 +15,7 @@ import dev.tvlauncher.ui.Motion
  * Pure decisions live in [HomeAppearance].
  */
 class HomeLook(context: Context, private val device: DeviceProfile) {
+    private val appContext = context.applicationContext
     private val prefs = AppearancePrefs(context.applicationContext)
     private val resolver = context.contentResolver
 
@@ -33,6 +34,7 @@ class HomeLook(context: Context, private val device: DeviceProfile) {
         dev.tvlauncher.ui.GlassBackdrop.fullTier = device.effectsMode == dev.tvlauncher.device.EffectsMode.FULL
         dev.tvlauncher.ui.GlassBackdrop.setStyle(
             dev.tvlauncher.settings.GlassStyle.resolve(settings.glassStyle, device.effectsMode == dev.tvlauncher.device.EffectsMode.FULL))
+        dev.tvlauncher.look.LookStore(appContext).applyGlass(settings)
     }
 
     val backdropMs: Long get() = HomeAppearance.backdropMs(profile.motion)

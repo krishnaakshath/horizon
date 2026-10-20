@@ -337,7 +337,7 @@ class BackdropView(context: Context, durationMs: Long) : View(context) {
 
     /** One small copy drawn here (main thread, microseconds at 1/8 scale), blurred off the main thread. */
     private fun blurCopy(w: Int, h: Int) {
-        val (sw, sh) = BoxBlur.scaled(w, h)
+        val (sw, sh) = BoxBlur.scaled(w, h, GlassBackdrop.blurScale)
         var bmp = small
         var c = smallCanvas
         if (bmp == null || c == null || bmp.width != sw || bmp.height != sh) {

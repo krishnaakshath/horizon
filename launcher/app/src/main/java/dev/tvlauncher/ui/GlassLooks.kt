@@ -89,6 +89,15 @@ object GlassLooks {
             chroma = false, shadow = full, spring = false)
     }
 
+    private val tunedCache = HashMap<Int, GlassLook>()
+
+    /** [of] adjusted by the glass [amount] ([GlassAmount]); one cached look per (style, tier, amount). */
+    fun tuned(style: GlassStyle, full: Boolean, amount: Int): GlassLook {
+        val a = amount.coerceIn(0, 100)
+        val key = (style.ordinal shl 8) or (if (full) 0x80 else 0) or a
+        return synchronized(tunedCache) { tunedCache.getOrPut(key) { GlassAmount.apply(of(style, full), a) } }
+    }
+
     /** The tint colour (RGB) of [look] in [palette] (Solid uses the panel surface). */
     fun tintRgb(look: GlassLook, palette: Palette?, worst: Int): Int =
         if (look.style == GlassStyle.SOLID) SOLID_RGB else GlassTokens.glassRgb(palette, worst)
@@ -138,20 +147,102 @@ object GlassLooks {
     /** Everything a drawable needs for one backdrop: tint colour, tint alpha and text scrim. */
     data class Resolved(val rgb: Int, val tint: Int, val scrim: Int, val scrimAlpha: Float)
 
-    fun resolve(look: GlassLook, palette: Palette?, backdropBrightest: Int, contentUnder: Int?): Resolved {
+    /**
+     * The glass colour chosen in Look > Tint (RGB), or null for the backdrop/room colour: Accent is
+     * the accent sunk deep toward the base, Neutral a cool dark grey. [resolve] still falls back to
+     * the base colour whenever a tint could not keep text readable.
+     */
+    fun tintOverride(source: dev.tvlauncher.look.LookTint, accent: Int): Int? = when (source) {
+        dev.tvlauncher.look.LookTint.BACKDROP -> null
+        dev.tvlauncher.look.LookTint.NEUTRAL -> NEUTRAL_RGB
+        dev.tvlauncher.look.LookTint.ACCENT -> BrandColors.blend(accent or (0xFF shl 24), Theme.BASE, ACCENT_SINK) and 0xFFFFFF
+    }
+
+    const val NEUTRAL_RGB = 0x1C2028
+    const val ACCENT_SINK = 0.72f
+
+    fun resolve(look: GlassLook, palette: Palette?, backdropBrightest: Int, contentUnder: Int?, tintRgb: Int? = null): Resolved {
         val under = worstUnder(look, backdropBrightest, contentUnder)
-        var rgb = tintRgb(look, palette, under)
+        var rgb = if (tintRgb != null && look.style != GlassStyle.SOLID) tintRgb and 0xFFFFFF else tintRgb(look, palette, under)
         var s = textScrim(look, rgb, under)
         if (worstContrast(look, rgb, under, s) < GlassTokens.TARGET_CONTRAST) {
             rgb = Theme.BASE and 0xFFFFFF
             s = textScrim(look, rgb, under)
         }
+        // Hard floor (thin glass from a high Glass amount): the text scrim keeps densifying past
+        // its usual cap until text is readable again.
+        while (s < 1f && worstContrast(look, rgb, under, s) < GlassTokens.TARGET_CONTRAST) s = minOf(1f, Math.round((s + 0.02f) * 100f) / 100f)
         return Resolved(rgb, GlassTokens.withAlpha(rgb, look.tint), GlassTokens.withAlpha(rgb, s), s)
     }
 
     /** Rim band in px for a card of [w] x [h] at [density]. */
     fun bandPx(w: Int, h: Int, density: Float): Int =
         maxOf(Math.round(BAND_MIN_DP * density), Math.round(minOf(w, h) * BAND_FRACTION))
+}
+
+/**
+ * Settings > Appearance > Look > Glass amount (0..100 %, default [NEUTRAL] = the style as designed)
+ * as a pure adjustment of a [GlassLook]. Less glass: the tint thickens toward solid, rim, sheen and
+ * glow fade and the lens switches off; more glass: the tint thins (never below [MIN_TINT]) and rim
+ * and sheen brighten. Every token moves monotonically with the amount. Solid ignores the amount.
+ * Text stays readable at every amount: [GlassLooks.resolve] grows the text scrim as the tint thins.
+ */
+object GlassAmount {
+    const val NEUTRAL = 60
+    const val MIN_TINT = 0.30f
+    const val SOLID_TINT = 0.96f
+    /** Below this the Liquid Glass lens and chroma fringe are off. */
+    const val LENS_MIN = 40
+    /** Rim/sheen scale at 0 and at 100 %. */
+    const val EDGE_MIN = 0.35f
+    const val EDGE_MAX = 1.4f
+
+    fun apply(look: GlassLook, amount: Int): GlassLook {
+        val a = amount.coerceIn(0, 100)
+        if (look.style == GlassStyle.SOLID || a == NEUTRAL) return look
+        val tint = tint(look.tint, a)
+        val e = edgeScale(a)
+        return look.copy(
+            tint = tint,
+            // The sheen lies under text: it never brightens past the designed style.
+            sheenTop = scaleAlpha(look.sheenTop, minOf(1f, e)),
+            rimLit = scaleAlpha(look.rimLit, e),
+            rimShade = scaleAlpha(look.rimShade, e),
+            innerGlow = scaleAlpha(look.innerGlow, e),
+            lens = look.lens && a >= LENS_MIN,
+            chroma = look.chroma && a >= LENS_MIN
+        )
+    }
+
+    /** The tint alpha of a style whose designed tint is [base], at [amount]: non-increasing in amount. */
+    fun tint(base: Float, amount: Int): Float {
+        val a = amount.coerceIn(0, 100)
+        return if (a <= NEUTRAL) base + (maxOf(SOLID_TINT, base) - base) * (NEUTRAL - a) / NEUTRAL.toFloat()
+        else {
+            val floor = minOf(base, maxOf(MIN_TINT, base * 0.6f))
+            base - (base - floor) * (a - NEUTRAL) / (100f - NEUTRAL)
+        }
+    }
+
+    /** Rim and sheen multiplier: [EDGE_MIN] at 0, 1 at [NEUTRAL], [EDGE_MAX] at 100; non-decreasing. */
+    fun edgeScale(amount: Int): Float {
+        val a = amount.coerceIn(0, 100)
+        return if (a <= NEUTRAL) EDGE_MIN + (1f - EDGE_MIN) * a / NEUTRAL.toFloat()
+        else 1f + (EDGE_MAX - 1f) * (a - NEUTRAL) / (100f - NEUTRAL)
+    }
+
+    /**
+     * Blur strength as the backdrop sample's scale denominator (FULL: 6 = 1/6 at 0 % .. 16 = 1/16 at
+     * 100 %, a smaller copy blurs more); 0 on LITE, which never blurs (gradient translucency only).
+     */
+    fun blurDenominator(amount: Int, full: Boolean): Int =
+        if (!full) 0 else 6 + Math.round(10f * amount.coerceIn(0, 100) / 100f)
+
+    /** [c] with its alpha multiplied by [k] (clamped to 0..255). */
+    fun scaleAlpha(c: Int, k: Float): Int {
+        val a = Math.round(((c ushr 24) and 0xFF) * k).coerceIn(0, 255)
+        return (a shl 24) or (c and 0xFFFFFF)
+    }
 }
 
 /** Saturation boost and brightness lift on opaque ARGB colours (pure; baked into samples off the main thread). */
