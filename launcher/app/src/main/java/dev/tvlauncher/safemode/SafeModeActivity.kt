@@ -93,7 +93,9 @@ class SafeModeActivity : Activity() {
         val last = try { SafeMode.guard(this).history.lastException } catch (e: Throwable) { null }
         header(root, SafeModeList.subtitle(last, minimal = false))
         list = ListView(this).apply {
-            itemsCanFocus = false
+            // Rows take focus themselves (also in touch mode) and draw their own focus fill: the list
+            // selector alone was not drawn when Safe Mode opened, so nothing looked focused.
+            itemsCanFocus = true
             divider = null
             dividerHeight = 0
             isVerticalScrollBarEnabled = false
@@ -161,11 +163,21 @@ class SafeModeActivity : Activity() {
                 return ((convertView as? TextView) ?: rowView(row)).apply {
                     text = SafeModeList.label(row)
                     setTextColor(colors(row))
+                    val pick = row !is SafeModeList.Row.Notice
+                    isFocusable = pick
+                    isFocusableInTouchMode = pick
+                    isClickable = pick
+                    background = if (pick) focusFill() else null
+                    setOnClickListener(if (pick) View.OnClickListener { open(row) } else null)
                 }
             }
         }
         l.setSelection(0)
         l.requestFocus()
+        // After the first layout: focus the first row that can take it, so the highlight shows at once.
+        l.post {
+            (0 until l.childCount).map { l.getChildAt(it) }.firstOrNull { it.isFocusable }?.requestFocus()
+        }
     }
 
     private fun open(row: SafeModeList.Row) {
@@ -225,6 +237,11 @@ class SafeModeActivity : Activity() {
             arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf(android.R.attr.state_selected), intArrayOf()),
             intArrayOf(DARK, DARK, rest)
         )
+    }
+
+    private fun focusFill() = StateListDrawable().apply {
+        addState(intArrayOf(android.R.attr.state_focused), rounded(FOCUS))
+        addState(intArrayOf(), rounded(Color.TRANSPARENT))
     }
 
     private fun rounded(fill: Int) = GradientDrawable().apply {
