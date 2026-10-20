@@ -50,7 +50,7 @@ object Bedtime {
                 .putString("roomBefore", r.choice.name).putInt("idleBefore", w.idleMinutes).apply()
             room.save(r.copy(choice = RoomChoice.CINEMA))
             wall.save(w.copy(idleMinutes = BedtimeModel.idleDuring(w.idleMinutes)))
-            (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)
+            if (!dev.tvlauncher.system.MonkeyGuard.blocks()) (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)
                 ?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
         } catch (e: Exception) {
         }

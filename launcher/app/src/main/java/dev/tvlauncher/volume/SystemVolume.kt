@@ -25,6 +25,7 @@ class SystemVolume(context: Context) {
 
     /** Sets [level] (unmuting first); true when the TV took the change. */
     fun setLevel(level: Int): Boolean = try {
+        check(!dev.tvlauncher.system.MonkeyGuard.blocks())
         val a = am!!
         if (a.isStreamMute(STREAM)) a.adjustStreamVolume(STREAM, AudioManager.ADJUST_UNMUTE, 0)
         a.setStreamVolume(STREAM, level, 0)
@@ -35,6 +36,7 @@ class SystemVolume(context: Context) {
 
     /** True when the TV took the change. */
     fun setMuted(muted: Boolean): Boolean = try {
+        check(!dev.tvlauncher.system.MonkeyGuard.blocks())
         val a = am!!
         a.adjustStreamVolume(STREAM, if (muted) AudioManager.ADJUST_MUTE else AudioManager.ADJUST_UNMUTE, 0)
         a.isStreamMute(STREAM) == muted

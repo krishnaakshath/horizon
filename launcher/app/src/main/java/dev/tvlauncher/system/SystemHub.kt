@@ -176,11 +176,11 @@ object SystemHubSection : SettingsSection, SpecifiedPage {
         val max = a.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val level = a.getStreamVolume(AudioManager.STREAM_MUSIC)
         page.row("vol.level", "Volume", RowKind.Stepper(level, 0, max, { SystemText.volume(it, max) }, bar = true) { v ->
-            safe(Unit) { a.setStreamVolume(AudioManager.STREAM_MUSIC, v, AudioManager.FLAG_PLAY_SOUND) }
+            if (!MonkeyGuard.blocks()) safe(Unit) { a.setStreamVolume(AudioManager.STREAM_MUSIC, v, AudioManager.FLAG_PLAY_SOUND) }
         }, iconRes = R.drawable.ic_sys_volume)
         val muted = safe(false) { a.isStreamMute(AudioManager.STREAM_MUSIC) }
         page.row("vol.mute", "Mute", RowKind.Toggle(muted) { on ->
-            safe(Unit) { a.adjustStreamVolume(AudioManager.STREAM_MUSIC, if (on) AudioManager.ADJUST_MUTE else AudioManager.ADJUST_UNMUTE, 0) }
+            if (!MonkeyGuard.blocks()) safe(Unit) { a.adjustStreamVolume(AudioManager.STREAM_MUSIC, if (on) AudioManager.ADJUST_MUTE else AudioManager.ADJUST_UNMUTE, 0) }
         }, iconRes = R.drawable.ic_sys_volume)
         page.row("vol.output", "Sound comes from", RowKind.Info(output(a)),
             subtitle = "Speaker, ARC and sound modes are set by the TV", iconRes = R.drawable.ic_set_sounds)
