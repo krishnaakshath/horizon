@@ -53,6 +53,8 @@ object Theme {
     const val SP_SUB = 16f
     const val SP_LABEL = 13f
     const val SP_BUTTON = 15f
+    /** Smallest focusable target on the TV (the layout auditor's TOO_SMALL_TARGET floor). */
+    const val MIN_TARGET_DP = 40
 
     // Faces: the bundled Inter instances (dev.tvlauncher.type.Fonts) once [installFonts] ran at
     // process start, else the system sans. Fonts caches each weight, so these getters are cheap.

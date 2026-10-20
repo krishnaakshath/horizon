@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<!-- No LEANBACK_LAUNCHER activity on purpose: Link is a background companion opened from the
+     launcher's Phone remote page, never a tile of its own. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="MissingLeanbackLauncher">
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -9,6 +13,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- The shared controller code (app/.../input/GamepadInput.kt, compiled into Link) can rumble a pad. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Same signer only: launcher <-> Link <-> Helper. Declared in all three so install order does not matter. -->
     <permission

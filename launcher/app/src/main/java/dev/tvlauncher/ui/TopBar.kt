@@ -198,6 +198,7 @@ class TopBar(
             isFocusable = true
             isClickable = true
             setPadding(context.dp(14), context.dp(8), context.dp(18), context.dp(8))
+            minimumHeight = context.dp(Theme.MIN_TARGET_DP) // 40 dp focus target; content stays centred
             addView(iconView, LayoutParams(context.dp(18), context.dp(18)).apply { marginEnd = context.dp(8) })
             addView(label)
             background = StateListDrawable().apply {

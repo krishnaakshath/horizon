@@ -59,7 +59,7 @@ class WallpaperPanelModelTest {
 
     @Test fun dimStepperValue() {
         val e = WallpaperPanelModel.entries(WallpaperSettings(dimPercent = 30), true, true, null, "/p")
-        assertEquals(WallpaperPanelModel.stepper("30 %"), (e.first { it.key == WallpaperPanelModel.DIM } as PanelEntry.Row).value)
+        assertEquals(WallpaperPanelModel.stepper("30%"), (e.first { it.key == WallpaperPanelModel.DIM } as PanelEntry.Row).value)
         assertEquals(setOf(WallpaperPanelModel.INTERVAL, WallpaperPanelModel.DIM), WallpaperPanelModel.STEPPERS)
     }
 }

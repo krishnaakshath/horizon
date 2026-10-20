@@ -129,6 +129,69 @@ class ScenarioTest(unittest.TestCase):
                 self.assertIn('HOME', keys[-3:], names[i])
 
 
+class SafetyTest(unittest.TestCase):
+    """A scenario runs on a real TV: it must never be able to change a setting by accident."""
+
+    def bad(self, steps):
+        with self.assertRaises(ra.ScenarioError) as cm:
+            ra.parse_scenario(scen(steps))
+        self.assertIn('unsafe', str(cm.exception))
+
+    def test_top_bar_pill_then_ok_refused(self):
+        self.bad([{'key': 'DPAD_UP', 'repeat': 5}, {'key': 'DPAD_RIGHT', 'repeat': 6}, {'key': 'DPAD_CENTER'}])
+
+    def test_live_or_unknown_landing_page_refused(self):
+        for page in ('sound', 'volume', 'routines', 'power', 'appearance'):
+            self.bad([{'settings': page}, {'audit': 'x'}])
+        for hint in ra.LIVE_PAGE_HINTS:
+            self.assertFalse(any(hint in p for p in ra.SETTINGS_LANDING), hint)
+
+    def test_ok_or_value_keys_inside_settings_refused(self):
+        self.bad([{'settings': 'home_layout'}, {'key': 'DPAD_CENTER'}])                      # sidebar OK
+        self.bad([{'settings': 'home_layout'}, {'key': 'DPAD_RIGHT'}, {'key': 'DPAD_DOWN'},
+                  {'key': 'DPAD_CENTER'}])                                                     # OK on a lower row
+        self.bad([{'settings': 'home_layout'}, {'key': 'DPAD_RIGHT'}, {'key': 'DPAD_DOWN'},
+                  {'key': 'DPAD_RIGHT'}])                                                      # stepping a value
+        self.bad([{'settings': 'home_layout'}, {'key': 'DPAD_RIGHT'}, {'key': 'DPAD_CENTER'},
+                  {'key': 'DPAD_DOWN'}, {'key': 'DPAD_LEFT'}])                                 # tile size, not style
+        self.bad([{'settings': 'home_layout'}, {'key': 'DPAD_RIGHT'}, {'key': 'DPAD_CENTER'},
+                  {'key': 'DPAD_CENTER'}])
+
+    def test_layout_style_steps_allowed(self):
+        sc = ra.parse_scenario(scen([{'settings': 'home_layout'}, {'key': 'DPAD_RIGHT'}, {'key': 'DPAD_CENTER'},
+                                     {'key': 'DPAD_LEFT', 'repeat': 4}, {'key': 'DPAD_RIGHT', 'repeat': 2},
+                                     {'key': 'HOME'}, {'key': 'DPAD_CENTER'}, {'audit': 'x'}]))
+        self.assertEqual('settings', sc.steps[0].kind)
+
+    def test_shipped_scenarios_never_press_ok_on_a_live_control(self):
+        d = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scenarios')
+        for f in sorted(os.listdir(d)):
+            if not f.endswith('.json'):
+                continue
+            sc = ra.load_scenario(os.path.join(d, f))   # raises when unsafe
+            self.assertEqual([], ra.check_safety(sc.steps), f)
+            if any(s.kind == 'settings' for s in sc.steps) and f.startswith('home-'):
+                # Layout scenarios set Style back to Single row: the last Settings visit steps LEFT to the start.
+                last = max(i for i, s in enumerate(sc.steps) if s.kind == 'settings')
+                tail = [(s.value, s.repeat) for s in sc.steps[last:] if s.kind == 'key']
+                self.assertEqual([('DPAD_RIGHT', 1), ('DPAD_CENTER', 1), ('DPAD_LEFT', 5), ('HOME', 1)], tail, f)
+
+    def test_driver_opens_settings_after_home(self):
+        calls = []
+
+        class A:
+            def shell(self, *argv):
+                calls.append(argv)
+                return 0, ''
+        drv = ra.Driver(A(), tempfile.mkdtemp(), log=lambda *_: None, sleep=lambda *_: None)
+        drv.open_settings('dev.tvlauncher', 'home_layout')
+        self.assertEqual(('input', 'keyevent', 'KEYCODE_HOME'), calls[0])
+        self.assertIn(ra.OPEN_SETTINGS_ACTION, calls[1])
+        self.assertEqual(('--es', 'section', 'home_layout'), calls[1][-3:])
+        with self.assertRaises(ValueError):
+            drv.open_settings('dev.tvlauncher', 'sound')
+
+
 class LogTest(unittest.TestCase):
     TEXT = '\n'.join([
         '10-20 10:00:00.000  1  1 I LayoutAudit: LAYOUT_AUDIT label=home findings=1 high=0 file=/a/home-1.json nonce=old',

@@ -180,7 +180,8 @@ object AmbientSection : SettingsSection, SpecifiedPage {
 object HomeExtrasSection : SettingsSection, SpecifiedPage {
     override val id = WaveTwoSections.HOME_EXTRAS_ID
     override val title = "Home screen"
-    override val iconRes = R.drawable.ic_set_home
+    // Not ic_set_home: "Home layout" sits right above it in the sidebar with that icon.
+    override val iconRes = R.drawable.ic_set_tiles
     override val group = SettingsGroup.HOME
     override val spec = WaveTwoSections.HOME_EXTRAS_SPEC
 

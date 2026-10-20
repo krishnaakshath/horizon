@@ -1,34 +1,89 @@
 {
-  "description": "Open Settings from the top-bar Settings pill (rightmost), audit each sidebar page, expand Advanced.",
+  "description": "Open Settings on Home layout (debug OPEN_SETTINGS), audit each sidebar page while walking down the sidebar, then look into the last page's content (UP/DOWN only: no value is changed).",
   "package": "dev.tvlauncher",
-  "start": {"action": "android.intent.action.MAIN", "category": "android.intent.category.LEANBACK_LAUNCHER"},
+  "start": {
+    "action": "android.intent.action.MAIN",
+    "category": "android.intent.category.LEANBACK_LAUNCHER"
+  },
   "steps": [
-    {"wait": 2},
-    {"key": "DPAD_UP", "wait": 1},
-    {"key": "DPAD_UP", "wait": 1},
-    {"key": "DPAD_RIGHT", "repeat": 6, "wait": 1, "note": "clamps on the rightmost pill (Settings)"},
-    {"key": "DPAD_CENTER", "wait": 3},
-    {"audit": "settings-page-1"},
-    {"screenshot": "settings-page-1"},
-    {"key": "DPAD_DOWN", "wait": 1.5},
-    {"audit": "settings-page-2"},
-    {"key": "DPAD_DOWN", "wait": 1.5},
-    {"audit": "settings-page-3"},
-    {"key": "DPAD_DOWN", "wait": 1.5},
-    {"audit": "settings-page-4"},
-    {"key": "DPAD_DOWN", "wait": 1.5},
-    {"audit": "settings-page-5"},
-    {"key": "DPAD_DOWN", "wait": 1.5},
-    {"audit": "settings-page-6"},
-    {"key": "DPAD_DOWN", "wait": 1.5},
-    {"audit": "settings-page-7"},
-    {"screenshot": "settings-page-7"},
-    {"key": "DPAD_RIGHT", "wait": 1, "note": "into the page content"},
-    {"key": "DPAD_DOWN", "repeat": 12, "wait": 1, "note": "to the bottom, where Advanced lives"},
-    {"key": "DPAD_CENTER", "wait": 1.5},
-    {"audit": "settings-advanced"},
-    {"screenshot": "settings-advanced"},
-    {"key": "BACK", "wait": 1},
-    {"key": "BACK", "wait": 1.5}
+    {
+      "wait": 2
+    },
+    {
+      "settings": "home_layout",
+      "wait": 1
+    },
+    {
+      "audit": "settings-page-1"
+    },
+    {
+      "screenshot": "settings-page-1"
+    },
+    {
+      "key": "DPAD_DOWN",
+      "wait": 1.5
+    },
+    {
+      "audit": "settings-page-2"
+    },
+    {
+      "key": "DPAD_DOWN",
+      "wait": 1.5
+    },
+    {
+      "audit": "settings-page-3"
+    },
+    {
+      "key": "DPAD_DOWN",
+      "wait": 1.5
+    },
+    {
+      "audit": "settings-page-4"
+    },
+    {
+      "key": "DPAD_DOWN",
+      "wait": 1.5
+    },
+    {
+      "audit": "settings-page-5"
+    },
+    {
+      "key": "DPAD_DOWN",
+      "wait": 1.5
+    },
+    {
+      "audit": "settings-page-6"
+    },
+    {
+      "key": "DPAD_DOWN",
+      "wait": 1.5
+    },
+    {
+      "audit": "settings-page-7"
+    },
+    {
+      "screenshot": "settings-page-7"
+    },
+    {
+      "key": "DPAD_RIGHT",
+      "wait": 1,
+      "note": "into the page content (first row only focused, nothing pressed)"
+    },
+    {
+      "key": "DPAD_DOWN",
+      "repeat": 12,
+      "wait": 1,
+      "note": "to the bottom of the page; DOWN never changes a value"
+    },
+    {
+      "audit": "settings-page-bottom"
+    },
+    {
+      "screenshot": "settings-page-bottom"
+    },
+    {
+      "key": "HOME",
+      "wait": 2
+    }
   ]
 }

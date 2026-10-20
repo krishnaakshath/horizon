@@ -140,6 +140,36 @@ and Fire TV stock launchers).
 - Some firmware ignores a written `enabled_notification_listeners` value; `cmd notification
   allow_listener` is the reliable way and is what provisioning uses.
 
+## Troubleshooting
+
+### "Unsafe app blocked" / Google Play Protect holds an install
+
+A fresh install of an app that Play Protect flags (for example one built for an older Android
+version) waits on the TV for a choice in Play Protect's dialog, and `adb install` waits with it.
+`tvtool provision` notices the dialog (it checks the TV's focused window every few seconds while an
+install runs) and stops with:
+
+> Google Play Protect is holding the install on the TV ... choose 'Install anyway', then run this command again.
+
+What to do:
+
+1. On the TV, select **More details**, then **Install anyway**. (Choosing **OK** cancels the install.)
+2. Run the same `tvtool provision ... --apply` command again. Steps already in place are skipped.
+
+Updates (`install -r` over an installed app) are not held this way. All H02 companions target a
+recent Android version so they are not flagged; the launcher itself targets 28 on purpose (see
+docs/SYSTEM_SETTINGS.md), so its *first* install may show the dialog.
+
+Manual option, only if you understand the trade-off: Play Protect's check of apps installed over
+adb can be switched off with
+
+```
+adb shell settings put global verifier_verify_adb_installs 0
+```
+
+`tvtool` never runs this for you: it turns off a security check for every app installed over adb,
+not just H02. Turn it back on afterwards with the same command and `1`.
+
 ## On the TV afterwards
 
 - The launcher re-applies its automatic configuration on every start and after each reboot

@@ -37,7 +37,7 @@ object AmbientSettingsRows {
             Row("wallpaper", "Wallpaper", Kind.ACTION, wallpaper),
             Row("slideshowInterval", "Change picture every", Kind.STEPPER,
                 interval(slideSec ?: WallpaperPlan.DEFAULT_INTERVAL_SEC), visible = slideSec != null),
-            Row("dim", "Dim wallpaper", Kind.STEPPER, "${s.dimPercent} %"),
+            Row("dim", "Dim wallpaper", Kind.STEPPER, "${s.dimPercent}%"),
             Row("notificationsEnabled", "Notification chips on ambient", Kind.TOGGLE, onOff(s.notificationsEnabled),
                 hint = if (s.notificationsEnabled) null else "Turn on notification chips first"),
             Row("notificationAccess", "Notification access", Kind.CARD,
