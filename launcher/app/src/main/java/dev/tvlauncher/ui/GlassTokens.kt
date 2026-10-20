@@ -187,7 +187,10 @@ object BoxBlur {
     const val RADIUS = 3
 
     /** Size of the downscaled copy for a [w] x [h] backdrop (never 0). */
-    fun scaled(w: Int, h: Int): Pair<Int, Int> = maxOf(1, w / SCALE) to maxOf(1, h / SCALE)
+    fun scaled(w: Int, h: Int, scale: Int = SCALE): Pair<Int, Int> {
+        val k = scale.coerceIn(2, 32)
+        return maxOf(1, w / k) to maxOf(1, h / k)
+    }
 
     /** Bytes held by one blurred copy (ARGB_8888). */
     fun bytes(w: Int, h: Int): Int = scaled(w, h).let { (a, b) -> a * b * 4 }

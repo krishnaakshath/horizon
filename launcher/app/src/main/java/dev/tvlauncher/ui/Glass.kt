@@ -116,7 +116,7 @@ object Glass {
     fun rect(context: Context, fill: Int, radiusDp: Int, stroke: Int = 0, strokeDp: Int = 1) =
         GradientDrawable().apply {
             setColor(fill)
-            cornerRadius = context.dp(radiusDp).toFloat()
+            cornerRadius = context.dp(GlassBackdrop.corners.radiusDp(radiusDp)).toFloat()
             if (stroke != 0) setStroke(context.dp(strokeDp), stroke)
         }
 
@@ -172,6 +172,35 @@ object GlassBackdrop {
         for (i in hosts.indices.reversed()) hosts.getOrNull(i)?.invalidate()
     }
 
+    /** Settings > Appearance > Look > Glass amount, 0..100 ([GlassAmount]). */
+    var amount: Int = GlassAmount.NEUTRAL
+        private set
+    /** Settings > Appearance > Look > Corners: scales every glass radius. */
+    var corners: dev.tvlauncher.look.Corners = dev.tvlauncher.look.Corners.ROUND
+        private set
+    /** Settings > Appearance > Look > Tint. */
+    var tintSource: dev.tvlauncher.look.LookTint = dev.tvlauncher.look.LookTint.BACKDROP
+        private set
+    /** The accent used by [dev.tvlauncher.look.LookTint.ACCENT] glass. */
+    var accent: Int = 0xFF4C8DFF.toInt()
+        private set
+    /** FULL: scale denominator of the next blurred backdrop copy ([GlassAmount.blurDenominator]). */
+    @Volatile var blurScale: Int = BoxBlur.SCALE
+        private set
+
+    /** Applies the look's glass values live: every tracked glass view repaints (no restart). */
+    fun setLook(amount: Int, corners: dev.tvlauncher.look.Corners, tint: dev.tvlauncher.look.LookTint, accent: Int) {
+        val a = amount.coerceIn(0, 100)
+        if (a == this.amount && corners == this.corners && tint == tintSource && accent == this.accent) return
+        val lensOff = a != this.amount
+        this.amount = a; this.corners = corners; this.tintSource = tint; this.accent = accent
+        blurScale = GlassAmount.blurDenominator(a, true)
+        if (lensOff) clearLens()
+        retint(lastBlurBrightest)
+    }
+
+    private var lastBlurBrightest: Int? = null
+
     private var owner: Any? = null
     private val hosts = ArrayList<View>()
     private val pair = IntArray(2)
@@ -209,6 +238,7 @@ object GlassBackdrop {
     fun setBlur(from: Any, bitmap: Bitmap, brightest: Int) {
         if (owner !== from) return
         blur = bitmap
+        lastBlurBrightest = brightest
         clearLens()
         retint(brightest)
     }
@@ -297,6 +327,7 @@ object GlassBackdrop {
         }
         if (blurBrightest == null && unknownLayer) worst = 0xFFFFFFFF.toInt()
         this.worst = worst
+        if (blurBrightest == null) lastBlurBrightest = null
         tint = GlassTokens.tint(RoomTheme.palette, worst)
         clearTint = GlassTokens.clearTint(RoomTheme.palette, worst)
         version++
@@ -330,7 +361,8 @@ class GlassDrawable(context: Context, val kind: Kind, radiusDp: Int, private val
         set(v) { field = v; invalidateSelf() }
 
     private val density = context.resources.displayMetrics.density
-    private val radius = context.dp(radiusDp).toFloat()
+    private val baseRadiusDp = radiusDp
+    private var radius = Math.round(GlassBackdrop.corners.radiusDp(radiusDp) * density).toFloat()
     private val edgePx = GlassTokens.edgePx(density).toFloat()
     private val rect = RectF()
     private val edgeRect = RectF()
@@ -370,13 +402,14 @@ class GlassDrawable(context: Context, val kind: Kind, radiusDp: Int, private val
         val key = g.version * 8 + g.style.ordinal
         if (key == resolvedKey) return
         resolvedKey = key
-        look = GlassLooks.of(g.style, full).let { l ->
+        radius = Math.round(g.corners.radiusDp(baseRadiusDp) * density).toFloat()
+        look = GlassLooks.tuned(g.style, full, g.amount).let { l ->
             // Pills and the quick strip sit on the backdrop itself: never a sample of their own.
             if (kind == Kind.FROSTED) l else l.copy(sample = GlassLook.Sample.NONE, sampleAlpha = 0f, lens = false,
                 tint = minOf(l.tint, if (l.style == dev.tvlauncher.settings.GlassStyle.SOLID) l.tint else 0.55f))
         }
         val content = if (overContentScrim >= 0f) GlassLooks.dimmedWhite(overContentScrim) else null
-        resolved = GlassLooks.resolve(look, RoomTheme.palette, g.worst, content)
+        resolved = GlassLooks.resolve(look, RoomTheme.palette, g.worst, content, GlassLooks.tintOverride(g.tintSource, g.accent))
         boostFilter = if (look.saturation != 1f || look.lift != 0f) colorBoostFilter(look.saturation, look.lift) else null
         if (shaderLook != look) { shaderLook = look; buildBoundShaders(bounds) }
     }

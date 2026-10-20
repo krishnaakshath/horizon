@@ -24,7 +24,7 @@ object AppearanceSection : SettingsSection, SpecifiedPage {
     override val spec = PageSpec(
         ID,
         listOf(
-            "appearance.accentMode", "appearance.swatch", "appearance.glass", "appearance.animation",
+            "appearance.accentMode", "appearance.swatch", "appearance.look", "appearance.animation",
             "appearance.startup", "appearance.clockFormat", "appearance.tileSize"
         ),
         listOf("appearance.showDate", "appearance.showStatus")
@@ -58,13 +58,11 @@ object AppearanceSection : SettingsSection, SpecifiedPage {
         val full = device == dev.tvlauncher.device.EffectsMode.FULL
         val glass = GlassStyle.resolve(a.glassStyle, full)
         page.row(
-            "appearance.glass", "Glass style",
-            RowKind.Choice(GLASS_CHOICES.map { it.label }, GLASS_CHOICES.indexOf(glass)) { i ->
-                val g = GLASS_CHOICES[i]
-                prefs.update { it.copy(glassStyle = g) }
-                dev.tvlauncher.ui.GlassBackdrop.setStyle(g)
+            "appearance.look", dev.tvlauncher.look.LookPage.TITLE,
+            RowKind.Action(glass.label) {
+                nav.push(dev.tvlauncher.look.LookPage.TITLE) { c, n -> dev.tvlauncher.look.LookPage.build(c, n) }
             },
-            subtitle = "Panels, Spotlight and Settings. Solid is easiest to read.",
+            subtitle = "Glass, corners, colours and text: presets and your own looks",
             iconRes = R.drawable.ic_set_appearance
         )
         page.row(
