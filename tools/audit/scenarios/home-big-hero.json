@@ -33,15 +33,15 @@
     },
     {
       "key": "DPAD_LEFT",
-      "repeat": 4,
+      "repeat": 5,
       "wait": 1,
-      "note": "Style stops at Single row"
+      "note": "Style stepped down to Single row; the extra LEFT moves focus to the sidebar (LEFT at a page edge), so the start is always the same"
     },
     {
       "key": "DPAD_RIGHT",
-      "repeat": 3,
+      "repeat": 4,
       "wait": 1.5,
-      "note": "the style under test; the preview follows"
+      "note": "first RIGHT brings focus back to the Style row (Single row), then one step per style: the style under test"
     },
     {
       "audit": "home-big-hero-preview"
@@ -92,9 +92,9 @@
     },
     {
       "key": "DPAD_LEFT",
-      "repeat": 4,
+      "repeat": 5,
       "wait": 1,
-      "note": "restore: Style back to Single row (the default)"
+      "note": "restore: Style stepped down to Single row; the extra LEFT moves focus to the sidebar (LEFT at a page edge), so the start is always the same"
     },
     {
       "key": "HOME",

@@ -174,7 +174,7 @@ class SafetyTest(unittest.TestCase):
                 # Layout scenarios set Style back to Single row: the last Settings visit steps LEFT to the start.
                 last = max(i for i, s in enumerate(sc.steps) if s.kind == 'settings')
                 tail = [(s.value, s.repeat) for s in sc.steps[last:] if s.kind == 'key']
-                self.assertEqual([('DPAD_RIGHT', 1), ('DPAD_CENTER', 1), ('DPAD_LEFT', 4), ('HOME', 1)], tail, f)
+                self.assertEqual([('DPAD_RIGHT', 1), ('DPAD_CENTER', 1), ('DPAD_LEFT', 5), ('HOME', 1)], tail, f)
 
     def test_driver_opens_settings_after_home(self):
         calls = []
