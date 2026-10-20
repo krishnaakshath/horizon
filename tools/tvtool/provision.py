@@ -20,13 +20,14 @@ from .profile import PKG_RE
 LAUNCHER = "dev.tvlauncher"
 HELPER = "dev.tvlauncher.helper"
 STORE = "dev.tvlauncher.store"
-OUR_PACKAGES = (LAUNCHER, HELPER, "dev.tvlauncher.browser", STORE, "dev.tvlauncher.weather")
+LINK = "dev.tvlauncher.link"  # phone remote; same signing key, so the LINK signature permission is granted at install
+OUR_PACKAGES = (LAUNCHER, HELPER, "dev.tvlauncher.browser", STORE, "dev.tvlauncher.weather", LINK)
 TITLES = {LAUNCHER: "H02 (Horizon launcher)", HELPER: "H02 Helper", "dev.tvlauncher.browser": "H02 Browser",
-          STORE: "H02 Store", "dev.tvlauncher.weather": "H02 Weather"}
+          STORE: "H02 Store", "dev.tvlauncher.weather": "H02 Weather", LINK: "H02 Link"}
 LEGACY_HELPER_LABEL = "Launcher Helper"  # app_name of Helper builds before the H02 rename
 # File-name stems (first token, lower case) that identify each APK, e.g. app-debug.apk, helper-release.apk.
 APK_STEMS = {LAUNCHER: ("app", "launcher", "tvlauncher"), HELPER: ("helper",), "dev.tvlauncher.browser": ("browser",),
-             STORE: ("store", "getapps"), "dev.tvlauncher.weather": ("weather",)}
+             STORE: ("store", "getapps"), "dev.tvlauncher.weather": ("weather",), LINK: ("link",)}
 
 LISTENER = f"{LAUNCHER}/{LAUNCHER}.ambient.AmbientNotificationService"
 HELPER_SERVICE = f"{HELPER}/{HELPER}.HelperService"
@@ -38,7 +39,7 @@ SECURE_KEYS = ("enabled_notification_listeners", "enabled_accessibility_services
                "tv_user_setup_complete")
 
 # Install order measured on TCL: the Helper first, so the launcher finds it on its first start.
-INSTALL_ORDER = (HELPER, LAUNCHER, "dev.tvlauncher.browser", STORE, "dev.tvlauncher.weather")
+INSTALL_ORDER = (HELPER, LAUNCHER, "dev.tvlauncher.browser", STORE, "dev.tvlauncher.weather", LINK)
 # Vendor app ops (TCL): reset to "ignore" by every `install -r`, so they are re-applied after each install.
 VENDOR_OPS = ("APP_AUTO_START", "APP_ASSOC_START")
 OVERLAY_OP = "SYSTEM_ALERT_WINDOW"

@@ -564,3 +564,12 @@ def test_reasons_use_the_h02_brand_not_the_old_name():
     src = (pathlib.Path(__file__).resolve().parents[1] / "tvtool" / "provision.py").read_text(encoding="utf-8")
     assert "TV Launcher" not in src
     assert "Lets H02 bring the home screen forward" in src
+
+
+def test_matchApks_recognisesLinkApk_andInstallsItAfterTheLauncher():
+    m = pv.match_apks(["link-debug.apk", "app-debug.apk"])
+    assert m == {"dev.tvlauncher.link": "link-debug.apk", "dev.tvlauncher": "app-debug.apk"}
+    assert pv.TITLES[pv.LINK] == "H02 Link"
+    steps = pv.plan_steps(probe(), {**ALL_APKS, pv.LINK: "link-debug.apk"}, tcl_profile(), take_over_home=False)
+    installs = [x for x in cmds(steps) if x.startswith("install ")]
+    assert installs.index("install link-debug.apk") > installs.index("install app-debug.apk")

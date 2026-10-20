@@ -382,5 +382,14 @@
             android:name=".speed.SpeedJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
+        <!-- Remote commands from H02 Link (phone remote); only our own signed apps may send them. -->
+        <receiver
+            android:name=".link.LinkCommandReceiver"
+            android:exported="true"
+            android:permission="dev.tvlauncher.permission.LINK">
+            <intent-filter>
+                <action android:name="dev.tvlauncher.action.LINK_COMMAND" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
